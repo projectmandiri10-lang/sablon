@@ -12,7 +12,7 @@ export default function BillingPanel({ session }) {
   }, []);
 
   const shopee = config?.shopee_payment || {};
-  const processorConfigured = Boolean(config?.features?.processorConfigured);
+  const aiRedrawAvailable = Boolean(config?.features?.aiRedrawAvailable);
   const shopeeUrl = shopee.url || 'https://shopee.co.id/';
   const shopeeNote =
     shopee.note ||
@@ -47,12 +47,12 @@ export default function BillingPanel({ session }) {
         </div>
         <div
           className={`border p-3 text-sm leading-6 ${
-            processorConfigured ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'
+            aiRedrawAvailable ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'
           }`}
         >
-          {processorConfigured
-            ? 'AI Redraw backend aktif di deploy ini.'
-            : 'AI Redraw belum diaktifkan di deploy ini. Mode Ready Trace tetap tersedia, tetapi jalur processor eksternal belum diset.'}
+          {aiRedrawAvailable
+            ? 'AI Redraw aktif di deploy ini dan Worker langsung memanggil provider AI.'
+            : 'AI Redraw belum aktif di deploy ini. Mode Ready Trace tetap tersedia sampai OPENROUTER_API_KEY diisi.'}
         </div>
       </div>
     </section>

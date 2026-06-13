@@ -16,7 +16,8 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 - Jalur deploy dipisah dari backend Node/Express lama.
 - `VITE_API_BASE_URL` mengarah ke Worker baru.
 - `VITE_GOOGLE_OAUTH_REDIRECT_TO` mengarah ke domain Pages baru.
-- AI redraw tetap opsional. Kalau `PROCESSOR_BASE_URL` dan `PROCESSOR_API_KEY` belum diisi, Worker akan memberi pesan yang jelas dan jalur Ready Trace tetap bisa dipakai.
+- AI redraw sekarang dipanggil langsung oleh Worker ke OpenRouter, lalu hasil gambar dikembalikan ke frontend sebagai file biasa.
+- Jika `OPENROUTER_API_KEY` belum diisi, jalur AI redraw akan nonaktif tetapi Ready Trace tetap bisa dipakai.
 
 ## Mulai Cepat
 
@@ -29,4 +30,4 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 ## Catatan
 
 - Folder `landing/` dan `backend/` sengaja tidak ikut ke copy ini karena bukan target Cloudflare free tier.
-- Jika Anda ingin menyalakan AI redraw eksternal nanti, isi env processor di worker dan backend eksternal itu tetap dijalankan di luar Cloudflare.
+- Jalur AI redraw tidak memerlukan backend terpisah. Cukup isi secret OpenRouter di Worker.

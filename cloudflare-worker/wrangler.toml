@@ -15,11 +15,9 @@ OPENROUTER_REASONING_EFFORT = "low"
 OPENROUTER_BACKGROUND_MODE = "transparent"
 OPENROUTER_SAFETY_ENABLED = "1"
 OPENROUTER_APP_NAME = "Design Mudah Vector"
+OPENROUTER_MAX_IMAGE_INPUT_BYTES = "3200000"
 AI_REDRAW_PRESET = "quality"
 SUPABASE_URL = "https://wrjhedlygozqtsdallzr.supabase.co"
-# Isi hanya jika Anda masih memakai processor eksternal.
-# PROCESSOR_BASE_URL = "https://your-processor.example.com"
 
 # Secrets tetap diset di dashboard Cloudflare Worker > Settings > Variables and Secrets.
-# Optional untuk proxy processor eksternal:
-# PROCESSOR_API_KEY
+# Required: OPENROUTER_API_KEY, SUPABASE_SERVICE_ROLE_KEY

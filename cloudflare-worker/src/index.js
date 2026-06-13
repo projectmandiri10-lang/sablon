@@ -39,14 +39,154 @@ function hasEnvValue(env, key) {
   return Boolean(env[key]);
 }
 
-function isProcessorConfigured(env) {
-  return hasEnvValue(env, 'PROCESSOR_BASE_URL') && hasEnvValue(env, 'PROCESSOR_API_KEY');
+function isOpenRouterConfigured(env) {
+  return hasEnvValue(env, 'OPENROUTER_API_KEY');
 }
 
-function requireProcessorConfigured(env) {
-  if (!isProcessorConfigured(env)) {
-    throw new Error('AI redraw belum diaktifkan di deploy ini. Isi PROCESSOR_BASE_URL dan PROCESSOR_API_KEY, atau gunakan Ready Trace.');
+function requireOpenRouterConfigured(env) {
+  if (!isOpenRouterConfigured(env)) {
+    throw new Error('AI redraw belum diaktifkan di deploy ini. Isi OPENROUTER_API_KEY di Worker secrets.');
   }
+}
+
+function openRouterBaseUrl(env) {
+  return String(env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
+}
+
+function openRouterMaxImageInputBytes(env) {
+  const fallback = 3200000;
+  const parsed = Number.parseInt(env.OPENROUTER_MAX_IMAGE_INPUT_BYTES, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function openRouterAppName(env) {
+  return String(env.OPENROUTER_APP_NAME || 'Design Mudah Vector').trim();
+}
+
+function openRouterSiteUrl(env) {
+  return String(env.OPENROUTER_SITE_URL || '').trim();
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(base64) {
+  const binary = atob(String(base64 || '').replace(/\s+/g, ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function encodeBase64UrlJson(value) {
+  const jsonValue = JSON.stringify(value ?? {});
+  const base64 = bytesToBase64(new TextEncoder().encode(jsonValue));
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function parseDataUrl(value) {
+  const match = /^data:([^;,]+)?(?:;charset=[^;,]+)?;base64,(.+)$/s.exec(String(value || ''));
+  if (!match) return null;
+  return {
+    mimeType: match[1] || 'application/octet-stream',
+    bytes: base64ToBytes(match[2])
+  };
+}
+
+async function fileToDataUrl(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return `data:${file.type || 'application/octet-stream'};base64,${bytesToBase64(bytes)}`;
+}
+
+function guessOpenRouterModalities(model = '') {
+  return /gemini|image-preview|gpt-5-image|recraft|mai-image|nano-banana/i.test(model) ? ['image', 'text'] : ['image'];
+}
+
+function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
+  const profile = String(aiModelConfig.promptProfile || 'generic_trace_clone');
+  const parts = ['Redraw the uploaded artwork as a clean, trace-friendly raster image with a transparent background.'];
+
+  if (String(settings.productionType || '').toLowerCase() === 'sablon') {
+    parts.push('Prioritize flat color separation, bold contours, and screen-print friendly shapes.');
+  } else {
+    parts.push('Prioritize crisp sticker-ready edges and a clear subject silhouette.');
+  }
+
+  if (settings.removeBackground !== false) {
+    parts.push('Remove the background and isolate the main subject.');
+  } else {
+    parts.push('Preserve the important background only if it supports the composition.');
+  }
+
+  if (settings.separateColors) {
+    parts.push('Keep colors clearly separated and avoid gradients or noisy shading.');
+  }
+
+  switch (profile) {
+    case 'sourceful_trace_clone':
+      parts.push('Stay very close to the source image while cleaning noise, artifacts, and rough edges.');
+      break;
+    case 'gemini_trace_clone':
+      parts.push('Preserve composition and readable text while improving clarity and edge definition.');
+      break;
+    default:
+      parts.push('Preserve the original subject and composition while making the output cleaner and easier to trace.');
+      break;
+  }
+
+  parts.push('Do not add extra text, watermarks, mockups, or decorative effects.');
+  return parts.join(' ');
+}
+
+function buildOpenRouterHeaders(env) {
+  const headers = {
+    Authorization: `Bearer ${requireEnvValue(env, 'OPENROUTER_API_KEY')}`,
+    'Content-Type': 'application/json'
+  };
+  const siteUrl = openRouterSiteUrl(env);
+  if (siteUrl) headers['HTTP-Referer'] = siteUrl;
+  const appName = openRouterAppName(env);
+  if (appName) headers['X-Title'] = appName;
+  return headers;
+}
+
+async function parseJsonResponse(response) {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (_error) {
+    return { raw: text };
+  }
+}
+
+function extractOpenRouterImageUrl(data) {
+  const imageEntry = data?.choices?.[0]?.message?.images?.[0];
+  return imageEntry?.image_url?.url || imageEntry?.imageUrl?.url || '';
+}
+
+async function downloadGeneratedImage(imageUrl) {
+  const parsedDataUrl = parseDataUrl(imageUrl);
+  if (parsedDataUrl) {
+    return new Response(parsedDataUrl.bytes, {
+      headers: {
+        'Content-Type': parsedDataUrl.mimeType
+      }
+    });
+  }
+
+  const response = await fetch(imageUrl);
+  if (!response.ok) {
+    throw new Error(`Gagal mengunduh hasil gambar dari provider: ${response.status}`);
+  }
+  return response;
 }
 
 function json(data, status = 200, headers = {}) {
@@ -71,10 +211,6 @@ function bearerToken(request) {
 
 function storageBaseUrl(env) {
   return `${supabaseBaseUrl(env)}/storage/v1`;
-}
-
-function processorBaseUrl(env) {
-  return requireEnvValue(env, 'PROCESSOR_BASE_URL').replace(/\/+$/, '');
 }
 
 function encodeStoragePath(path) {
@@ -360,30 +496,27 @@ function normalizeArtifactManifestInput(value, fallback = {}) {
 function handleHealth(env) {
   return json({
     ok: true,
-    service: 'design-mudah-free',
+    service: 'sablon',
     message: 'Worker API aktif. Gunakan endpoint /api/... dari aplikasi frontend.',
     config: {
       supabaseUrl: hasEnvValue(env, 'SUPABASE_URL'),
       supabaseServiceRoleKey: hasEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY'),
-      processorBaseUrl: hasEnvValue(env, 'PROCESSOR_BASE_URL'),
-      processorApiKey: hasEnvValue(env, 'PROCESSOR_API_KEY'),
-      processorConfigured: isProcessorConfigured(env),
+      openRouterConfigured: isOpenRouterConfigured(env),
       defaultAiRedrawModel: normalizeAiRedrawModelConfig({}, env),
-      redrawPipeline: 'worker_auth_credit_to_cloud_run_hybrid'
+      redrawPipeline: 'worker_auth_credit_to_openrouter_image'
     },
     endpoints: [
+      'GET /api/app-config',
       'GET /api/me/balance',
       'POST /api/jobs/quote',
       'POST /api/jobs/commit',
       'DELETE /api/jobs/:jobId',
       'POST /api/jobs/:jobId/artifacts',
-      'POST /api/processor/jobs',
-      'GET /api/processor/jobs/:jobId',
-      'GET /api/processor/jobs/:jobId/download/...',
       'GET /api/example-jobs',
       'POST /api/admin/jobs/:jobId/set-example',
       'POST /api/admin/jobs/:jobId/unset-example',
-      'POST /api/image-retouch'
+      'POST /api/image-retouch',
+      'POST /api/ai-redraw'
     ]
   });
 }
@@ -760,13 +893,22 @@ async function handleCommitJob(env, request) {
 
 async function handleAiRedraw(env, request) {
   const { user, profile } = await requireUser(env, request);
-  requireProcessorConfigured(env);
+  requireOpenRouterConfigured(env);
   const pricing = await getPricing(env);
   await ensureCredit(env, profile, pricing.ai_redraw);
   const form = await request.formData();
   const image = form.get('image');
-  const settings = JSON.parse(form.get('settings') || '{}');
+  let settings = {};
+  try {
+    settings = JSON.parse(String(form.get('settings') || '{}'));
+  } catch (_error) {
+    throw new Error('Settings AI redraw tidak valid.');
+  }
   if (!(image instanceof File)) throw new Error('File gambar wajib diisi.');
+  const maxImageBytes = openRouterMaxImageInputBytes(env);
+  if (image.size > maxImageBytes) {
+    throw new Error(`Ukuran gambar terlalu besar untuk AI redraw. Maksimal ${maxImageBytes} byte.`);
+  }
 
   let ledger = null;
   if (!profile.is_unlimited) {
@@ -780,13 +922,14 @@ async function handleAiRedraw(env, request) {
   }
 
   try {
-    const upstream = await requestHybridRetouchedImage(env, image, settings);
+    const upstream = await requestOpenRouterRetouchedImage(env, image, settings);
     const responseHeaders = new Headers(upstream.headers);
     Object.entries(corsHeaders).forEach(([key, value]) => responseHeaders.set(key, value));
     responseHeaders.set('X-AI-Ledger-Id', ledger?.id || '');
+    responseHeaders.set('X-AI-Redraw-Metadata', encodeBase64UrlJson(upstream.metadata || {}));
     return new Response(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
+      status: upstream.status || 200,
+      statusText: upstream.statusText || 'OK',
       headers: responseHeaders
     });
   } catch (error) {
@@ -808,60 +951,89 @@ async function handleAiRedraw(env, request) {
   }
 }
 
-async function handleProcessorProxy(env, request, processorPath) {
-  await requireUser(env, request);
-  requireProcessorConfigured(env);
-  const upstreamUrl = `${processorBaseUrl(env)}${processorPath}`;
-  const headers = new Headers(request.headers);
-  headers.delete('authorization');
-  headers.delete('Authorization');
-  headers.delete('host');
-  headers.delete('Host');
-  headers.set('x-processor-api-key', requireEnvValue(env, 'PROCESSOR_API_KEY'));
-
-  const upstream = await fetch(upstreamUrl, {
-    method: request.method,
-    headers,
-    body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
-    redirect: 'manual'
-  });
-
-  const responseHeaders = new Headers(upstream.headers);
-  Object.entries(corsHeaders).forEach(([key, value]) => responseHeaders.set(key, value));
-  return new Response(upstream.body, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers: responseHeaders
-  });
-}
-
-async function requestHybridRetouchedImage(env, image, settings) {
-  requireProcessorConfigured(env);
+async function requestOpenRouterRetouchedImage(env, image, settings) {
+  requireOpenRouterConfigured(env);
   const aiModelConfig = await getAiRedrawModelConfig(env);
-  const formData = new FormData();
-  formData.append('image', image, image.name || 'upload.png');
-  formData.append(
-    'settings',
-    JSON.stringify({
-      ...settings,
-      aiRedrawModel: aiModelConfig
-    })
-  );
+  const imageDataUrl = await fileToDataUrl(image);
+  const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
+  const availableModels = [aiModelConfig.generationModel, aiModelConfig.fallbackModel].filter((value, index, list) => value && list.indexOf(value) === index);
+  const modelSequence = availableModels.length > 0 ? availableModels : [aiModelConfig.generationModel].filter(Boolean);
+  let lastError = null;
 
-  const response = await fetch(`${processorBaseUrl(env)}/api/redraw/hybrid`, {
-    method: 'POST',
-    headers: {
-      'x-processor-api-key': requireEnvValue(env, 'PROCESSOR_API_KEY')
-    },
-    body: formData
-  });
+  for (const [index, model] of modelSequence.entries()) {
+    try {
+      const payload = {
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: prompt
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: imageDataUrl
+                }
+              }
+            ]
+          }
+        ],
+        modalities: guessOpenRouterModalities(model),
+        stream: false
+      };
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data?.error || 'Gambar ulang hybrid gagal diproses.');
+      if (aiModelConfig.imageSize) {
+        payload.image_config = {
+          image_size: aiModelConfig.imageSize
+        };
+      }
+
+      const response = await fetch(`${openRouterBaseUrl(env)}/chat/completions`, {
+        method: 'POST',
+        headers: buildOpenRouterHeaders(env),
+        body: JSON.stringify(payload)
+      });
+      const data = await parseJsonResponse(response);
+
+      if (!response.ok) {
+        const message = data?.error?.message || data?.error || data?.message || data?.raw || `OpenRouter image request failed: ${response.status}`;
+        throw new Error(message);
+      }
+
+      const imageUrl = extractOpenRouterImageUrl(data);
+      if (!imageUrl) {
+        throw new Error('OpenRouter tidak mengembalikan gambar.');
+      }
+
+      const imageResponse = await downloadGeneratedImage(imageUrl);
+      const metadata = {
+        provider: aiModelConfig.provider,
+        model,
+        fallbackModelUsed: index > 0,
+        promptProfile: aiModelConfig.promptProfile,
+        imageSize: aiModelConfig.imageSize,
+        generationQuality: aiModelConfig.generationQuality,
+        sourceContentType: image.type || 'application/octet-stream',
+        sourceFileName: image.name || 'upload.png',
+        generatedImageCount: Array.isArray(data?.choices?.[0]?.message?.images) ? data.choices[0].message.images.length : 1
+      };
+
+      return {
+        body: imageResponse.body,
+        status: imageResponse.status,
+        statusText: imageResponse.statusText,
+        headers: imageResponse.headers,
+        metadata
+      };
+    } catch (error) {
+      lastError = error;
+    }
   }
 
-  return response;
+  throw lastError || new Error('Gambar ulang OpenRouter gagal diproses.');
 }
 
 export function getAiRedrawModelPresets() {
@@ -1166,8 +1338,7 @@ async function handleAppConfig(env) {
   return json({
     settings: Object.fromEntries(rows.map((row) => [row.key, row.value])),
     features: {
-      processorConfigured: isProcessorConfigured(env),
-      aiRedrawAvailable: isProcessorConfigured(env)
+      aiRedrawAvailable: isOpenRouterConfigured(env)
     }
   });
 }
@@ -1491,10 +1662,6 @@ export default {
       if (url.pathname === '/api/jobs/quote' && request.method === 'POST') return await handleQuote(env, request);
       if (url.pathname === '/api/jobs/commit' && request.method === 'POST') return await handleCommitJob(env, request);
       if (url.pathname === '/api/example-jobs' && request.method === 'GET') return await handleExampleJobs(env, request);
-      const processorMatch = url.pathname.match(/^\/api\/processor(\/jobs(?:\/.*)?)$/);
-      if (processorMatch && ['GET', 'POST', 'DELETE'].includes(request.method)) {
-        return await handleProcessorProxy(env, request, `/api${processorMatch[1]}`);
-      }
       const artifactsMatch = url.pathname.match(/^\/api\/jobs\/([^/]+)\/artifacts$/);
       if (artifactsMatch && request.method === 'POST') return await handleJobArtifactsUpload(env, request, artifactsMatch[1]);
       const deleteJobMatch = url.pathname.match(/^\/api\/jobs\/([^/]+)$/);
