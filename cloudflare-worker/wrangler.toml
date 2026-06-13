@@ -1,0 +1,29 @@
+name = "design-mudah-free"
+main = "src/index.js"
+compatibility_date = "2026-06-13"
+
+[vars]
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_ANALYSIS_MODEL = ""
+OPENROUTER_IMAGE_MODEL = "black-forest-labs/flux.2-klein-4b"
+OPENROUTER_IMAGE_MODEL_FALLBACK = "sourceful/riverflow-v2-fast"
+OPENROUTER_SAFETY_MODEL = "nvidia/nemotron-3.5-content-safety:free"
+OPENROUTER_PROMPT_PROFILE = "generic_trace_clone"
+OPENROUTER_IMAGE_QUALITY = "high"
+OPENROUTER_IMAGE_SIZE = "1K"
+OPENROUTER_REASONING_EFFORT = "low"
+OPENROUTER_BACKGROUND_MODE = "transparent"
+OPENROUTER_SAFETY_ENABLED = "1"
+OPENROUTER_APP_NAME = "Design Mudah Vector"
+AI_REDRAW_PRESET = "quality"
+SUPABASE_URL = "https://wrjhedlygozqtsdallzr.supabase.co"
+# Isi hanya jika Anda masih memakai processor eksternal.
+# PROCESSOR_BASE_URL = "https://your-processor.example.com"
+
+[secrets]
+required = ["SUPABASE_SERVICE_ROLE_KEY"]
+# Optional untuk proxy processor eksternal:
+# PROCESSOR_API_KEY
+
+# Set required secrets before deploy:
+# wrangler secret put SUPABASE_SERVICE_ROLE_KEY
