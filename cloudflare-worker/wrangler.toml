@@ -20,10 +20,6 @@ SUPABASE_URL = "https://wrjhedlygozqtsdallzr.supabase.co"
 # Isi hanya jika Anda masih memakai processor eksternal.
 # PROCESSOR_BASE_URL = "https://your-processor.example.com"
 
-[secrets]
-required = ["SUPABASE_SERVICE_ROLE_KEY"]
+# Secrets tetap diset di dashboard Cloudflare Worker > Settings > Variables and Secrets.
 # Optional untuk proxy processor eksternal:
 # PROCESSOR_API_KEY
-
-# Set required secrets before deploy:
-# wrangler secret put SUPABASE_SERVICE_ROLE_KEY
