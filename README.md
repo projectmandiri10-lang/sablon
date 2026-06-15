@@ -8,6 +8,7 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 - `cloudflare-worker/` - API Worker
 - `shared/` - konfigurasi bersama antara frontend dan worker
 - `supabase/` - migration dan schema Supabase
+- `supabase/SUPABASE_BOOTSTRAP.sql` - SQL bootstrap untuk project Supabase baru
 - `.env` dan `.env.example` - env versi Cloudflare
 - `DEPLOY_CLOUDFLARE_SUPABASE.md` - panduan deploy
 
@@ -26,6 +27,7 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 3. Deploy `cloudflare-worker/` dengan Wrangler.
 4. Deploy `frontend/` ke Cloudflare Pages dengan root directory `frontend`.
 5. Jalankan migration Supabase dari folder `supabase/`.
+6. Jika project Supabase baru masih kosong, jalankan `supabase/SUPABASE_BOOTSTRAP.sql` di SQL Editor dulu.
 
 ## Catatan
 

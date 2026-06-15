@@ -7,6 +7,7 @@ const migration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/202
 const superadminMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260526001000_ensure_superadmin_whitelist.sql'), 'utf8');
 const exampleJobsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260528091500_example_jobs_bucket.sql'), 'utf8');
 const publishedExamplesMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260528153000_publishable_example_jobs.sql'), 'utf8');
+const bootstrapSql = fs.readFileSync(path.join(import.meta.dirname, 'SUPABASE_BOOTSTRAP.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -55,4 +56,12 @@ test('published example migration adds job publish and delete columns', () => {
   assert.match(publishedExamplesMigration, /example_published_at timestamptz/);
   assert.match(publishedExamplesMigration, /deleted_at timestamptz/);
   assert.match(publishedExamplesMigration, /jobs_example_public_created_idx/);
+});
+
+test('bootstrap sql includes the core tables and settings seed', () => {
+  for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules', 'app_settings', 'contact_messages']) {
+    assert.match(bootstrapSql, new RegExp(`create table if not exists public\\.${table}`));
+  }
+  assert.match(bootstrapSql, /openrouter_image/);
+  assert.match(bootstrapSql, /example-jobs/);
 });
