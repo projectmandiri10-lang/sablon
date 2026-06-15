@@ -22,6 +22,7 @@ Folder ini sengaja hanya membawa bagian yang aman untuk free tier:
 3. Jalankan migration dari folder `supabase/migrations/` di project Supabase baru.
 4. Pastikan tabel dan policy auth yang dipakai project ini sudah ikut terbentuk.
 5. Jika project baru masih kosong atau muncul error `public.profiles`, jalankan `supabase/SUPABASE_BOOTSTRAP.sql` di SQL Editor Supabase.
+6. Di `Authentication > Providers > Email`, aktifkan leaked password protection agar warning security dasar Supabase ikut berkurang.
 
 Gunakan placeholder env berikut:
 

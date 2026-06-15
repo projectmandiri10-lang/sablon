@@ -65,3 +65,13 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   assert.match(bootstrapSql, /openrouter_image/);
   assert.match(bootstrapSql, /example-jobs/);
 });
+
+test('bootstrap sql hardens helper functions and policy indexes', () => {
+  assert.match(bootstrapSql, /create schema if not exists private/);
+  assert.match(bootstrapSql, /create or replace function private\.handle_new_user/);
+  assert.match(bootstrapSql, /create or replace function private\.is_superuser/);
+  assert.doesNotMatch(bootstrapSql, /create or replace function public\.credit_balance/);
+  assert.match(bootstrapSql, /credit_ledger_created_by_idx/);
+  assert.match(bootstrapSql, /jobs_ai_ledger_id_unique_idx/);
+  assert.match(bootstrapSql, /manual_payments_approved_by_idx/);
+});

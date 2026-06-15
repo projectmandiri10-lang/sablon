@@ -796,11 +796,12 @@ async function requireAdmin(env, request) {
 
 async function creditBalance(env, userId) {
   try {
-    const rows = await supabaseFetch(env, `/rest/v1/rpc/credit_balance`, {
-      method: 'POST',
-      body: { target_user_id: userId }
-    });
-    return Number(rows || 0);
+    const rows = await supabaseFetch(
+      env,
+      `/rest/v1/credit_ledger?user_id=eq.${encodeURIComponent(userId)}&select=amount_idr`,
+      {}
+    );
+    return rows.reduce((sum, row) => sum + (Number(row.amount_idr) || 0), 0);
   } catch (error) {
     if (!isMissingProfilesTableError(error)) throw error;
     return 0;
