@@ -92,6 +92,8 @@ OPENROUTER_IMAGE_SIZE=1K
 OPENROUTER_MAX_IMAGE_INPUT_BYTES=3200000
 ```
 
+`SUPABASE_ACCESS_TOKEN` tidak dibutuhkan oleh runtime Worker di Cloudflare. Token itu hanya berguna untuk tooling lokal seperti MCP atau Supabase CLI.
+
 Kalau `OPENROUTER_API_KEY` kosong, endpoint AI redraw tetap ada tetapi akan memberi pesan bahwa jalur itu belum diaktifkan.
 
 Endpoint penting:
