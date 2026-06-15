@@ -263,6 +263,27 @@ function isMissingJobsPublishColumnsError(error) {
   return /(is_example_public|example_published_at|deleted_at)/i.test(message) && /(jobs|column|schema cache)/i.test(message);
 }
 
+function isMissingProfilesTableError(error) {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /public\.profiles/i.test(message) && /(schema cache|does not exist|relation)/i.test(message);
+}
+
+function buildFallbackProfile(authUser = {}) {
+  const email = normalizeEmail(authUser.email);
+  const isSuperuser = email === normalizeEmail(SUPERUSER_EMAIL);
+  return {
+    id: authUser.id,
+    email,
+    full_name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || '',
+    role: isSuperuser ? 'superuser' : 'user',
+    is_unlimited: isSuperuser,
+    is_active: true,
+    deleted_at: null,
+    created_at: authUser.created_at || new Date().toISOString(),
+    updated_at: authUser.updated_at || authUser.created_at || new Date().toISOString()
+  };
+}
+
 function withLegacyJobPublishDefaults(rows = []) {
   return (rows || []).map((row) => ({
     ...row,
@@ -721,23 +742,33 @@ async function getUser(env, request) {
 }
 
 async function getProfile(env, userId) {
-  const rows = await supabaseFetch(
-    env,
-    `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at`,
-    {}
-  );
-  const profile = rows?.[0];
-  if (!profile || profile.is_active === false) throw new Error('Akun tidak aktif.');
-  return profile;
+  try {
+    const rows = await supabaseFetch(
+      env,
+      `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at`,
+      {}
+    );
+    const profile = rows?.[0];
+    if (!profile || profile.is_active === false) throw new Error('Akun tidak aktif.');
+    return profile;
+  } catch (error) {
+    if (!isMissingProfilesTableError(error)) throw error;
+    return null;
+  }
 }
 
 async function getProfileRaw(env, userId) {
-  const rows = await supabaseFetch(
-    env,
-    `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at`,
-    {}
-  );
-  return rows?.[0] || null;
+  try {
+    const rows = await supabaseFetch(
+      env,
+      `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at`,
+      {}
+    );
+    return rows?.[0] || null;
+  } catch (error) {
+    if (!isMissingProfilesTableError(error)) throw error;
+    return null;
+  }
 }
 
 async function waitForProfile(env, userId, attempts = 5) {
@@ -751,7 +782,7 @@ async function waitForProfile(env, userId, attempts = 5) {
 
 async function requireUser(env, request) {
   const auth = await getUser(env, request);
-  const profile = await getProfile(env, auth.user.id);
+  const profile = (await getProfile(env, auth.user.id)) || buildFallbackProfile(auth.user);
   return { ...auth, profile };
 }
 
@@ -764,11 +795,16 @@ async function requireAdmin(env, request) {
 }
 
 async function creditBalance(env, userId) {
-  const rows = await supabaseFetch(env, `/rest/v1/rpc/credit_balance`, {
-    method: 'POST',
-    body: { target_user_id: userId }
-  });
-  return Number(rows || 0);
+  try {
+    const rows = await supabaseFetch(env, `/rest/v1/rpc/credit_balance`, {
+      method: 'POST',
+      body: { target_user_id: userId }
+    });
+    return Number(rows || 0);
+  } catch (error) {
+    if (!isMissingProfilesTableError(error)) throw error;
+    return 0;
+  }
 }
 
 async function insertLedger(env, { userId, amountIdr, kind, reason, referenceId, createdBy, metadata }) {
@@ -827,9 +863,9 @@ async function ensureCredit(env, profile, priceIdr) {
 }
 
 async function handleBalance(env, request) {
-  const { profile } = await requireUser(env, request);
+  const { user, profile } = await requireUser(env, request);
   const balance = profile.is_unlimited ? null : await creditBalance(env, profile.id);
-  return json({ profile, balance, isUnlimited: profile.is_unlimited });
+  return json({ profile, balance, isUnlimited: profile.is_unlimited, userId: user.id, profileFallback: profile.role === 'user' && !profile.full_name && profile.created_at ? true : false });
 }
 
 async function handleQuote(env, request) {
@@ -1406,7 +1442,7 @@ async function handleExampleJobs(env, request) {
       )
     ]);
   } catch (error) {
-    if (!isMissingJobsPublishColumnsError(error)) throw error;
+    if (!isMissingJobsPublishColumnsError(error) && !isMissingProfilesTableError(error)) throw error;
     return json({ exampleJobs: await listLegacyPublishedExampleJobs(env) });
   }
 

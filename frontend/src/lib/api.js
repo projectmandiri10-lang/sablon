@@ -5,10 +5,18 @@ function isNetworkLikeError(message = '') {
   return normalized.includes('failed to fetch') || normalized.includes('networkerror') || normalized.includes('load failed');
 }
 
+function isMissingSchemaError(message = '') {
+  const normalized = String(message).toLowerCase();
+  return normalized.includes('schema cache') || normalized.includes('public.profiles') || normalized.includes('relation') && normalized.includes('does not exist');
+}
+
 export function toUserApiError(error, fallbackMessage) {
   const message = error instanceof Error ? error.message : String(error || '');
   if (message.includes('VITE_API_BASE_URL')) {
     return new Error('Koneksi ke layanan belum tersambung. Periksa URL API aplikasi.');
+  }
+  if (isMissingSchemaError(message)) {
+    return new Error('Schema Supabase belum lengkap di project baru ini. Jalankan migration database cloudflare-free-tier agar tabel profiles dan relasinya terbentuk.');
   }
   if (isNetworkLikeError(message)) {
     return new Error(fallbackMessage || 'Koneksi ke layanan belum tersambung. Coba lagi beberapa saat.');
