@@ -40,8 +40,8 @@ function getDocumentTitle(route, hasSession) {
   if (route === 'terms') return 'Syarat dan Ketentuan - EasyRedesign Pro';
   if (route === 'contact') return 'Hubungi Kami - EasyRedesign Pro';
   if (route === 'about') return 'Tentang Kami - EasyRedesign Pro';
-  if (hasSession) return 'EasyRedesign Pro - Sablon dan Sticker';
-  return 'EasyRedesign Pro - AI Logo Redesign & Vector Siap Proses';
+  if (hasSession) return 'EasyRedesign Pro - Dashboard Sablon & Sticker';
+  return 'EasyRedesign Pro - Redesign AI Logo & Vector Siap Proses';
 }
 
 const initialSettings = {

@@ -887,11 +887,11 @@ function HeroSection({ onStart }) {
               </span>
             </span>
             <br />
-            <span className="text-foreground">AI Logo Redesign & Vector Siap Proses</span>
+            <span className="text-foreground">Redesign AI Logo & Vector Siap Proses</span>
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg leading-8 text-mutedForeground sm:text-xl">
-            Ubah foto logo kaos biasa menjadi desain bersih dan profesional yang siap untuk sablon atau sticker - hanya dalam hitungan detik dengan kekuatan AI.
+            Ubah foto logo kaos biasa menjadi hasil redesign yang lebih bersih, profesional, dan siap diproses untuk sablon atau sticker dalam hitungan detik.
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">

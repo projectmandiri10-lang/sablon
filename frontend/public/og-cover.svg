@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">EasyRedesign Pro Open Graph Cover</title>
+  <desc id="desc">Banner brand EasyRedesign Pro untuk preview tautan sosial</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff7ed" />
+      <stop offset="0.45" stop-color="#ffedd5" />
+      <stop offset="1" stop-color="#fdba74" />
+    </linearGradient>
+    <linearGradient id="card" x1="220" y1="120" x2="980" y2="510" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.96" />
+      <stop offset="1" stop-color="#fff7ed" stop-opacity="0.88" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f97316" />
+      <stop offset="1" stop-color="#c2410c" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <circle cx="1045" cy="120" r="116" fill="#fb923c" fill-opacity="0.18" />
+  <circle cx="180" cy="520" r="104" fill="#ea580c" fill-opacity="0.16" />
+  <rect x="145" y="95" width="910" height="440" rx="40" fill="url(#card)" stroke="#fdba74" stroke-width="2" />
+  <rect x="210" y="165" width="108" height="108" rx="28" fill="url(#accent)" />
+  <path
+    d="M240 193h48v12h-34v18h28v12h-28v20h36v13h-50v-75Zm48 0h6c10 0 18 6 18 16 0 8-4 13-10 15l13 20h-16l-10-18h-7v-12h11c4 0 7-2 7-5.5 0-3.7-2.8-5.5-7.2-5.5H288v-10Z"
+    fill="#fff7ed"
+  />
+  <text x="360" y="228" fill="#111827" font-size="68" font-weight="700" font-family="Segoe UI, Arial, sans-serif">
+    EasyRedesign Pro
+  </text>
+  <text x="210" y="330" fill="#7c2d12" font-size="34" font-weight="600" font-family="Segoe UI, Arial, sans-serif">
+    Redesign AI Logo &amp; Vector Siap Proses
+  </text>
+  <text x="210" y="392" fill="#374151" font-size="25" font-family="Segoe UI, Arial, sans-serif">
+    Ubah foto logo kaos menjadi hasil redesign yang lebih bersih,
+  </text>
+  <text x="210" y="432" fill="#374151" font-size="25" font-family="Segoe UI, Arial, sans-serif">
+    siap sablon, siap sticker, dan siap produksi dalam satu alur kerja.
+  </text>
+  <rect x="210" y="472" width="216" height="52" rx="26" fill="#111827" />
+  <text x="252" y="506" fill="#fff7ed" font-size="24" font-weight="600" font-family="Segoe UI, Arial, sans-serif">
+    3 Credit Gratis
+  </text>
+  <text x="460" y="506" fill="#7c2d12" font-size="24" font-weight="600" font-family="Segoe UI, Arial, sans-serif">
+    AI Redesign Rp3.000 • Vector Rp2.000
+  </text>
+</svg>
