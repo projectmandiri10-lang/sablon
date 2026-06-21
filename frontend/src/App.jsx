@@ -18,7 +18,8 @@ import { IMAGE_RETOUCH_PRICE_IDR, calculateJobPrice, formatRupiah } from './lib/
 import { isSupabaseConfigured, supabase } from './lib/supabase.js';
 
 const SUPERUSER_ACCOUNT = ['jho.j80@gm', 'a', 'il.com'].join('');
-const FALLBACK_SESSION_STORAGE_KEY = 'designmudahfree.supabaseFallbackSession';
+const FALLBACK_SESSION_STORAGE_KEY = 'easyredesignpro.supabaseFallbackSession';
+const LEGACY_FALLBACK_SESSION_STORAGE_KEY = 'designmudahfree.supabaseFallbackSession';
 const LEGAL_PATHS = new Set(['/privacy', '/terms', '/contact', '/about']);
 
 function normalizePathname(pathname) {
@@ -180,6 +181,7 @@ function buildFallbackSession(accessToken, refreshToken, params) {
 function saveFallbackSession(session) {
   try {
     window.localStorage.setItem(FALLBACK_SESSION_STORAGE_KEY, JSON.stringify(session));
+    window.localStorage.removeItem(LEGACY_FALLBACK_SESSION_STORAGE_KEY);
   } catch {
     // Browser storage can be unavailable in hardened/private profiles.
   }
@@ -187,12 +189,17 @@ function saveFallbackSession(session) {
 
 function loadFallbackSession() {
   try {
-    const raw = window.localStorage.getItem(FALLBACK_SESSION_STORAGE_KEY);
+    const raw = window.localStorage.getItem(FALLBACK_SESSION_STORAGE_KEY) || window.localStorage.getItem(LEGACY_FALLBACK_SESSION_STORAGE_KEY);
     const session = raw ? JSON.parse(raw) : null;
     if (!session?.access_token || !session?.user?.id) return null;
     if (session.expires_at && session.expires_at <= Math.floor(Date.now() / 1000)) {
       window.localStorage.removeItem(FALLBACK_SESSION_STORAGE_KEY);
+      window.localStorage.removeItem(LEGACY_FALLBACK_SESSION_STORAGE_KEY);
       return null;
+    }
+    if (!window.localStorage.getItem(FALLBACK_SESSION_STORAGE_KEY)) {
+      window.localStorage.setItem(FALLBACK_SESSION_STORAGE_KEY, JSON.stringify(session));
+      window.localStorage.removeItem(LEGACY_FALLBACK_SESSION_STORAGE_KEY);
     }
     return session;
   } catch {
@@ -203,6 +210,7 @@ function loadFallbackSession() {
 function clearFallbackSession() {
   try {
     window.localStorage.removeItem(FALLBACK_SESSION_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_FALLBACK_SESSION_STORAGE_KEY);
   } catch {
     // Browser storage can be unavailable in hardened/private profiles.
   }

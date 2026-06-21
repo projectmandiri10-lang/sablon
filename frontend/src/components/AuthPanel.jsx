@@ -1,5 +1,6 @@
 import { LogIn } from 'lucide-react';
 import { useState } from 'react';
+import BrandMark from './BrandMark.jsx';
 import { isSupabaseConfigured, supabase, SUPABASE_URL } from '../lib/supabase.js';
 
 const runtimeConfig = window.__APP_CONFIG__ || {};
@@ -78,9 +79,12 @@ export default function AuthPanel({ onSignedIn }) {
 
   return (
     <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <LogIn className="h-5 w-5 text-spruce" aria-hidden="true" />
-        <h2 className="text-base font-semibold text-ink">{mode === 'login' ? 'Login' : 'Register'}</h2>
+      <div className="mb-4 space-y-3">
+        <BrandMark compact className="justify-start" />
+        <div className="flex items-center gap-2">
+          <LogIn className="h-5 w-5 text-spruce" aria-hidden="true" />
+          <h2 className="text-base font-semibold text-ink">{mode === 'login' ? 'Login' : 'Register'}</h2>
+        </div>
       </div>
 
       <form className="grid gap-3" onSubmit={submit}>

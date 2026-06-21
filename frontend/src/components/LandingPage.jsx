@@ -63,6 +63,7 @@ import {
   Zap
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import BrandMark from './BrandMark.jsx';
 import { submitContactMessage } from '../lib/api.js';
 import { IMAGE_RETOUCH_PRICE_IDR, READY_PROCESS_PRICE_IDR, formatRupiah } from '../lib/pricing.js';
 
@@ -634,8 +635,7 @@ function PublicNav({ onStart, onNavigate }) {
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <button type="button" onClick={() => scrollToId('beranda')} className="flex items-center gap-2 text-left transition-opacity hover:opacity-80">
-          <Sparkles className="h-6 w-6 text-primary" />
-          <span className="gradient-text text-xl font-bold tracking-tight">EasyRedesign Pro</span>
+          <BrandMark compact />
         </button>
 
         <nav className="hidden items-center gap-1 md:flex">
@@ -733,10 +733,7 @@ function PublicFooter({ onNavigate }) {
       <div className="landing-footer-shell relative mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <span className="text-lg font-bold gradient-text">EasyRedesign Pro</span>
-            </div>
+            <BrandMark compact />
             <p className="text-sm leading-relaxed text-mutedForeground">
               Platform redesign logo berbasis AI untuk mengubah logo kaos menjadi desain modern dan profesional hanya dalam hitungan detik.
             </p>
@@ -1261,11 +1258,12 @@ function AuthSection({ authPanel, onStart }) {
               <Sparkles className="h-4 w-4" />
               Akses akun
             </div>
+            <BrandMark className="justify-start" textClassName="text-left" />
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
               <span className="gradient-text">Masuk untuk melanjutkan</span>
             </h2>
             <p className="max-w-2xl text-lg leading-8 text-mutedForeground">
-              Gunakan akun Anda untuk mengakses dashboard, billing, riwayat job, dan admin. System kerja tetap memakai backend current project.
+              Gunakan akun Anda untuk mengakses dashboard, billing, dan riwayat proses EasyRedesign Pro dengan alur yang sama seperti aplikasi utama.
             </p>
             <button
               type="button"
