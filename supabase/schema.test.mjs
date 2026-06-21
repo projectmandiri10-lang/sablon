@@ -8,6 +8,7 @@ const superadminMigration = fs.readFileSync(path.join(import.meta.dirname, 'migr
 const exampleJobsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260528091500_example_jobs_bucket.sql'), 'utf8');
 const publishedExamplesMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260528153000_publishable_example_jobs.sql'), 'utf8');
 const bootstrapSql = fs.readFileSync(path.join(import.meta.dirname, 'SUPABASE_BOOTSTRAP.sql'), 'utf8');
+const signupBonusMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260621103000_signup_bonus_three_credit.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -74,4 +75,12 @@ test('bootstrap sql hardens helper functions and policy indexes', () => {
   assert.match(bootstrapSql, /credit_ledger_created_by_idx/);
   assert.match(bootstrapSql, /jobs_ai_ledger_id_unique_idx/);
   assert.match(bootstrapSql, /manual_payments_approved_by_idx/);
+});
+
+test('signup bonus migration grants 3 free credits to new and existing users', () => {
+  assert.match(signupBonusMigration, /create or replace function public\.handle_new_user/);
+  assert.match(signupBonusMigration, /6000/);
+  assert.match(signupBonusMigration, /'signup_free_credit'/);
+  assert.match(signupBonusMigration, /'freeCredits', 3/);
+  assert.match(signupBonusMigration, /from public\.profiles/);
 });

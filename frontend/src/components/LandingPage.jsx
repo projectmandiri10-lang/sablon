@@ -203,7 +203,7 @@ const faqItems = [
   {
     question: 'Apakah ada credit gratis?',
     answer:
-      'Ya. Setiap pengguna baru yang mendaftar akan mendapatkan 5 credit gratis untuk mencoba layanan kami.'
+      'Ya. Setiap pengguna baru yang mendaftar akan mendapatkan 3 credit gratis untuk mencoba layanan kami.'
   },
   {
     question: 'Berapa lama proses gambar?',
@@ -375,7 +375,7 @@ const termsSections = [
     subsections: [
       {
         subtitle: 'Hak Pengguna',
-        items: ['Menggunakan layanan sesuai ketentuan', 'Mendapat 5 credit gratis saat mendaftar', 'Mengunduh hasil pemrosesan', 'Meminta penghapusan data pribadi']
+        items: ['Menggunakan layanan sesuai ketentuan', 'Mendapat 3 credit gratis saat mendaftar', 'Mengunduh hasil pemrosesan', 'Meminta penghapusan data pribadi']
       },
       {
         subtitle: 'Kewajiban Pengguna',
@@ -394,7 +394,7 @@ const termsSections = [
     icon: CreditCard,
     title: '5. Sistem Credit dan Pembayaran',
     list: [
-      'Setiap pengguna baru mendapatkan 5 credit gratis',
+      'Setiap pengguna baru mendapatkan 3 credit gratis',
       'Credit dapat dibeli melalui kanal resmi yang tersedia, termasuk Shopee, transfer manual, Midtrans, atau payment gateway lain bila sudah diaktifkan',
       'Pembayaran dapat diproses oleh pihak ketiga seperti Midtrans, bank, e-wallet, payment network, marketplace, atau penyedia pembayaran terkait',
       'Dengan membayar melalui kanal pihak ketiga, pengguna juga tunduk pada syarat, kebijakan privasi, keamanan, biaya kanal, batas waktu pembayaran, dan status transaksi dari kanal tersebut',
@@ -1208,7 +1208,7 @@ function CtaSection({ onStart }) {
             </span>
           </h2>
           <p className="mt-5 max-w-xl text-lg text-white/80 sm:text-xl">
-            Daftar sekarang dan dapatkan 5 credit gratis untuk mencoba layanan kami.
+            Daftar sekarang dan dapatkan 3 credit gratis untuk mencoba layanan kami.
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
