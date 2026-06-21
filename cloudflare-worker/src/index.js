@@ -60,7 +60,7 @@ function openRouterMaxImageInputBytes(env) {
 }
 
 function openRouterAppName(env) {
-  return String(env.OPENROUTER_APP_NAME || 'Design Mudah Vector').trim();
+  return String(env.OPENROUTER_APP_NAME || 'EasyRedesign Pro').trim();
 }
 
 function openRouterSiteUrl(env) {

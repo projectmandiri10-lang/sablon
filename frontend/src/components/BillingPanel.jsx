@@ -16,7 +16,7 @@ export default function BillingPanel({ session }) {
   const shopeeUrl = shopee.url || 'https://shopee.co.id/';
   const shopeeNote =
     shopee.note ||
-    'Checkout nominal credit di Shopee, lalu kirim email akun Design Mudah melalui chat Shopee. Admin top up manual 5-15 menit pada jam kerja.';
+    'Checkout nominal credit di Shopee, lalu kirim email akun EasyRedesign Pro melalui chat Shopee. Admin top up manual 5-15 menit pada jam kerja.';
 
   return (
     <section id="billing" className="border border-line bg-white p-4 shadow-sm sm:p-5">
@@ -38,7 +38,7 @@ export default function BillingPanel({ session }) {
       </div>
       <div className="mt-5 grid gap-3">
         <div className="border border-line bg-panel p-3">
-          <p className="text-xs font-semibold uppercase text-gray-600">Email akun Design Mudah</p>
+          <p className="text-xs font-semibold uppercase text-gray-600">Email akun EasyRedesign Pro</p>
           <p className="mt-1 break-all text-sm font-semibold text-ink">{session?.user?.email || '-'}</p>
         </div>
         <div className="border border-line bg-panel p-3 text-sm leading-6 text-gray-700">

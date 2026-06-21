@@ -116,7 +116,7 @@ export default function AdminPanel({ session, enabled }) {
       const shopee = (settingsData.settings || []).find((setting) => setting.key === 'shopee_payment')?.value || {};
       const aiModel = (settingsData.settings || []).find((setting) => setting.key === 'ai_redraw_model')?.value || {};
       const defaultShopeeNote =
-        'Checkout nominal credit di Shopee, lalu kirim email akun Design Mudah melalui chat Shopee. Admin top up manual 5-15 menit pada jam kerja.';
+        'Checkout nominal credit di Shopee, lalu kirim email akun EasyRedesign Pro melalui chat Shopee. Admin top up manual 5-15 menit pada jam kerja.';
       setShopeeDraft({
         url: shopee.url || 'https://shopee.co.id/',
         note: shopee.note || defaultShopeeNote,

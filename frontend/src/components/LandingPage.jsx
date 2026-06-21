@@ -176,9 +176,9 @@ const testimonials = [
 
 const faqItems = [
   {
-    question: 'Apa itu AI Logo Redesign?',
+    question: 'Apa itu EasyRedesign Pro?',
     answer:
-      'AI Logo Redesign adalah platform berbasis AI yang membantu Anda mengubah foto logo kaos menjadi desain bersih dan profesional yang siap untuk disablon atau dijadikan sticker.'
+      'EasyRedesign Pro adalah platform berbasis AI yang membantu Anda mengubah foto logo kaos menjadi desain bersih dan profesional yang siap untuk disablon atau dijadikan sticker.'
   },
   {
     question: 'Berapa harga per gambar?',
@@ -219,7 +219,7 @@ const faqItems = [
 
 const trustBadges = [
   { icon: ShieldCheck, text: 'Tanpa Kartu Kredit', subtext: 'Bayar via Shopee' },
-  { icon: Gift, text: '5 Credit Gratis', subtext: 'Untuk pengguna baru' },
+  { icon: Gift, text: '3 Credit Gratis', subtext: 'Untuk pengguna baru' },
   { icon: Clock, text: 'Daftar 30 Detik', subtext: 'Proses instan' },
   { icon: Zap, text: 'Hasil Instan', subtext: 'Siap dalam hitungan detik' }
 ];
@@ -341,7 +341,7 @@ const termsSections = [
     icon: BookOpen,
     title: '1. Ketentuan Umum',
     content: [
-      'Syarat dan Ketentuan ini mengatur hubungan antara Anda dan kami dalam penggunaan layanan platform AI Logo Redesign.',
+      'Syarat dan Ketentuan ini mengatur hubungan antara Anda dan kami dalam penggunaan layanan platform EasyRedesign Pro.',
       'Dengan mendaftar, mengunggah gambar, membeli credit, melakukan pembayaran, atau menggunakan layanan kami, Anda dianggap telah membaca, memahami, dan menyetujui seluruh ketentuan ini sebagai persetujuan elektronik yang sah.'
     ]
   },
@@ -349,7 +349,7 @@ const termsSections = [
     icon: Layers,
     title: '2. Definisi',
     list: [
-      'Platform: situs web dan layanan AI Logo Redesign',
+      'Platform: situs web dan layanan EasyRedesign Pro',
       'Pengguna: individu yang mendaftar dan menggunakan layanan',
       'Layanan: seluruh fitur AI Redesign dan Vector Siap Proses',
       'Credit: unit pembayaran untuk mengakses layanan',
@@ -635,7 +635,7 @@ function PublicNav({ onStart, onNavigate }) {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <button type="button" onClick={() => scrollToId('beranda')} className="flex items-center gap-2 text-left transition-opacity hover:opacity-80">
           <Sparkles className="h-6 w-6 text-primary" />
-          <span className="gradient-text text-xl font-bold tracking-tight">AI Logo Redesign</span>
+          <span className="gradient-text text-xl font-bold tracking-tight">EasyRedesign Pro</span>
         </button>
 
         <nav className="hidden items-center gap-1 md:flex">
@@ -735,10 +735,10 @@ function PublicFooter({ onNavigate }) {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              <span className="text-lg font-bold gradient-text">AI Logo Redesign</span>
+              <span className="text-lg font-bold gradient-text">EasyRedesign Pro</span>
             </div>
             <p className="text-sm leading-relaxed text-mutedForeground">
-              Platform redesign logo berbasis AI terdepan di Indonesia. Ubah logo Anda menjadi desain modern dan profesional hanya dalam hitungan detik dengan kekuatan kecerdasan buatan.
+              Platform redesign logo berbasis AI untuk mengubah logo kaos menjadi desain modern dan profesional hanya dalam hitungan detik.
             </p>
           </div>
 
@@ -819,7 +819,7 @@ function PublicFooter({ onNavigate }) {
         <div className="my-8 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-xs text-mutedForeground">&copy; {new Date().getFullYear()} AI Logo Redesign. Hak cipta dilindungi.</p>
+          <p className="text-xs text-mutedForeground">&copy; {new Date().getFullYear()} EasyRedesign Pro. Hak cipta dilindungi.</p>
           <div className="flex items-center gap-4">
             <p className="flex items-center gap-1 text-xs text-mutedForeground">
               Made with <Heart className="inline h-3 w-3 fill-red-500 text-red-500" /> in Indonesia
@@ -843,7 +843,7 @@ function HeroSection({ onStart }) {
   const floatingBadges = [
     { label: 'AI Powered', icon: Sparkles, tone: 'text-primary border-primary/20', position: 'right-[8%] top-[12%] sm:right-[12%] sm:top-[15%]', delay: '0s' },
     { label: formatRupiah(IMAGE_RETOUCH_PRICE_IDR), icon: Zap, tone: 'text-chart-3 border-chart-3/20', position: 'left-[5%] top-[25%] sm:left-[8%] sm:top-[30%]', delay: '1.3s' },
-    { label: '5 Credit Gratis', icon: Star, tone: 'text-chart-2 border-chart-2/20', position: 'right-[15%] bottom-[18%] sm:right-[18%] sm:bottom-[20%]', delay: '2.6s' }
+    { label: '3 Credit Gratis', icon: Star, tone: 'text-chart-2 border-chart-2/20', position: 'right-[15%] bottom-[18%] sm:right-[18%] sm:bottom-[20%]', delay: '2.6s' }
   ];
 
   return (
@@ -881,13 +881,13 @@ function HeroSection({ onStart }) {
 
           <h1 className="max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
             <span className="gradient-text animate-gradient-text relative inline-block bg-[length:200%_200%]">
-              Transformasi Logo Kaos Anda
+              EasyRedesign Pro
               <span className="hero-shimmer pointer-events-none absolute inset-0 overflow-hidden">
                 <span className="absolute inset-y-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent" style={{ width: '50%' }} />
               </span>
             </span>
             <br />
-            <span className="text-foreground">Menjadi Desain Siap Sablon</span>
+            <span className="text-foreground">AI Logo Redesign & Vector Siap Proses</span>
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg leading-8 text-mutedForeground sm:text-xl">
@@ -938,7 +938,7 @@ function HeroSection({ onStart }) {
             </div>
             <div className="mt-5 flex items-center justify-between text-xs text-mutedForeground">
               <span className="rounded-full border border-chart-3/20 bg-white/5 px-3 py-1 text-chart-3">{formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}</span>
-              <span className="rounded-full border border-primary/20 bg-white/5 px-3 py-1 text-primary">5 Credit Gratis</span>
+              <span className="rounded-full border border-primary/20 bg-white/5 px-3 py-1 text-primary">3 Credit Gratis</span>
             </div>
           </div>
 
@@ -1412,7 +1412,7 @@ function PrivacyPage({ onNavigate }) {
 
 function TermsPage({ onNavigate }) {
   return (
-    <LegalShell title="Syarat dan Ketentuan" subtitle="Aturan penggunaan layanan AI Logo Redesign" icon={FileText} onNavigate={onNavigate}>
+    <LegalShell title="Syarat dan Ketentuan" subtitle="Aturan penggunaan layanan EasyRedesign Pro" icon={FileText} onNavigate={onNavigate}>
       <LegalSectionList sections={termsSections} />
       <div className="mt-12 text-center text-sm text-mutedForeground">
         Pertanyaan tentang syarat dan ketentuan?{' '}
@@ -1659,13 +1659,13 @@ function AboutPage({ onNavigate }) {
   const stats = aboutStats.map((stat) => ({ ...stat }));
 
   return (
-    <LegalShell title="Tentang Kami" subtitle="Mengenal lebih dekat AI Logo Redesign, platform redesign logo berbasis AI" icon={Sparkles} onNavigate={onNavigate}>
+    <LegalShell title="Tentang Kami" subtitle="Mengenal lebih dekat EasyRedesign Pro, platform redesign logo berbasis AI" icon={Sparkles} onNavigate={onNavigate}>
       <div className="space-y-6">
         <div className="glass-card rounded-3xl p-6">
           <h2 className="text-xl font-semibold text-foreground">Tentang Kami</h2>
           <div className="mt-4 space-y-4 text-sm leading-relaxed text-mutedForeground sm:text-base">
             <p>
-              AI Logo Redesign adalah platform inovatif yang menggunakan kecerdasan buatan untuk mentransformasi logo kaos menjadi desain profesional yang siap untuk disablon atau dijadikan sticker.
+              EasyRedesign Pro adalah platform inovatif yang menggunakan kecerdasan buatan untuk mentransformasi logo kaos menjadi desain profesional yang siap untuk disablon atau dijadikan sticker.
             </p>
             <p>
               Kami memahami tantangan yang dihadapi oleh konveksi, seller kaos online, dan desainer freelance dalam mengubah logo berkualitas rendah menjadi desain yang tajam dan siap cetak.

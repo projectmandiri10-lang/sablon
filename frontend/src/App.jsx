@@ -36,12 +36,12 @@ function getPublicRouteFromPathname(pathname) {
 }
 
 function getDocumentTitle(route, hasSession) {
-  if (route === 'privacy') return 'Kebijakan Privasi - AI Logo Redesign';
-  if (route === 'terms') return 'Syarat dan Ketentuan - AI Logo Redesign';
-  if (route === 'contact') return 'Hubungi Kami - AI Logo Redesign';
-  if (route === 'about') return 'Tentang Kami - AI Logo Redesign';
-  if (hasSession) return 'Design Mudah - Sablon dan Sticker';
-  return 'AI Logo Redesign - Transformasi Logo Kaos';
+  if (route === 'privacy') return 'Kebijakan Privasi - EasyRedesign Pro';
+  if (route === 'terms') return 'Syarat dan Ketentuan - EasyRedesign Pro';
+  if (route === 'contact') return 'Hubungi Kami - EasyRedesign Pro';
+  if (route === 'about') return 'Tentang Kami - EasyRedesign Pro';
+  if (hasSession) return 'EasyRedesign Pro - Sablon dan Sticker';
+  return 'EasyRedesign Pro - AI Logo Redesign & Vector Siap Proses';
 }
 
 const initialSettings = {
