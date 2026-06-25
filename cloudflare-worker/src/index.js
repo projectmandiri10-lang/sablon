@@ -8,7 +8,15 @@ import {
   normalizeExampleJobsSetting,
   updateExampleJobsSetting
 } from './example-jobs.js';
-import { HYBRID_REDRAW_PRESETS, normalizeHybridRedrawConfig } from '../../shared/hybridRedrawConfig.js';
+import {
+  DEFAULT_GEMINI_FALLBACK_POLICY,
+  GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER,
+  GEMINI_FALLBACK_POLICY_ALL,
+  GEMINI_FALLBACK_POLICY_QUOTA_ONLY,
+  HYBRID_REDRAW_PRESETS,
+  OPENROUTER_IMAGE_REDRAW_PROVIDER,
+  normalizeHybridRedrawConfig
+} from '../../shared/hybridRedrawConfig.js';
 
 const DEFAULT_PRICING = {
   ready_trace: 2000,
@@ -43,10 +51,12 @@ function isOpenRouterConfigured(env) {
   return hasEnvValue(env, 'OPENROUTER_API_KEY');
 }
 
-function requireOpenRouterConfigured(env) {
-  if (!isOpenRouterConfigured(env)) {
-    throw new Error('AI redraw belum diaktifkan di deploy ini. Isi OPENROUTER_API_KEY di Worker secrets.');
-  }
+function isGeminiConfigured(env) {
+  return hasEnvValue(env, 'GEMINI_API_KEY');
+}
+
+function geminiBaseUrl(env) {
+  return String(env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
 }
 
 function openRouterBaseUrl(env) {
@@ -65,6 +75,121 @@ function openRouterAppName(env) {
 
 function openRouterSiteUrl(env) {
   return String(env.OPENROUTER_SITE_URL || '').trim();
+}
+
+function buildGeminiHeaders(env) {
+  return {
+    'x-goog-api-key': requireEnvValue(env, 'GEMINI_API_KEY'),
+    'Content-Type': 'application/json'
+  };
+}
+
+function providerDisplayName(provider) {
+  switch (provider) {
+    case GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER:
+      return 'Gemini direct';
+    case OPENROUTER_IMAGE_REDRAW_PROVIDER:
+      return 'OpenRouter';
+    default:
+      return provider || 'provider AI';
+  }
+}
+
+function createProviderError(provider, message, extra = {}) {
+  const error = new Error(message);
+  error.provider = provider;
+  error.providerCode = extra.providerCode || '';
+  error.statusCode = Number.isInteger(extra.statusCode) ? extra.statusCode : 500;
+  error.responseData = extra.responseData || null;
+  error.fallbackReason = extra.fallbackReason || '';
+  return error;
+}
+
+function normalizeProviderMessage(message, fallback) {
+  return typeof message === 'string' && message.trim() ? message.trim() : fallback;
+}
+
+function mapGeminiError(response, data) {
+  const rawStatus = String(data?.error?.status || data?.status || '').trim();
+  const message = normalizeProviderMessage(
+    data?.error?.message || data?.message || data?.raw,
+    `Gemini image request failed: ${response.status}`
+  );
+  const lowered = message.toLowerCase();
+  let fallbackReason = '';
+
+  if (response.status === 429 || /quota|rate limit|resource exhausted|exhausted|too many requests/.test(lowered)) {
+    fallbackReason = 'quota_exhausted';
+  } else if (response.status === 402 || /billing|payment|insufficient|credit/.test(lowered)) {
+    fallbackReason = 'billing_required';
+  } else if (response.status === 404 || /not found|model.*unavailable|model.*not available|unsupported model|unknown model|not supported/.test(lowered)) {
+    fallbackReason = 'model_unavailable';
+  }
+
+  return createProviderError(GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER, message, {
+    statusCode: response.status,
+    providerCode: rawStatus,
+    responseData: data,
+    fallbackReason
+  });
+}
+
+function mapOpenRouterError(response, data) {
+  const message = normalizeProviderMessage(
+    data?.error?.message || data?.error || data?.message || data?.raw,
+    `OpenRouter image request failed: ${response.status}`
+  );
+  const lowered = message.toLowerCase();
+  let fallbackReason = '';
+  if (response.status === 429 || /quota|rate limit|too many requests|exhausted/.test(lowered)) {
+    fallbackReason = 'quota_exhausted';
+  } else if (response.status === 402 || /billing|payment|insufficient|credit/.test(lowered)) {
+    fallbackReason = 'billing_required';
+  } else if (response.status === 404 || /not found|unavailable|unsupported model|unknown model|not supported/.test(lowered)) {
+    fallbackReason = 'model_unavailable';
+  }
+  return createProviderError(OPENROUTER_IMAGE_REDRAW_PROVIDER, message, {
+    statusCode: response.status,
+    providerCode: String(data?.error?.code || data?.error?.type || data?.status || ''),
+    responseData: data,
+    fallbackReason
+  });
+}
+
+export function shouldFallbackFromGeminiError(error, policy = DEFAULT_GEMINI_FALLBACK_POLICY) {
+  if (!error || error.provider !== GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) return false;
+  if (policy === GEMINI_FALLBACK_POLICY_ALL) return true;
+  if (policy === GEMINI_FALLBACK_POLICY_QUOTA_ONLY) {
+    return error.fallbackReason === 'quota_exhausted' || error.fallbackReason === 'billing_required';
+  }
+  return ['quota_exhausted', 'billing_required', 'model_unavailable'].includes(error.fallbackReason);
+}
+
+function shouldFallbackToSecondaryProvider(error, aiModelConfig) {
+  if (!error) return false;
+  if (error.provider === GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) {
+    return shouldFallbackFromGeminiError(error, aiModelConfig.geminiFallbackPolicy);
+  }
+  if (error.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) {
+    return ['quota_exhausted', 'billing_required', 'model_unavailable'].includes(error.fallbackReason);
+  }
+  return false;
+}
+
+function isProviderConfigured(provider, env) {
+  if (provider === GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) return isGeminiConfigured(env);
+  if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return isOpenRouterConfigured(env);
+  return false;
+}
+
+function buildAiRedrawAvailability(config, env) {
+  return {
+    geminiConfigured: isGeminiConfigured(env),
+    openRouterConfigured: isOpenRouterConfigured(env),
+    aiRedrawAvailable:
+      isProviderConfigured(config.primaryProvider, env) ||
+      (config.fallbackProvider ? isProviderConfigured(config.fallbackProvider, env) : false)
+  };
 }
 
 function bytesToBase64(bytes) {
@@ -170,6 +295,28 @@ async function parseJsonResponse(response) {
 function extractOpenRouterImageUrl(data) {
   const imageEntry = data?.choices?.[0]?.message?.images?.[0];
   return imageEntry?.image_url?.url || imageEntry?.imageUrl?.url || '';
+}
+
+function extractGeminiOutputImage(data) {
+  if (data?.output_image?.data) {
+    return {
+      mimeType: data.output_image.mime_type || 'image/png',
+      data: data.output_image.data
+    };
+  }
+
+  const steps = Array.isArray(data?.steps) ? data.steps : [];
+  for (const step of steps) {
+    if (step?.type !== 'model_output' || !Array.isArray(step.content)) continue;
+    for (const part of step.content) {
+      if (part?.type !== 'image' || !part?.data) continue;
+      return {
+        mimeType: part.mime_type || 'image/png',
+        data: part.data
+      };
+    }
+  }
+  return null;
 }
 
 async function downloadGeneratedImage(imageUrl) {
@@ -515,6 +662,8 @@ function normalizeArtifactManifestInput(value, fallback = {}) {
 }
 
 function handleHealth(env) {
+  const defaultAiRedrawModel = normalizeAiRedrawModelConfig({}, env);
+  const redrawAvailability = buildAiRedrawAvailability(defaultAiRedrawModel, env);
   return json({
     ok: true,
     service: 'sablon',
@@ -522,9 +671,11 @@ function handleHealth(env) {
     config: {
       supabaseUrl: hasEnvValue(env, 'SUPABASE_URL'),
       supabaseServiceRoleKey: hasEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY'),
-      openRouterConfigured: isOpenRouterConfigured(env),
-      defaultAiRedrawModel: normalizeAiRedrawModelConfig({}, env),
-      redrawPipeline: 'worker_auth_credit_to_openrouter_image'
+      geminiConfigured: redrawAvailability.geminiConfigured,
+      openRouterConfigured: redrawAvailability.openRouterConfigured,
+      aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
+      defaultAiRedrawModel,
+      redrawPipeline: 'worker_auth_credit_to_gemini_direct_with_openrouter_fallback'
     },
     endpoints: [
       'GET /api/app-config',
@@ -930,7 +1081,11 @@ async function handleCommitJob(env, request) {
 
 async function handleAiRedraw(env, request) {
   const { user, profile } = await requireUser(env, request);
-  requireOpenRouterConfigured(env);
+  const aiModelConfig = await getAiRedrawModelConfig(env);
+  const availability = buildAiRedrawAvailability(aiModelConfig, env);
+  if (!availability.aiRedrawAvailable) {
+    throw new Error('AI redraw belum diaktifkan di deploy ini. Isi GEMINI_API_KEY atau OPENROUTER_API_KEY di Worker secrets.');
+  }
   const pricing = await getPricing(env);
   await ensureCredit(env, profile, pricing.ai_redraw);
   const form = await request.formData();
@@ -959,7 +1114,7 @@ async function handleAiRedraw(env, request) {
   }
 
   try {
-    const upstream = await requestOpenRouterRetouchedImage(env, image, settings);
+    const upstream = await requestAiRetouchedImage(env, image, settings, aiModelConfig);
     const responseHeaders = new Headers(upstream.headers);
     Object.entries(corsHeaders).forEach(([key, value]) => responseHeaders.set(key, value));
     responseHeaders.set('X-AI-Ledger-Id', ledger?.id || '');
@@ -988,9 +1143,139 @@ async function handleAiRedraw(env, request) {
   }
 }
 
-async function requestOpenRouterRetouchedImage(env, image, settings) {
-  requireOpenRouterConfigured(env);
-  const aiModelConfig = await getAiRedrawModelConfig(env);
+function buildAiRedrawMetadata(aiModelConfig, image, extra = {}) {
+  return {
+    provider: extra.providerUsed || '',
+    providerUsed: extra.providerUsed || '',
+    primaryProvider: aiModelConfig.primaryProvider,
+    fallbackProvider: aiModelConfig.fallbackProvider || '',
+    fallbackAttempted: extra.fallbackAttempted === true,
+    fallbackReason: extra.fallbackReason || '',
+    model: extra.model || '',
+    geminiGenerationModel: aiModelConfig.geminiGenerationModel || '',
+    geminiReasoningModel: aiModelConfig.geminiReasoningModel || '',
+    openRouterGenerationModel: aiModelConfig.generationModel || '',
+    openRouterFallbackModel: aiModelConfig.fallbackModel || '',
+    promptProfile: aiModelConfig.promptProfile,
+    imageSize: aiModelConfig.imageSize,
+    generationQuality: aiModelConfig.generationQuality,
+    sourceContentType: image.type || 'application/octet-stream',
+    sourceFileName: image.name || 'upload.png',
+    ...extra
+  };
+}
+
+async function requestAiRetouchedImage(env, image, settings, aiModelConfig) {
+  const primaryProvider = aiModelConfig.primaryProvider;
+  const fallbackProvider = aiModelConfig.fallbackProvider || '';
+  const primaryConfigured = isProviderConfigured(primaryProvider, env);
+  const fallbackConfigured = fallbackProvider && isProviderConfigured(fallbackProvider, env);
+
+  if (primaryConfigured) {
+    try {
+      return await requestProviderRetouchedImage(env, image, settings, aiModelConfig, {
+        provider: primaryProvider,
+        fallbackAttempted: false,
+        fallbackReason: ''
+      });
+    } catch (error) {
+      if (fallbackConfigured && fallbackProvider !== primaryProvider && shouldFallbackToSecondaryProvider(error, aiModelConfig)) {
+        return requestProviderRetouchedImage(env, image, settings, aiModelConfig, {
+          provider: fallbackProvider,
+          fallbackAttempted: true,
+          fallbackReason: error.fallbackReason || 'primary_failed'
+        });
+      }
+      throw error;
+    }
+  }
+
+  if (fallbackConfigured) {
+    return requestProviderRetouchedImage(env, image, settings, aiModelConfig, {
+      provider: fallbackProvider,
+      fallbackAttempted: true,
+      fallbackReason: 'primary_not_configured'
+    });
+  }
+
+  throw new Error('AI redraw belum memiliki provider yang aktif di deploy ini.');
+}
+
+async function requestProviderRetouchedImage(env, image, settings, aiModelConfig, routing) {
+  if (routing.provider === GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) {
+    return requestGeminiRetouchedImage(env, image, settings, aiModelConfig, routing);
+  }
+  if (routing.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) {
+    return requestOpenRouterRetouchedImage(env, image, settings, aiModelConfig, routing);
+  }
+  throw new Error(`Provider AI redraw tidak didukung: ${routing.provider}`);
+}
+
+async function requestGeminiRetouchedImage(env, image, settings, aiModelConfig, routing) {
+  const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
+  const bytes = new Uint8Array(await image.arrayBuffer());
+  const payload = {
+    model: aiModelConfig.geminiGenerationModel,
+    input: [
+      {
+        type: 'text',
+        text: prompt
+      },
+      {
+        type: 'image',
+        data: bytesToBase64(bytes),
+        mime_type: image.type || 'image/png'
+      }
+    ],
+    response_format: {
+      type: 'image',
+      delivery: 'inline',
+      image_size: aiModelConfig.imageSize || '1K'
+    },
+    store: false
+  };
+
+  const response = await fetch(`${geminiBaseUrl(env)}/interactions`, {
+    method: 'POST',
+    headers: buildGeminiHeaders(env),
+    body: JSON.stringify(payload)
+  });
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw mapGeminiError(response, data);
+  }
+
+  const outputImage = extractGeminiOutputImage(data);
+  if (!outputImage?.data) {
+    throw createProviderError(GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER, 'Gemini tidak mengembalikan gambar.', {
+      statusCode: 502,
+      responseData: data
+    });
+  }
+
+  const imageResponse = new Response(base64ToBytes(outputImage.data), {
+    headers: {
+      'Content-Type': outputImage.mimeType || 'image/png'
+    }
+  });
+
+  return {
+    body: imageResponse.body,
+    status: imageResponse.status,
+    statusText: imageResponse.statusText,
+    headers: imageResponse.headers,
+    metadata: buildAiRedrawMetadata(aiModelConfig, image, {
+      providerUsed: GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER,
+      model: aiModelConfig.geminiGenerationModel,
+      geminiOutputMimeType: outputImage.mimeType || 'image/png',
+      fallbackAttempted: routing.fallbackAttempted,
+      fallbackReason: routing.fallbackReason
+    })
+  };
+}
+
+async function requestOpenRouterRetouchedImage(env, image, settings, aiModelConfig, routing) {
   const imageDataUrl = await fileToDataUrl(image);
   const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
   const availableModels = [aiModelConfig.generationModel, aiModelConfig.fallbackModel].filter((value, index, list) => value && list.indexOf(value) === index);
@@ -1036,27 +1321,26 @@ async function requestOpenRouterRetouchedImage(env, image, settings) {
       const data = await parseJsonResponse(response);
 
       if (!response.ok) {
-        const message = data?.error?.message || data?.error || data?.message || data?.raw || `OpenRouter image request failed: ${response.status}`;
-        throw new Error(message);
+        throw mapOpenRouterError(response, data);
       }
 
       const imageUrl = extractOpenRouterImageUrl(data);
       if (!imageUrl) {
-        throw new Error('OpenRouter tidak mengembalikan gambar.');
+        throw createProviderError(OPENROUTER_IMAGE_REDRAW_PROVIDER, 'OpenRouter tidak mengembalikan gambar.', {
+          statusCode: 502,
+          responseData: data
+        });
       }
 
       const imageResponse = await downloadGeneratedImage(imageUrl);
-      const metadata = {
-        provider: aiModelConfig.provider,
+      const metadata = buildAiRedrawMetadata(aiModelConfig, image, {
+        providerUsed: OPENROUTER_IMAGE_REDRAW_PROVIDER,
         model,
         fallbackModelUsed: index > 0,
-        promptProfile: aiModelConfig.promptProfile,
-        imageSize: aiModelConfig.imageSize,
-        generationQuality: aiModelConfig.generationQuality,
-        sourceContentType: image.type || 'application/octet-stream',
-        sourceFileName: image.name || 'upload.png',
-        generatedImageCount: Array.isArray(data?.choices?.[0]?.message?.images) ? data.choices[0].message.images.length : 1
-      };
+        generatedImageCount: Array.isArray(data?.choices?.[0]?.message?.images) ? data.choices[0].message.images.length : 1,
+        fallbackAttempted: routing.fallbackAttempted,
+        fallbackReason: routing.fallbackReason
+      });
 
       return {
         body: imageResponse.body,
@@ -1070,7 +1354,7 @@ async function requestOpenRouterRetouchedImage(env, image, settings) {
     }
   }
 
-  throw lastError || new Error('Gambar ulang OpenRouter gagal diproses.');
+  throw lastError || createProviderError(OPENROUTER_IMAGE_REDRAW_PROVIDER, 'Gambar ulang OpenRouter gagal diproses.', { statusCode: 502 });
 }
 
 export function getAiRedrawModelPresets() {
@@ -1372,10 +1656,16 @@ async function handleCreateManualPayment(env, request) {
 
 async function handleAppConfig(env) {
   const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=key,value,is_public&is_public=eq.true&order=key.asc', {});
+  const aiRedrawModel = await getAiRedrawModelConfig(env);
+  const redrawAvailability = buildAiRedrawAvailability(aiRedrawModel, env);
   return json({
     settings: Object.fromEntries(rows.map((row) => [row.key, row.value])),
     features: {
-      aiRedrawAvailable: isOpenRouterConfigured(env)
+      aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
+      aiRedrawPrimaryProvider: aiRedrawModel.primaryProvider,
+      aiRedrawFallbackProvider: aiRedrawModel.fallbackProvider || '',
+      geminiConfigured: redrawAvailability.geminiConfigured,
+      openRouterConfigured: redrawAvailability.openRouterConfigured
     }
   });
 }

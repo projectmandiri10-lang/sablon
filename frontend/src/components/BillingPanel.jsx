@@ -2,6 +2,12 @@ import { ShoppingBag } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getAppConfig } from '../lib/api.js';
 
+function providerLabel(provider) {
+  if (provider === 'gemini_direct_image') return 'Gemini direct';
+  if (provider === 'openrouter_image') return 'OpenRouter';
+  return provider || '';
+}
+
 export default function BillingPanel({ session }) {
   const [config, setConfig] = useState(null);
 
@@ -13,6 +19,8 @@ export default function BillingPanel({ session }) {
 
   const shopee = config?.shopee_payment || {};
   const aiRedrawAvailable = Boolean(config?.features?.aiRedrawAvailable);
+  const aiRedrawPrimaryProvider = config?.features?.aiRedrawPrimaryProvider || '';
+  const aiRedrawFallbackProvider = config?.features?.aiRedrawFallbackProvider || '';
   const shopeeUrl = shopee.url || 'https://shopee.co.id/';
   const shopeeNote =
     shopee.note ||
@@ -51,8 +59,8 @@ export default function BillingPanel({ session }) {
           }`}
         >
           {aiRedrawAvailable
-            ? 'AI Redraw aktif di deploy ini dan Worker langsung memanggil provider AI.'
-            : 'AI Redraw belum aktif di deploy ini. Mode Ready Trace tetap tersedia sampai OPENROUTER_API_KEY diisi.'}
+            ? `AI Redraw aktif di deploy ini. Jalur utama: ${providerLabel(aiRedrawPrimaryProvider) || 'Gemini direct'}${aiRedrawFallbackProvider ? `, fallback: ${providerLabel(aiRedrawFallbackProvider)}.` : '.'}`
+            : 'AI Redraw belum aktif di deploy ini. Mode Ready Trace tetap tersedia sampai GEMINI_API_KEY atau OPENROUTER_API_KEY diisi.'}
         </div>
       </div>
     </section>

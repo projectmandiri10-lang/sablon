@@ -19,7 +19,14 @@ import {
   updateAdminSetting,
   updateAdminUser
 } from '../lib/api.js';
-import { listHybridRedrawPresets, normalizeHybridRedrawConfig } from '../../../shared/hybridRedrawConfig.js';
+import {
+  GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER,
+  GEMINI_FALLBACK_POLICY_ALL,
+  GEMINI_FALLBACK_POLICY_QUOTA_ONLY,
+  OPENROUTER_IMAGE_REDRAW_PROVIDER,
+  listHybridRedrawPresets,
+  normalizeHybridRedrawConfig
+} from '../../../shared/hybridRedrawConfig.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from '../lib/modes.js';
 import { formatRupiah } from '../lib/pricing.js';
 
@@ -42,6 +49,18 @@ function normalizeAiModelDraft(value = {}) {
 
 function estimatedIdr(usd) {
   return Math.round((Number(usd) || 0) * 17700);
+}
+
+function providerLabel(provider) {
+  if (provider === GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) return 'Gemini direct';
+  if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return 'OpenRouter';
+  return provider || '-';
+}
+
+function fallbackPolicyLabel(policy) {
+  if (policy === GEMINI_FALLBACK_POLICY_ALL) return 'Semua error upstream';
+  if (policy === GEMINI_FALLBACK_POLICY_QUOTA_ONLY) return 'Quota atau billing saja';
+  return 'Quota, billing, atau model unavailable';
 }
 
 function examplePublishHint(job, isPublished) {
@@ -313,17 +332,19 @@ export default function AdminPanel({ session, enabled }) {
     setIsBusy(true);
     setMessage('');
     try {
-          await updateAdminSetting(
+      await updateAdminSetting(
         {
           key: 'ai_redraw_model',
           value: nextValue,
           isPublic: false,
-          description: `Pipeline OpenRouter image redraw: ${nextValue.generationModel} image model + ${nextValue.safetyModel} safety gate`
+          description: `Pipeline redraw: ${providerLabel(nextValue.primaryProvider)} primary (${nextValue.geminiGenerationModel}) + ${providerLabel(nextValue.fallbackProvider)} fallback (${nextValue.generationModel})`
         },
         accessToken
       );
       await loadAdminData();
-      setMessage(`Pipeline redraw disimpan: ${nextValue.label} (${nextValue.analysisModel} + ${nextValue.generationModel}).`);
+      setMessage(
+        `Pipeline redraw disimpan: ${nextValue.label} | primary ${providerLabel(nextValue.primaryProvider)} (${nextValue.geminiGenerationModel}) | fallback ${providerLabel(nextValue.fallbackProvider)} (${nextValue.generationModel}).`
+      );
     } catch (error) {
       setMessage(toUserApiError(error, 'Gagal menyimpan model gambar ulang.').message);
     } finally {
@@ -701,7 +722,7 @@ export default function AdminPanel({ session, enabled }) {
                 >
                   {aiRedrawModelPresets.map((preset) => (
                     <option key={preset.mode} value={preset.mode}>
-                      {preset.label} - {preset.generationModel}
+                      {preset.label} - {preset.geminiGenerationModel}
                     </option>
                   ))}
                   <option value="custom">Custom</option>
@@ -709,15 +730,94 @@ export default function AdminPanel({ session, enabled }) {
               </label>
               <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Model analisis opsional</span>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Provider utama</span>
+                  <select
+                    value={aiModelDraft.primaryProvider}
+                    onChange={(event) =>
+                      setAiModelDraft((current) => ({
+                        ...current,
+                        mode: 'custom',
+                        preset: 'custom',
+                        label: 'Custom',
+                        primaryProvider: event.target.value
+                      }))
+                    }
+                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                  >
+                    <option value={GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER}>Gemini direct</option>
+                    <option value={OPENROUTER_IMAGE_REDRAW_PROVIDER}>OpenRouter</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Provider fallback</span>
+                  <select
+                    value={aiModelDraft.fallbackProvider || ''}
+                    onChange={(event) =>
+                      setAiModelDraft((current) => ({
+                        ...current,
+                        mode: 'custom',
+                        preset: 'custom',
+                        label: 'Custom',
+                        fallbackProvider: event.target.value
+                      }))
+                    }
+                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                  >
+                    <option value="">Tanpa fallback</option>
+                    <option value={OPENROUTER_IMAGE_REDRAW_PROVIDER}>OpenRouter</option>
+                    <option value={GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER}>Gemini direct</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Kebijakan fallback Gemini</span>
+                  <select
+                    value={aiModelDraft.geminiFallbackPolicy || 'quota_or_model_unavailable'}
+                    onChange={(event) =>
+                      setAiModelDraft((current) => ({
+                        ...current,
+                        mode: 'custom',
+                        preset: 'custom',
+                        label: 'Custom',
+                        geminiFallbackPolicy: event.target.value
+                      }))
+                    }
+                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                  >
+                    <option value="quota_or_model_unavailable">Quota, billing, atau model unavailable</option>
+                    <option value="quota_only">Quota atau billing saja</option>
+                    <option value="all">Semua error upstream</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar Gemini</span>
+                  <input
+                    value={aiModelDraft.geminiGenerationModel || ''}
+                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', geminiGenerationModel: event.target.value }))}
+                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Model reasoning Gemini</span>
+                  <input
+                    value={aiModelDraft.geminiReasoningModel || ''}
+                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', geminiReasoningModel: event.target.value }))}
+                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Model analisis OpenRouter opsional</span>
                   <input
                     value={aiModelDraft.analysisModel}
                     onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', analysisModel: event.target.value }))}
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   />
                 </label>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar</span>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar OpenRouter</span>
                   <input
                     value={aiModelDraft.generationModel}
                     onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', generationModel: event.target.value }))}
@@ -725,7 +825,7 @@ export default function AdminPanel({ session, enabled }) {
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Model fallback</span>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Model fallback OpenRouter</span>
                   <input
                     value={aiModelDraft.fallbackModel || ''}
                     onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', fallbackModel: event.target.value }))}
@@ -733,7 +833,7 @@ export default function AdminPanel({ session, enabled }) {
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Model safety</span>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Model safety OpenRouter</span>
                   <input
                     value={aiModelDraft.safetyModel}
                     onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', safetyModel: event.target.value }))}
@@ -848,13 +948,23 @@ export default function AdminPanel({ session, enabled }) {
               </div>
               <div className="border border-line bg-white p-3 text-sm leading-6 text-gray-700">
                 <p>
-                  Aktif: <strong>{aiModelDraft.label}</strong> | {aiModelDraft.generationModel}
+                  Aktif: <strong>{aiModelDraft.label}</strong> | primary {providerLabel(aiModelDraft.primaryProvider)}
                   {aiModelDraft.generationQuality ? ` (${aiModelDraft.generationQuality.toUpperCase()})` : ''}
                 </p>
                 <p>Estimasi biaya: sekitar {formatRupiah(estimatedIdr(aiModelDraft.estimatedUsdPerImage))} per redraw hybrid, dengan harga user tetap flat.</p>
-                <p>Pipeline: Nemotron memeriksa safety visual, lalu OpenRouter image model menggambar ulang langsung dari cleaned trace target sebelum hasilnya di-trace.</p>
                 <p>
-                  Image: {aiModelDraft.imageSize || '1K'} | prompt {aiModelDraft.promptProfile || 'generic_trace_clone'} | fallback {aiModelDraft.fallbackModel || '-'} | reasoning {aiModelDraft.reasoningEffort || 'low'} | safety {aiModelDraft.safetyEnabled === false ? 'mati' : 'aktif'}
+                  Pipeline: Gemini direct memakai <strong>{aiModelDraft.geminiGenerationModel || '-'}</strong> sebagai jalur utama.
+                  {` `}
+                  OpenRouter menjadi cadangan melalui <strong>{aiModelDraft.generationModel || '-'}</strong> saat kebijakan fallback mengizinkan.
+                </p>
+                <p>
+                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | policy Gemini: {fallbackPolicyLabel(aiModelDraft.geminiFallbackPolicy)} | image {aiModelDraft.imageSize || '1K'} | prompt {aiModelDraft.promptProfile || 'generic_trace_clone'}
+                </p>
+                <p>
+                  Gemini reasoning: {aiModelDraft.geminiReasoningModel || '-'} | OpenRouter model: {aiModelDraft.generationModel || '-'} | OpenRouter fallback model: {aiModelDraft.fallbackModel || '-'}
+                </p>
+                <p>
+                  Reasoning effort: {aiModelDraft.reasoningEffort || 'low'} | safety {aiModelDraft.safetyEnabled === false ? 'mati' : 'aktif'} | background {aiModelDraft.backgroundMode || 'transparent'}
                 </p>
                 <p>{aiRedrawModelPresets.find((preset) => preset.mode === aiModelDraft.mode)?.note || 'Mode custom untuk eksperimen pipeline hybrid.'}</p>
                 <p>
