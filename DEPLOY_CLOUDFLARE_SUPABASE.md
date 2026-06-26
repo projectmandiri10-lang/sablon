@@ -63,7 +63,7 @@ Worker berada di `cloudflare-worker/`.
 
 1. Masuk folder tersebut.
 2. Login Wrangler.
-3. Set secret Supabase dan Gemini. OpenRouter opsional sebagai fallback otomatis.
+3. Set secret Supabase dan Hugging Face token. OpenRouter opsional sebagai fallback otomatis.
 4. Deploy ke Cloudflare Workers.
 
 Contoh:
@@ -73,7 +73,7 @@ cd cloudflare-worker
 npm install
 npx wrangler login
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put HF_TOKEN
 npx wrangler secret put OPENROUTER_API_KEY
 npx wrangler deploy
 ```
@@ -83,6 +83,10 @@ Env Worker yang penting:
 ```env
 SUPABASE_URL=https://YOUR_NEW_PROJECT_REF.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...
+HF_TOKEN=...
+HF_PIX2PIX_ENDPOINT_URL=https://YOUR-HF-ENDPOINT.example/run
+HF_PIX2PIX_MODEL=nunchaku-tech/nunchaku-flux.1-schnell-pix2pix-turbo
+HF_PIX2PIX_TIMEOUT_MS=90000
 GEMINI_API_KEY=...
 GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
@@ -97,13 +101,13 @@ OPENROUTER_PROMPT_PROFILE=generic_trace_clone
 OPENROUTER_IMAGE_QUALITY=high
 OPENROUTER_IMAGE_SIZE=1K
 OPENROUTER_MAX_IMAGE_INPUT_BYTES=3200000
-AI_REDRAW_PRIMARY_PROVIDER=gemini_direct_image
+AI_REDRAW_PRIMARY_PROVIDER=huggingface_pix2pix
 AI_REDRAW_FALLBACK_PROVIDER=openrouter_image
 ```
 
 `SUPABASE_ACCESS_TOKEN` tidak dibutuhkan oleh runtime Worker di Cloudflare. Token itu hanya berguna untuk tooling lokal seperti MCP atau Supabase CLI.
 
-Kalau `GEMINI_API_KEY` kosong tetapi `OPENROUTER_API_KEY` ada, AI redraw tetap berjalan lewat jalur fallback. Kalau keduanya kosong, endpoint AI redraw tetap ada tetapi akan memberi pesan bahwa jalur itu belum diaktifkan.
+Kalau `HF_PIX2PIX_ENDPOINT_URL` kosong tetapi `OPENROUTER_API_KEY` ada, AI redraw tetap berjalan lewat jalur fallback. Kalau endpoint HF dan provider fallback kosong, endpoint AI redraw tetap ada tetapi akan memberi pesan bahwa jalur itu belum diaktifkan.
 
 Endpoint penting:
 
@@ -148,7 +152,7 @@ VITE_GOOGLE_OAUTH_REDIRECT_TO=http://localhost:5173
 2. Coba register dan login Google.
 3. Pastikan `GET /api/app-config` terbaca dari Worker.
 4. Pastikan credit dan admin data terbaca dari Supabase.
-5. Coba mode Ready Trace saat Gemini/OpenRouter belum diisi.
+5. Coba mode Ready Trace saat endpoint HF/fallback provider belum diisi.
 6. Pastikan pesan error AI redraw jelas, bukan error teknis mentah.
 
 ## 6. Jika Anda Mau Menyalakan AI Redraw
@@ -156,8 +160,9 @@ VITE_GOOGLE_OAUTH_REDIRECT_TO=http://localhost:5173
 Isi env ini di Worker:
 
 ```env
-GEMINI_API_KEY=...
+HF_TOKEN=...
+HF_PIX2PIX_ENDPOINT_URL=...
 OPENROUTER_API_KEY=...
 ```
 
-Mode ini tetap opsional dan bukan syarat untuk deploy Cloudflare free tier, tetapi tanpa `GEMINI_API_KEY` maupun `OPENROUTER_API_KEY` jalur AI redraw tidak aktif.
+Mode ini tetap opsional dan bukan syarat untuk deploy Cloudflare free tier, tetapi tanpa `HF_PIX2PIX_ENDPOINT_URL` dan tanpa provider fallback, jalur AI redraw tidak aktif.

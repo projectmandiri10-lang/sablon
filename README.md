@@ -17,9 +17,9 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 - Jalur deploy dipisah dari backend Node/Express lama.
 - `VITE_API_BASE_URL` mengarah ke Worker baru.
 - `VITE_GOOGLE_OAUTH_REDIRECT_TO` mengarah ke domain Pages baru.
-- AI redraw sekarang dipanggil langsung oleh Worker ke Gemini API sebagai jalur utama, lalu otomatis fallback ke OpenRouter jika provider utama terkena quota, billing, atau model unavailable.
-- Jika `GEMINI_API_KEY` belum diisi tetapi `OPENROUTER_API_KEY` ada, AI redraw tetap bisa berjalan lewat fallback OpenRouter.
-- Jika keduanya belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai.
+- AI redraw sekarang dipanggil langsung oleh Worker ke endpoint Hugging Face pix2pix sebagai jalur utama, lalu otomatis fallback ke OpenRouter jika endpoint utama timeout, unavailable, atau gagal.
+- Jika `HF_PIX2PIX_ENDPOINT_URL` belum diisi tetapi `OPENROUTER_API_KEY` ada, AI redraw tetap bisa berjalan lewat fallback OpenRouter.
+- Jika endpoint HF dan fallback provider belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai.
 
 ## Mulai Cepat
 
@@ -33,4 +33,4 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 ## Catatan
 
 - Folder `landing/` dan `backend/` sengaja tidak ikut ke copy ini karena bukan target Cloudflare free tier.
-- Jalur AI redraw tidak memerlukan backend terpisah. Cukup isi secret Gemini dan/atau OpenRouter di Worker.
+- Jalur AI redraw tidak mengirim token Hugging Face ke browser atau Supabase. Worker menerima upload dari browser, meneruskan ke endpoint HF, lalu mengembalikan hasil ke flow trace yang sudah ada.

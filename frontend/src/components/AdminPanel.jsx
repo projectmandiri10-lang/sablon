@@ -23,6 +23,7 @@ import {
   GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER,
   GEMINI_FALLBACK_POLICY_ALL,
   GEMINI_FALLBACK_POLICY_QUOTA_ONLY,
+  HUGGINGFACE_PIX2PIX_PROVIDER,
   OPENROUTER_IMAGE_REDRAW_PROVIDER,
   listHybridRedrawPresets,
   normalizeHybridRedrawConfig
@@ -52,9 +53,17 @@ function estimatedIdr(usd) {
 }
 
 function providerLabel(provider) {
+  if (provider === HUGGINGFACE_PIX2PIX_PROVIDER) return 'Hugging Face pix2pix';
   if (provider === GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) return 'Gemini direct';
   if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return 'OpenRouter';
   return provider || '-';
+}
+
+function providerModelLabel(provider, config = {}) {
+  if (provider === HUGGINGFACE_PIX2PIX_PROVIDER) return config.hfModel || '-';
+  if (provider === GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) return config.geminiGenerationModel || '-';
+  if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return config.generationModel || '-';
+  return '-';
 }
 
 function fallbackPolicyLabel(policy) {
@@ -337,13 +346,13 @@ export default function AdminPanel({ session, enabled }) {
           key: 'ai_redraw_model',
           value: nextValue,
           isPublic: false,
-          description: `Pipeline redraw: ${providerLabel(nextValue.primaryProvider)} primary (${nextValue.geminiGenerationModel}) + ${providerLabel(nextValue.fallbackProvider)} fallback (${nextValue.generationModel})`
+          description: `Pipeline redraw: ${providerLabel(nextValue.primaryProvider)} primary (${providerModelLabel(nextValue.primaryProvider, nextValue)}) + ${providerLabel(nextValue.fallbackProvider)} fallback (${providerModelLabel(nextValue.fallbackProvider, nextValue)})`
         },
         accessToken
       );
       await loadAdminData();
       setMessage(
-        `Pipeline redraw disimpan: ${nextValue.label} | primary ${providerLabel(nextValue.primaryProvider)} (${nextValue.geminiGenerationModel}) | fallback ${providerLabel(nextValue.fallbackProvider)} (${nextValue.generationModel}).`
+        `Pipeline redraw disimpan: ${nextValue.label} | primary ${providerLabel(nextValue.primaryProvider)} (${providerModelLabel(nextValue.primaryProvider, nextValue)}) | fallback ${providerLabel(nextValue.fallbackProvider)} (${providerModelLabel(nextValue.fallbackProvider, nextValue)}).`
       );
     } catch (error) {
       setMessage(toUserApiError(error, 'Gagal menyimpan model gambar ulang.').message);
@@ -722,7 +731,7 @@ export default function AdminPanel({ session, enabled }) {
                 >
                   {aiRedrawModelPresets.map((preset) => (
                     <option key={preset.mode} value={preset.mode}>
-                      {preset.label} - {preset.geminiGenerationModel}
+                      {preset.label} - {providerModelLabel(preset.primaryProvider, preset)}
                     </option>
                   ))}
                   <option value="custom">Custom</option>
@@ -744,6 +753,7 @@ export default function AdminPanel({ session, enabled }) {
                     }
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
+                    <option value={HUGGINGFACE_PIX2PIX_PROVIDER}>Hugging Face pix2pix</option>
                     <option value={GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER}>Gemini direct</option>
                     <option value={OPENROUTER_IMAGE_REDRAW_PROVIDER}>OpenRouter</option>
                   </select>
@@ -764,6 +774,7 @@ export default function AdminPanel({ session, enabled }) {
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
                     <option value="">Tanpa fallback</option>
+                    <option value={HUGGINGFACE_PIX2PIX_PROVIDER}>Hugging Face pix2pix</option>
                     <option value={OPENROUTER_IMAGE_REDRAW_PROVIDER}>OpenRouter</option>
                     <option value={GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER}>Gemini direct</option>
                   </select>
@@ -790,6 +801,36 @@ export default function AdminPanel({ session, enabled }) {
                 </label>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
+                <label className="block md:col-span-2">
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Endpoint URL Hugging Face pix2pix</span>
+                  <input
+                    value={aiModelDraft.hfEndpointUrl || ''}
+                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', hfEndpointUrl: event.target.value }))}
+                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                    placeholder="https://your-space-or-endpoint.example/run"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Timeout HF (ms)</span>
+                  <input
+                    type="number"
+                    min="1000"
+                    step="1000"
+                    value={aiModelDraft.hfTimeoutMs || 90000}
+                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', hfTimeoutMs: event.target.value }))}
+                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                  />
+                </label>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="block md:col-span-2">
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Model Hugging Face pix2pix</span>
+                  <input
+                    value={aiModelDraft.hfModel || ''}
+                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', hfModel: event.target.value }))}
+                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                  />
+                </label>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar Gemini</span>
                   <input
@@ -798,6 +839,8 @@ export default function AdminPanel({ session, enabled }) {
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   />
                 </label>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Model reasoning Gemini</span>
                   <input
@@ -953,12 +996,17 @@ export default function AdminPanel({ session, enabled }) {
                 </p>
                 <p>Estimasi biaya: sekitar {formatRupiah(estimatedIdr(aiModelDraft.estimatedUsdPerImage))} per redraw hybrid, dengan harga user tetap flat.</p>
                 <p>
-                  Pipeline: Gemini direct memakai <strong>{aiModelDraft.geminiGenerationModel || '-'}</strong> sebagai jalur utama.
+                  Pipeline: {providerLabel(aiModelDraft.primaryProvider)} memakai <strong>{providerModelLabel(aiModelDraft.primaryProvider, aiModelDraft)}</strong> sebagai jalur utama.
                   {` `}
-                  OpenRouter menjadi cadangan melalui <strong>{aiModelDraft.generationModel || '-'}</strong> saat kebijakan fallback mengizinkan.
+                  {aiModelDraft.fallbackProvider
+                    ? `${providerLabel(aiModelDraft.fallbackProvider)} menjadi cadangan melalui ${providerModelLabel(aiModelDraft.fallbackProvider, aiModelDraft)} saat kebijakan fallback mengizinkan.`
+                    : 'Tanpa provider fallback tambahan.'}
                 </p>
                 <p>
                   Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | policy Gemini: {fallbackPolicyLabel(aiModelDraft.geminiFallbackPolicy)} | image {aiModelDraft.imageSize || '1K'} | prompt {aiModelDraft.promptProfile || 'generic_trace_clone'}
+                </p>
+                <p>
+                  HF endpoint: {aiModelDraft.hfEndpointUrl || '-'} | HF model: {aiModelDraft.hfModel || '-'} | timeout {aiModelDraft.hfTimeoutMs || 90000} ms
                 </p>
                 <p>
                   Gemini reasoning: {aiModelDraft.geminiReasoningModel || '-'} | OpenRouter model: {aiModelDraft.generationModel || '-'} | OpenRouter fallback model: {aiModelDraft.fallbackModel || '-'}
