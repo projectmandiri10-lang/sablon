@@ -63,7 +63,7 @@ Worker berada di `cloudflare-worker/`.
 
 1. Masuk folder tersebut.
 2. Login Wrangler.
-3. Set secret Supabase dan Hugging Face token. OpenRouter opsional sebagai fallback otomatis.
+3. Set secret Supabase dan Hugging Face token. Default panduan ini mematikan fallback berbayar agar tetap gratis CPU.
 4. Deploy ke Cloudflare Workers.
 
 Contoh:
@@ -102,12 +102,12 @@ OPENROUTER_IMAGE_QUALITY=high
 OPENROUTER_IMAGE_SIZE=1K
 OPENROUTER_MAX_IMAGE_INPUT_BYTES=3200000
 AI_REDRAW_PRIMARY_PROVIDER=huggingface_pix2pix
-AI_REDRAW_FALLBACK_PROVIDER=openrouter_image
+AI_REDRAW_FALLBACK_PROVIDER=
 ```
 
 `SUPABASE_ACCESS_TOKEN` tidak dibutuhkan oleh runtime Worker di Cloudflare. Token itu hanya berguna untuk tooling lokal seperti MCP atau Supabase CLI.
 
-Kalau `HF_PIX2PIX_ENDPOINT_URL` kosong tetapi `OPENROUTER_API_KEY` ada, AI redraw tetap berjalan lewat jalur fallback. Kalau endpoint HF dan provider fallback kosong, endpoint AI redraw tetap ada tetapi akan memberi pesan bahwa jalur itu belum diaktifkan.
+Kalau `HF_PIX2PIX_ENDPOINT_URL` kosong dan provider fallback juga kosong, endpoint AI redraw tetap ada tetapi akan memberi pesan bahwa jalur itu belum diaktifkan.
 
 Endpoint penting:
 

@@ -1,12 +1,12 @@
 # Hybrid Redraw Policy
 
-Design Mudah uses a Hugging Face pix2pix-first redraw architecture with provider fallback:
+Design Mudah uses a Hugging Face pix2pix-first redraw architecture with optional provider fallback:
 
 - `HF pix2pix endpoint = primary sketch/trace redraw`
 - `nunchaku-tech/nunchaku-flux.1-schnell-pix2pix-turbo = default HF pix2pix model`
 - `Gemini 3.1 Flash Image = optional secondary provider when selected manually`
-- `FLUX.2 Klein 1K = OpenRouter fallback image redraw`
-- `Riverflow V2 Fast = fallback image model inside the OpenRouter path when its primary model is unavailable`
+- `FLUX.2 Klein 1K = optional OpenRouter fallback image redraw`
+- `Riverflow V2 Fast = optional fallback image model inside the OpenRouter path when its primary model is unavailable`
 - deterministic Logo Restore, trace, vector, cutline, film, PDF, and ZIP stay outside AI
 
 ## Pipeline
@@ -19,7 +19,7 @@ Design Mudah uses a Hugging Face pix2pix-first redraw architecture with provider
    - preserve enclosed artwork
 3. Logo Restore runs first for flat logo/text artwork and can return vector artifacts without generative redraw.
 4. For AI redraw, the Worker sends the upload to the configured Hugging Face pix2pix endpoint first using the configured HF model.
-5. If the HF endpoint fails with timeout, billing, rate-limit, auth, or model-unavailable conditions, the Worker falls back to the configured secondary provider automatically.
+5. If a secondary provider is configured and the HF endpoint fails with timeout, billing, rate-limit, auth, or model-unavailable conditions, the Worker falls back automatically.
 6. Inside the OpenRouter path, the backend retries once with `OPENROUTER_IMAGE_MODEL_FALLBACK` when the primary OpenRouter model is unavailable or returns no image.
 7. The resulting PNG is postprocessed, then returned to the existing trace and separation flow.
 
@@ -27,6 +27,7 @@ Design Mudah uses a Hugging Face pix2pix-first redraw architecture with provider
 
 - Ready trace mode must stay local/backend trace only and must not call any remote image generation provider.
 - HF endpoint URL, HF model, Gemini model IDs, OpenRouter model IDs, and fallback policy must stay env-editable.
+- Default free CPU deploy should leave the fallback provider empty.
 - Persist redraw metadata to the job manifest:
   - configured primary provider
   - actual provider used

@@ -27,7 +27,7 @@ export const HYBRID_REDRAW_PRESETS = {
     label: 'Hemat',
     provider: HUGGINGFACE_PIX2PIX_PROVIDER,
     primaryProvider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: '',
     hfModel: DEFAULT_HF_PIX2PIX_MODEL,
     hfEndpointUrl: '',
     hfTimeoutMs: DEFAULT_HF_PIX2PIX_TIMEOUT_MS,
@@ -50,7 +50,7 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.03,
-    note: 'Hugging Face pix2pix hemat untuk redraw sketch/trace, dengan OpenRouter sebagai cadangan otomatis saat endpoint HF bermasalah.'
+    note: 'Hugging Face pix2pix hemat untuk redraw sketch/trace tanpa provider cadangan, cocok untuk mode gratis CPU.'
   },
   standard: {
     mode: 'standard',
@@ -58,7 +58,7 @@ export const HYBRID_REDRAW_PRESETS = {
     label: 'Standar',
     provider: HUGGINGFACE_PIX2PIX_PROVIDER,
     primaryProvider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: '',
     hfModel: DEFAULT_HF_PIX2PIX_MODEL,
     hfEndpointUrl: '',
     hfTimeoutMs: DEFAULT_HF_PIX2PIX_TIMEOUT_MS,
@@ -81,7 +81,7 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.04,
-    note: 'Hugging Face pix2pix jadi jalur utama default untuk sketch/trace redraw, dengan OpenRouter fallback untuk menjaga kontinuitas.'
+    note: 'Hugging Face pix2pix jadi jalur utama default untuk sketch/trace redraw tanpa fallback berbayar.'
   },
   quality: {
     mode: 'quality',
@@ -89,7 +89,7 @@ export const HYBRID_REDRAW_PRESETS = {
     label: 'Kualitas',
     provider: HUGGINGFACE_PIX2PIX_PROVIDER,
     primaryProvider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: '',
     hfModel: DEFAULT_HF_PIX2PIX_MODEL,
     hfEndpointUrl: '',
     hfTimeoutMs: DEFAULT_HF_PIX2PIX_TIMEOUT_MS,
@@ -112,7 +112,7 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.05,
-    note: 'Default Hugging Face pix2pix 1K untuk trace/sketch redraw dengan OpenRouter fallback otomatis.'
+    note: 'Default Hugging Face pix2pix 1K untuk trace/sketch redraw tanpa fallback berbayar.'
   },
   premium: {
     mode: 'premium',
@@ -120,7 +120,7 @@ export const HYBRID_REDRAW_PRESETS = {
     label: 'Premium',
     provider: HUGGINGFACE_PIX2PIX_PROVIDER,
     primaryProvider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: '',
     hfModel: DEFAULT_HF_PIX2PIX_MODEL,
     hfEndpointUrl: '',
     hfTimeoutMs: DEFAULT_HF_PIX2PIX_TIMEOUT_MS,
@@ -143,7 +143,7 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: true,
     estimatedUsdPerImage: 0.08,
-    note: 'Hugging Face pix2pix kualitas tinggi dengan ukuran lebih besar, tetap mempertahankan fallback OpenRouter untuk kasus timeout atau endpoint unavailable.'
+    note: 'Hugging Face pix2pix kualitas tinggi dengan ukuran lebih besar tanpa fallback berbayar.'
   }
 };
 

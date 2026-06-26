@@ -63,9 +63,10 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules', 'app_settings', 'contact_messages']) {
     assert.match(bootstrapSql, new RegExp(`create table if not exists public\\.${table}`));
   }
-  assert.match(bootstrapSql, /gemini_direct_image/);
+  assert.match(bootstrapSql, /huggingface_pix2pix/);
+  assert.match(bootstrapSql, /nunchaku-tech\/nunchaku-flux\.1-schnell-pix2pix-turbo/);
   assert.match(bootstrapSql, /gemini-3\.1-flash-image/);
-  assert.match(bootstrapSql, /openrouter_image/);
+  assert.match(bootstrapSql, /black-forest-labs\/flux\.2-klein-4b/);
   assert.match(bootstrapSql, /example-jobs/);
 });
 

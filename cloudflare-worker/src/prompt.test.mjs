@@ -7,7 +7,7 @@ test('AI redraw model presets expose OpenRouter FLUX trace-clone options', () =>
 
   assert.equal(presets.budget.provider, 'huggingface_pix2pix');
   assert.equal(presets.budget.primaryProvider, 'huggingface_pix2pix');
-  assert.equal(presets.budget.fallbackProvider, 'openrouter_image');
+  assert.equal(presets.budget.fallbackProvider, '');
   assert.equal(presets.budget.hfModel, 'nunchaku-tech/nunchaku-flux.1-schnell-pix2pix-turbo');
   assert.equal(presets.budget.hfTimeoutMs, 90000);
   assert.equal(presets.budget.geminiGenerationModel, 'gemini-3.1-flash-image');
@@ -34,7 +34,7 @@ test('legacy ai_redraw_model values normalize into Hugging Face primary config w
 
   assert.equal(normalized.provider, 'huggingface_pix2pix');
   assert.equal(normalized.primaryProvider, 'huggingface_pix2pix');
-  assert.equal(normalized.fallbackProvider, 'openrouter_image');
+  assert.equal(normalized.fallbackProvider, '');
   assert.equal(normalized.hfModel, 'nunchaku-tech/nunchaku-flux.1-schnell-pix2pix-turbo');
   assert.equal(normalized.hfTimeoutMs, 90000);
   assert.equal(normalized.geminiGenerationModel, 'gemini-3.1-flash-image');
@@ -69,4 +69,17 @@ test('env defaults can activate Hugging Face pix2pix primary config', () => {
   assert.equal(normalized.hfEndpointUrl, 'https://demo-space.hf.space/run');
   assert.equal(normalized.hfModel, 'owner/custom-pix2pix');
   assert.equal(normalized.hfTimeoutMs, 120000);
+});
+
+test('explicit fallback provider still works when project defaults are free-only', () => {
+  const normalized = normalizeAiRedrawModelConfig(
+    {
+      primaryProvider: 'huggingface_pix2pix',
+      fallbackProvider: 'openrouter_image'
+    },
+    {}
+  );
+
+  assert.equal(normalized.primaryProvider, 'huggingface_pix2pix');
+  assert.equal(normalized.fallbackProvider, 'openrouter_image');
 });

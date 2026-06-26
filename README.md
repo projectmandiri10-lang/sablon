@@ -17,9 +17,9 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 - Jalur deploy dipisah dari backend Node/Express lama.
 - `VITE_API_BASE_URL` mengarah ke Worker baru.
 - `VITE_GOOGLE_OAUTH_REDIRECT_TO` mengarah ke domain Pages baru.
-- AI redraw sekarang dipanggil langsung oleh Worker ke endpoint Hugging Face pix2pix sebagai jalur utama, lalu otomatis fallback ke OpenRouter jika endpoint utama timeout, unavailable, atau gagal.
-- Jika `HF_PIX2PIX_ENDPOINT_URL` belum diisi tetapi `OPENROUTER_API_KEY` ada, AI redraw tetap bisa berjalan lewat fallback OpenRouter.
-- Jika endpoint HF dan fallback provider belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai.
+- AI redraw sekarang dipanggil langsung oleh Worker ke endpoint Hugging Face pix2pix sebagai jalur utama.
+- Default copy ini disetel ke mode gratis CPU, jadi fallback provider berbayar dimatikan dulu.
+- Jika endpoint HF belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai.
 
 ## Mulai Cepat
 

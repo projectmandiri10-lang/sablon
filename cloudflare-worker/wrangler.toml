@@ -25,10 +25,10 @@ OPENROUTER_APP_NAME = "EasyRedesign Pro"
 OPENROUTER_MAX_IMAGE_INPUT_BYTES = "3200000"
 AI_REDRAW_PRESET = "quality"
 AI_REDRAW_PRIMARY_PROVIDER = "huggingface_pix2pix"
-AI_REDRAW_FALLBACK_PROVIDER = "openrouter_image"
+AI_REDRAW_FALLBACK_PROVIDER = ""
 SUPABASE_URL = "https://wrjhedlygozqtsdallzr.supabase.co"
 # Isi setelah backend processor berhasil deploy ke Cloud Run.
 # PROCESSOR_BASE_URL = "https://design-mudah-processor-xxxxx.a.run.app"
 
 # Secrets tetap diset di dashboard Cloudflare Worker > Settings > Variables and Secrets.
-# Recommended: HF_TOKEN plus OPENROUTER_API_KEY or GEMINI_API_KEY as fallback, and SUPABASE_SERVICE_ROLE_KEY
+# Recommended for free CPU mode: HF_TOKEN optional, HF_PIX2PIX endpoint vars, and SUPABASE_SERVICE_ROLE_KEY
