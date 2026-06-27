@@ -73,7 +73,7 @@ cd cloudflare-worker
 npm install
 npx wrangler login
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-npx wrangler secret put LITELLM_API_KEY
+npx wrangler secret put LITELLM_SECRET_KEY
 npx wrangler secret put OPENROUTER_API_KEY
 npx wrangler deploy
 ```
@@ -83,7 +83,7 @@ Env Worker yang penting:
 ```env
 SUPABASE_URL=https://YOUR_NEW_PROJECT_REF.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...
-LITELLM_API_KEY=...
+LITELLM_SECRET_KEY=...
 LITELLM_BASE_URL=https://litellm.example.com/v1
 LITELLM_IMAGE_MODEL=gemini-3.1-flash-image-preview
 LITELLM_APP_NAME=EasyRedesign Pro
@@ -156,7 +156,7 @@ VITE_GOOGLE_OAUTH_REDIRECT_TO=http://localhost:5173
 Isi env ini di Worker:
 
 ```env
-LITELLM_API_KEY=...
+LITELLM_SECRET_KEY=...
 OPENROUTER_API_KEY=...
 ```
 

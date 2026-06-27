@@ -49,7 +49,7 @@ function isOpenRouterConfigured(env) {
 }
 
 function isLiteLlmConfigured(env) {
-  return hasEnvValue(env, 'LITELLM_API_KEY');
+  return hasEnvValue(env, 'LITELLM_SECRET_KEY') || hasEnvValue(env, 'LITELLM_API_KEY');
 }
 
 function liteLlmBaseUrl(env) {
@@ -110,8 +110,9 @@ function normalizeProviderMessage(message, fallback) {
 }
 
 function buildLiteLlmHeaders(env) {
+  const secret = env.LITELLM_SECRET_KEY || env.LITELLM_API_KEY;
   const headers = {
-    Authorization: `Bearer ${requireEnvValue(env, 'LITELLM_API_KEY')}`,
+    Authorization: `Bearer ${secret || requireEnvValue(env, 'LITELLM_SECRET_KEY')}`,
     'Content-Type': 'application/json'
   };
   const appName = liteLlmAppName(env);

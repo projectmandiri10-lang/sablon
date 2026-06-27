@@ -66,7 +66,7 @@ test('LiteLLM primary returns image bytes and metadata', async () => {
   try {
     const image = new File([new Uint8Array([9, 9, 9])], 'trace.png', { type: 'image/png' });
     const env = {
-      LITELLM_API_KEY: 'litellm_test',
+      LITELLM_SECRET_KEY: 'litellm_test',
       LITELLM_BASE_URL: 'https://litellm.example.com/v1'
     };
     const config = normalizeAiRedrawModelConfig(
@@ -83,6 +83,51 @@ test('LiteLLM primary returns image bytes and metadata', async () => {
     assert.equal(result.metadata.model, 'gemini-3.1-flash-image-preview');
     assert.match(result.metadata.finalTechnicalPrompt, /screen-print friendly shapes/);
     assert.equal(result.metadata.safetyEnabled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('LiteLLM still accepts the legacy API key env name', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url === 'https://litellm.example.com/v1/chat/completions') {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                images: [{ image_url: { url: 'data:image/png;base64,AQID' } }]
+              }
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  try {
+    const image = new File([new Uint8Array([9, 9, 9])], 'trace.png', { type: 'image/png' });
+    const env = {
+      LITELLM_API_KEY: 'legacy_litellm_test',
+      LITELLM_BASE_URL: 'https://litellm.example.com/v1'
+    };
+    const config = normalizeAiRedrawModelConfig(
+      {
+        primaryProvider: 'litellm_image',
+        fallbackProvider: 'openrouter_image'
+      },
+      env
+    );
+
+    const result = await requestAiRetouchedImage(env, image, { productionType: 'sablon' }, config);
+    assert.equal(result.metadata.providerUsed, 'litellm_image');
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -129,7 +174,7 @@ test('LiteLLM falls back to OpenRouter when primary model is unavailable', async
   try {
     const image = new File([new Uint8Array([7, 8, 9])], 'trace.png', { type: 'image/png' });
     const env = {
-      LITELLM_API_KEY: 'litellm_test',
+      LITELLM_SECRET_KEY: 'litellm_test',
       LITELLM_BASE_URL: 'https://litellm.example.com/v1',
       OPENROUTER_API_KEY: 'or_test',
       OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1'
@@ -186,7 +231,7 @@ test('LiteLLM falls back to OpenRouter on upstream network failure', async () =>
   try {
     const image = new File([new Uint8Array([1, 1, 1])], 'trace.png', { type: 'image/png' });
     const env = {
-      LITELLM_API_KEY: 'litellm_test',
+      LITELLM_SECRET_KEY: 'litellm_test',
       LITELLM_BASE_URL: 'https://litellm.example.com/v1',
       OPENROUTER_API_KEY: 'or_test',
       OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1'
