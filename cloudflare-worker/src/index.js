@@ -9,12 +9,8 @@ import {
   updateExampleJobsSetting
 } from './example-jobs.js';
 import {
-  DEFAULT_GEMINI_FALLBACK_POLICY,
-  GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER,
-  GEMINI_FALLBACK_POLICY_ALL,
-  GEMINI_FALLBACK_POLICY_QUOTA_ONLY,
-  HUGGINGFACE_PIX2PIX_PROVIDER,
   HYBRID_REDRAW_PRESETS,
+  LITELLM_IMAGE_REDRAW_PROVIDER,
   OPENROUTER_IMAGE_REDRAW_PROVIDER,
   normalizeHybridRedrawConfig
 } from '../../shared/hybridRedrawConfig.js';
@@ -52,16 +48,22 @@ function isOpenRouterConfigured(env) {
   return hasEnvValue(env, 'OPENROUTER_API_KEY');
 }
 
-function isGeminiConfigured(env) {
-  return hasEnvValue(env, 'GEMINI_API_KEY');
+function isLiteLlmConfigured(env) {
+  return hasEnvValue(env, 'LITELLM_API_KEY');
 }
 
-function isHuggingFaceConfigured(env) {
-  return hasEnvValue(env, 'HF_PIX2PIX_ENDPOINT_URL');
+function liteLlmBaseUrl(env) {
+  return String(env.LITELLM_BASE_URL || 'https://litellm.example.com/v1').replace(/\/+$/, '');
 }
 
-function geminiBaseUrl(env) {
-  return String(env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
+function liteLlmMaxImageInputBytes(env) {
+  const fallback = 3200000;
+  const parsed = Number.parseInt(env.LITELLM_MAX_IMAGE_INPUT_BYTES, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function liteLlmAppName(env) {
+  return String(env.LITELLM_APP_NAME || 'EasyRedesign Pro').trim();
 }
 
 function openRouterBaseUrl(env) {
@@ -82,33 +84,10 @@ function openRouterSiteUrl(env) {
   return String(env.OPENROUTER_SITE_URL || '').trim();
 }
 
-function huggingFacePix2PixEndpointUrl(env) {
-  return requireEnvValue(env, 'HF_PIX2PIX_ENDPOINT_URL').trim();
-}
-
-function buildGeminiHeaders(env) {
-  return {
-    'x-goog-api-key': requireEnvValue(env, 'GEMINI_API_KEY'),
-    'Content-Type': 'application/json'
-  };
-}
-
-function buildHuggingFaceHeaders(env) {
-  const headers = {
-    Accept: 'image/*,application/json'
-  };
-  if (env.HF_TOKEN) {
-    headers.Authorization = `Bearer ${env.HF_TOKEN}`;
-  }
-  return headers;
-}
-
 function providerDisplayName(provider) {
   switch (provider) {
-    case HUGGINGFACE_PIX2PIX_PROVIDER:
-      return 'Hugging Face pix2pix';
-    case GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER:
-      return 'Gemini direct';
+    case LITELLM_IMAGE_REDRAW_PROVIDER:
+      return 'LiteLLM';
     case OPENROUTER_IMAGE_REDRAW_PROVIDER:
       return 'OpenRouter';
     default:
@@ -130,11 +109,21 @@ function normalizeProviderMessage(message, fallback) {
   return typeof message === 'string' && message.trim() ? message.trim() : fallback;
 }
 
-function mapGeminiError(response, data) {
-  const rawStatus = String(data?.error?.status || data?.status || '').trim();
+function buildLiteLlmHeaders(env) {
+  const headers = {
+    Authorization: `Bearer ${requireEnvValue(env, 'LITELLM_API_KEY')}`,
+    'Content-Type': 'application/json'
+  };
+  const appName = liteLlmAppName(env);
+  if (appName) headers['X-Title'] = appName;
+  return headers;
+}
+
+function mapLiteLlmError(response, data) {
+  const rawStatus = String(data?.error?.code || data?.error?.type || data?.status || '').trim();
   const message = normalizeProviderMessage(
     data?.error?.message || data?.message || data?.raw,
-    `Gemini image request failed: ${response.status}`
+    `LiteLLM image request failed: ${response.status}`
   );
   const lowered = message.toLowerCase();
   let fallbackReason = '';
@@ -145,9 +134,11 @@ function mapGeminiError(response, data) {
     fallbackReason = 'billing_required';
   } else if (response.status === 404 || /not found|model.*unavailable|model.*not available|unsupported model|unknown model|not supported/.test(lowered)) {
     fallbackReason = 'model_unavailable';
+  } else if (response.status >= 500 || /timeout|timed out|connection|connect|overloaded|service unavailable|gateway|upstream/.test(lowered)) {
+    fallbackReason = 'upstream_unavailable';
   }
 
-  return createProviderError(GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER, message, {
+  return createProviderError(LITELLM_IMAGE_REDRAW_PROVIDER, message, {
     statusCode: response.status,
     providerCode: rawStatus,
     responseData: data,
@@ -168,6 +159,8 @@ function mapOpenRouterError(response, data) {
     fallbackReason = 'billing_required';
   } else if (response.status === 404 || /not found|unavailable|unsupported model|unknown model|not supported/.test(lowered)) {
     fallbackReason = 'model_unavailable';
+  } else if (response.status >= 500 || /timeout|timed out|connection|connect|overloaded|service unavailable|gateway|upstream/.test(lowered)) {
+    fallbackReason = 'upstream_unavailable';
   }
   return createProviderError(OPENROUTER_IMAGE_REDRAW_PROVIDER, message, {
     statusCode: response.status,
@@ -177,71 +170,42 @@ function mapOpenRouterError(response, data) {
   });
 }
 
-function mapHuggingFaceError(response, data) {
-  const message = normalizeProviderMessage(
-    data?.error?.message || data?.error || data?.message || data?.raw,
-    `Hugging Face pix2pix request failed: ${response.status}`
-  );
-  const lowered = message.toLowerCase();
-  let fallbackReason = '';
-  if (response.status === 408 || response.status === 504 || /timeout|timed out|deadline/.test(lowered)) {
-    fallbackReason = 'timeout';
-  } else if (response.status === 429 || /quota|rate limit|too many requests|exhausted/.test(lowered)) {
-    fallbackReason = 'quota_exhausted';
-  } else if (response.status === 401 || response.status === 403 || /unauthorized|forbidden|token|auth/.test(lowered)) {
-    fallbackReason = 'auth_failed';
-  } else if (response.status === 402 || /billing|payment|insufficient|credit/.test(lowered)) {
-    fallbackReason = 'billing_required';
-  } else if (response.status === 404 || /not found|unavailable|unsupported model|unknown model|not supported/.test(lowered)) {
-    fallbackReason = 'model_unavailable';
-  }
-  return createProviderError(HUGGINGFACE_PIX2PIX_PROVIDER, message, {
-    statusCode: response.status,
-    providerCode: String(data?.error?.code || data?.error?.type || data?.status || ''),
-    responseData: data,
-    fallbackReason
-  });
-}
-
-export function shouldFallbackFromGeminiError(error, policy = DEFAULT_GEMINI_FALLBACK_POLICY) {
-  if (!error || error.provider !== GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) return false;
-  if (policy === GEMINI_FALLBACK_POLICY_ALL) return true;
-  if (policy === GEMINI_FALLBACK_POLICY_QUOTA_ONLY) {
-    return error.fallbackReason === 'quota_exhausted' || error.fallbackReason === 'billing_required';
-  }
-  return ['quota_exhausted', 'billing_required', 'model_unavailable'].includes(error.fallbackReason);
+export function shouldFallbackFromLiteLlmError(error) {
+  if (!error || error.provider !== LITELLM_IMAGE_REDRAW_PROVIDER) return false;
+  return ['quota_exhausted', 'billing_required', 'model_unavailable', 'upstream_unavailable'].includes(error.fallbackReason);
 }
 
 function shouldFallbackToSecondaryProvider(error, aiModelConfig) {
   if (!error) return false;
-  if (error.provider === HUGGINGFACE_PIX2PIX_PROVIDER) {
-    return ['timeout', 'quota_exhausted', 'billing_required', 'model_unavailable', 'auth_failed'].includes(error.fallbackReason);
-  }
-  if (error.provider === GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) {
-    return shouldFallbackFromGeminiError(error, aiModelConfig.geminiFallbackPolicy);
+  if (error.provider === LITELLM_IMAGE_REDRAW_PROVIDER) {
+    return shouldFallbackFromLiteLlmError(error);
   }
   if (error.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) {
-    return ['quota_exhausted', 'billing_required', 'model_unavailable'].includes(error.fallbackReason);
+    return ['quota_exhausted', 'billing_required', 'model_unavailable', 'upstream_unavailable'].includes(error.fallbackReason);
   }
   return false;
 }
 
 function isProviderConfigured(provider, env) {
-  if (provider === HUGGINGFACE_PIX2PIX_PROVIDER) return isHuggingFaceConfigured(env);
-  if (provider === GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) return isGeminiConfigured(env);
+  if (provider === LITELLM_IMAGE_REDRAW_PROVIDER) return isLiteLlmConfigured(env);
   if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return isOpenRouterConfigured(env);
   return false;
 }
 
 function buildAiRedrawAvailability(config, env) {
   return {
-    hfConfigured: isHuggingFaceConfigured(env),
-    geminiConfigured: isGeminiConfigured(env),
+    liteLlmConfigured: isLiteLlmConfigured(env),
     openRouterConfigured: isOpenRouterConfigured(env),
     aiRedrawAvailable:
       isProviderConfigured(config.primaryProvider, env) ||
       (config.fallbackProvider ? isProviderConfigured(config.fallbackProvider, env) : false)
   };
+}
+
+function aiRedrawMaxImageInputBytes(config, env) {
+  if (config?.primaryProvider === LITELLM_IMAGE_REDRAW_PROVIDER) return liteLlmMaxImageInputBytes(env);
+  if (config?.primaryProvider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return openRouterMaxImageInputBytes(env);
+  return Math.max(liteLlmMaxImageInputBytes(env), openRouterMaxImageInputBytes(env));
 }
 
 function bytesToBase64(bytes) {
@@ -275,41 +239,6 @@ function parseDataUrl(value) {
     mimeType: match[1] || 'application/octet-stream',
     bytes: base64ToBytes(match[2])
   };
-}
-
-export function inferHuggingFaceEndpointInfo(endpointUrl = '') {
-  const fallback = {
-    hfEndpointType: 'custom_api',
-    hfSpaceId: '',
-    hfEndpointLogicalName: ''
-  };
-  try {
-    const url = new URL(endpointUrl);
-    const hostname = url.hostname.toLowerCase();
-    if (hostname.endsWith('.hf.space')) {
-      const spaceId = hostname.slice(0, -'.hf.space'.length);
-      return {
-        hfEndpointType: 'space_proxy',
-        hfSpaceId: spaceId,
-        hfEndpointLogicalName: spaceId
-      };
-    }
-    const spaceMatch = /^\/spaces\/([^/]+\/[^/]+)/i.exec(url.pathname);
-    if (hostname === 'huggingface.co' && spaceMatch) {
-      return {
-        hfEndpointType: 'space_api',
-        hfSpaceId: spaceMatch[1],
-        hfEndpointLogicalName: spaceMatch[1]
-      };
-    }
-    return {
-      hfEndpointType: 'custom_api',
-      hfSpaceId: '',
-      hfEndpointLogicalName: hostname
-    };
-  } catch (_error) {
-    return fallback;
-  }
 }
 
 async function fileToDataUrl(file) {
@@ -384,26 +313,35 @@ function extractOpenRouterImageUrl(data) {
   return imageEntry?.image_url?.url || imageEntry?.imageUrl?.url || '';
 }
 
-function extractGeminiOutputImage(data) {
-  if (data?.output_image?.data) {
-    return {
-      mimeType: data.output_image.mime_type || 'image/png',
-      data: data.output_image.data
-    };
+function dataUrlFromBase64(data, mimeType = 'image/png') {
+  return `data:${mimeType};base64,${String(data || '').trim()}`;
+}
+
+function extractLiteLlmImageUrl(data) {
+  const directImageEntry = data?.choices?.[0]?.message?.images?.[0];
+  if (directImageEntry?.image_url?.url || directImageEntry?.imageUrl?.url) {
+    return directImageEntry.image_url?.url || directImageEntry.imageUrl?.url || '';
   }
 
-  const steps = Array.isArray(data?.steps) ? data.steps : [];
-  for (const step of steps) {
-    if (step?.type !== 'model_output' || !Array.isArray(step.content)) continue;
-    for (const part of step.content) {
-      if (part?.type !== 'image' || !part?.data) continue;
-      return {
-        mimeType: part.mime_type || 'image/png',
-        data: part.data
-      };
+  const messageContent = data?.choices?.[0]?.message?.content;
+  if (Array.isArray(messageContent)) {
+    for (const part of messageContent) {
+      if (part?.type === 'image_url') {
+        const imageUrl = part.image_url?.url || part.image_url;
+        if (imageUrl) return imageUrl;
+      }
+      if ((part?.type === 'output_image' || part?.type === 'image') && part?.data) {
+        return dataUrlFromBase64(part.data, part.mime_type || part.mimeType || 'image/png');
+      }
     }
   }
-  return null;
+
+  const imageData = data?.data?.[0]?.b64_json;
+  if (imageData) {
+    return dataUrlFromBase64(imageData, data?.data?.[0]?.mime_type || 'image/png');
+  }
+
+  return '';
 }
 
 async function downloadGeneratedImage(imageUrl) {
@@ -758,12 +696,11 @@ function handleHealth(env) {
     config: {
       supabaseUrl: hasEnvValue(env, 'SUPABASE_URL'),
       supabaseServiceRoleKey: hasEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY'),
-      hfConfigured: redrawAvailability.hfConfigured,
-      geminiConfigured: redrawAvailability.geminiConfigured,
+      liteLlmConfigured: redrawAvailability.liteLlmConfigured,
       openRouterConfigured: redrawAvailability.openRouterConfigured,
       aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
       defaultAiRedrawModel,
-      redrawPipeline: 'worker_auth_credit_to_huggingface_pix2pix_with_provider_fallback'
+      redrawPipeline: 'worker_auth_credit_to_litellm_primary_with_openrouter_fallback'
     },
     endpoints: [
       'GET /api/app-config',
@@ -1172,7 +1109,7 @@ async function handleAiRedraw(env, request) {
   const aiModelConfig = await getAiRedrawModelConfig(env);
   const availability = buildAiRedrawAvailability(aiModelConfig, env);
   if (!availability.aiRedrawAvailable) {
-    throw new Error('AI redraw belum diaktifkan di deploy ini. Isi HF_PIX2PIX_ENDPOINT_URL atau secret provider fallback di Worker.');
+    throw new Error('AI redraw belum diaktifkan di deploy ini. Isi secret LiteLLM atau OpenRouter di Worker.');
   }
   const pricing = await getPricing(env);
   await ensureCredit(env, profile, pricing.ai_redraw);
@@ -1185,7 +1122,7 @@ async function handleAiRedraw(env, request) {
     throw new Error('Settings AI redraw tidak valid.');
   }
   if (!(image instanceof File)) throw new Error('File gambar wajib diisi.');
-  const maxImageBytes = openRouterMaxImageInputBytes(env);
+  const maxImageBytes = aiRedrawMaxImageInputBytes(aiModelConfig, env);
   if (image.size > maxImageBytes) {
     throw new Error(`Ukuran gambar terlalu besar untuk AI redraw. Maksimal ${maxImageBytes} byte.`);
   }
@@ -1240,14 +1177,7 @@ function buildAiRedrawMetadata(aiModelConfig, image, extra = {}) {
     fallbackAttempted: extra.fallbackAttempted === true,
     fallbackReason: extra.fallbackReason || '',
     model: extra.model || '',
-    hfModel: aiModelConfig.hfModel || '',
-    hfEndpointUrl: aiModelConfig.hfEndpointUrl || '',
-    hfTimeoutMs: aiModelConfig.hfTimeoutMs || 0,
-    hfEndpointType: extra.hfEndpointType || '',
-    hfSpaceId: extra.hfSpaceId || '',
-    hfEndpointLogicalName: extra.hfEndpointLogicalName || '',
-    geminiGenerationModel: aiModelConfig.geminiGenerationModel || '',
-    geminiReasoningModel: aiModelConfig.geminiReasoningModel || '',
+    liteLlmImageModel: aiModelConfig.liteLlmImageModel || '',
     openRouterGenerationModel: aiModelConfig.generationModel || '',
     openRouterFallbackModel: aiModelConfig.fallbackModel || '',
     promptProfile: aiModelConfig.promptProfile,
@@ -1296,11 +1226,8 @@ export async function requestAiRetouchedImage(env, image, settings, aiModelConfi
 }
 
 async function requestProviderRetouchedImage(env, image, settings, aiModelConfig, routing) {
-  if (routing.provider === HUGGINGFACE_PIX2PIX_PROVIDER) {
-    return requestHuggingFaceRetouchedImage(env, image, settings, aiModelConfig, routing);
-  }
-  if (routing.provider === GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) {
-    return requestGeminiRetouchedImage(env, image, settings, aiModelConfig, routing);
+  if (routing.provider === LITELLM_IMAGE_REDRAW_PROVIDER) {
+    return requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig, routing);
   }
   if (routing.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) {
     return requestOpenRouterRetouchedImage(env, image, settings, aiModelConfig, routing);
@@ -1308,170 +1235,68 @@ async function requestProviderRetouchedImage(env, image, settings, aiModelConfig
   throw new Error(`Provider AI redraw tidak didukung: ${routing.provider}`);
 }
 
-async function extractHuggingFaceGeneratedImage(response, data) {
-  const contentType = String(response.headers.get('Content-Type') || '').toLowerCase();
-  if (contentType.startsWith('image/')) {
-    return response;
-  }
-
-  const imageCandidates = [
-    data?.image,
-    data?.image_base64,
-    data?.b64_json,
-    data?.output?.image,
-    data?.output?.image_base64,
-    data?.data?.[0]?.b64_json,
-    data?.data?.[0]?.image,
-    data?.result?.image
-  ].filter(Boolean);
-
-  for (const candidate of imageCandidates) {
-    const dataUrl = parseDataUrl(candidate);
-    if (dataUrl) {
-      return new Response(dataUrl.bytes, {
-        headers: {
-          'Content-Type': dataUrl.mimeType
-        }
-      });
-    }
-    if (typeof candidate === 'string') {
-      return new Response(base64ToBytes(candidate), {
-        headers: {
-          'Content-Type': data?.mime_type || data?.output?.mime_type || 'image/png'
-        }
-      });
-    }
-  }
-
-  const urlCandidates = [
-    data?.url,
-    data?.image_url,
-    data?.output_url,
-    data?.data?.[0]?.url
-  ].filter((value) => typeof value === 'string' && value);
-
-  for (const imageUrl of urlCandidates) {
-    return downloadGeneratedImage(imageUrl);
-  }
-
-  return null;
-}
-
-async function requestHuggingFaceRetouchedImage(env, image, settings, aiModelConfig, routing) {
-  const endpointUrl = aiModelConfig.hfEndpointUrl || huggingFacePix2PixEndpointUrl(env);
+async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig, routing) {
+  const imageDataUrl = await fileToDataUrl(image);
   const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
-  const endpointInfo = inferHuggingFaceEndpointInfo(endpointUrl);
-  const formData = new FormData();
-  formData.set('image', image, image.name || 'upload.png');
-  formData.set('prompt', prompt);
-  formData.set('model', aiModelConfig.hfModel || '');
-  formData.set('image_size', aiModelConfig.imageSize || '');
-  formData.set('background_mode', aiModelConfig.backgroundMode || '');
-  formData.set('generation_quality', aiModelConfig.generationQuality || '');
-  formData.set('prompt_profile', aiModelConfig.promptProfile || '');
-  formData.set('production_type', settings.productionType || '');
-  formData.set('response_format', 'image');
-
-  const controller = new AbortController();
-  const timeoutMs = Number(aiModelConfig.hfTimeoutMs) || 90000;
-  const timeoutHandle = setTimeout(() => controller.abort('hf_timeout'), timeoutMs);
-
-  try {
-    const response = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: buildHuggingFaceHeaders(env),
-      body: formData,
-      signal: controller.signal
-    });
-    const data = await parseJsonResponse(response.clone());
-
-    if (!response.ok) {
-      throw mapHuggingFaceError(response, data);
-    }
-
-    const imageResponse = await extractHuggingFaceGeneratedImage(response, data);
-    if (!imageResponse) {
-      throw createProviderError(HUGGINGFACE_PIX2PIX_PROVIDER, 'Hugging Face pix2pix tidak mengembalikan gambar.', {
-        statusCode: 502,
-        responseData: data,
-        fallbackReason: 'model_unavailable'
-      });
-    }
-
-    return {
-      body: imageResponse.body,
-      status: imageResponse.status,
-      statusText: imageResponse.statusText,
-      headers: imageResponse.headers,
-      metadata: buildAiRedrawMetadata(aiModelConfig, image, {
-        providerUsed: HUGGINGFACE_PIX2PIX_PROVIDER,
-        model: aiModelConfig.hfModel,
-        fallbackAttempted: routing.fallbackAttempted,
-        fallbackReason: routing.fallbackReason,
-        ...endpointInfo
-      })
-    };
-  } catch (error) {
-    if (error?.name === 'AbortError' || error === 'hf_timeout') {
-      throw createProviderError(HUGGINGFACE_PIX2PIX_PROVIDER, `Hugging Face pix2pix timeout setelah ${timeoutMs} ms.`, {
-        statusCode: 504,
-        fallbackReason: 'timeout'
-      });
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutHandle);
-  }
-}
-
-async function requestGeminiRetouchedImage(env, image, settings, aiModelConfig, routing) {
-  const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
-  const bytes = new Uint8Array(await image.arrayBuffer());
   const payload = {
-    model: aiModelConfig.geminiGenerationModel,
-    input: [
+    model: aiModelConfig.liteLlmImageModel,
+    messages: [
       {
-        type: 'text',
-        text: prompt
-      },
-      {
-        type: 'image',
-        data: bytesToBase64(bytes),
-        mime_type: image.type || 'image/png'
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: prompt
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: imageDataUrl
+            }
+          }
+        ]
       }
     ],
-    response_format: {
-      type: 'image',
-      delivery: 'inline',
-      image_size: aiModelConfig.imageSize || '1K'
-    },
-    store: false
+    modalities: guessOpenRouterModalities(aiModelConfig.liteLlmImageModel),
+    stream: false
   };
 
-  const response = await fetch(`${geminiBaseUrl(env)}/interactions`, {
-    method: 'POST',
-    headers: buildGeminiHeaders(env),
-    body: JSON.stringify(payload)
-  });
+  if (aiModelConfig.imageSize) {
+    payload.image_config = {
+      image_size: aiModelConfig.imageSize
+    };
+  }
+
+  let response;
+  try {
+    response = await fetch(`${liteLlmBaseUrl(env)}/chat/completions`, {
+      method: 'POST',
+      headers: buildLiteLlmHeaders(env),
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    throw createProviderError(LITELLM_IMAGE_REDRAW_PROVIDER, 'LiteLLM tidak dapat dihubungi.', {
+      statusCode: 502,
+      responseData: { cause: error instanceof Error ? error.message : String(error || '') },
+      fallbackReason: 'upstream_unavailable'
+    });
+  }
+
   const data = await parseJsonResponse(response);
 
   if (!response.ok) {
-    throw mapGeminiError(response, data);
+    throw mapLiteLlmError(response, data);
   }
 
-  const outputImage = extractGeminiOutputImage(data);
-  if (!outputImage?.data) {
-    throw createProviderError(GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER, 'Gemini tidak mengembalikan gambar.', {
+  const imageUrl = extractLiteLlmImageUrl(data);
+  if (!imageUrl) {
+    throw createProviderError(LITELLM_IMAGE_REDRAW_PROVIDER, 'LiteLLM tidak mengembalikan gambar.', {
       statusCode: 502,
       responseData: data
     });
   }
 
-  const imageResponse = new Response(base64ToBytes(outputImage.data), {
-    headers: {
-      'Content-Type': outputImage.mimeType || 'image/png'
-    }
-  });
+  const imageResponse = await downloadGeneratedImage(imageUrl);
 
   return {
     body: imageResponse.body,
@@ -1479,9 +1304,8 @@ async function requestGeminiRetouchedImage(env, image, settings, aiModelConfig, 
     statusText: imageResponse.statusText,
     headers: imageResponse.headers,
     metadata: buildAiRedrawMetadata(aiModelConfig, image, {
-      providerUsed: GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER,
-      model: aiModelConfig.geminiGenerationModel,
-      geminiOutputMimeType: outputImage.mimeType || 'image/png',
+      providerUsed: LITELLM_IMAGE_REDRAW_PROVIDER,
+      model: aiModelConfig.liteLlmImageModel,
       fallbackAttempted: routing.fallbackAttempted,
       fallbackReason: routing.fallbackReason
     })
@@ -1526,11 +1350,20 @@ async function requestOpenRouterRetouchedImage(env, image, settings, aiModelConf
         };
       }
 
-      const response = await fetch(`${openRouterBaseUrl(env)}/chat/completions`, {
-        method: 'POST',
-        headers: buildOpenRouterHeaders(env),
-        body: JSON.stringify(payload)
-      });
+      let response;
+      try {
+        response = await fetch(`${openRouterBaseUrl(env)}/chat/completions`, {
+          method: 'POST',
+          headers: buildOpenRouterHeaders(env),
+          body: JSON.stringify(payload)
+        });
+      } catch (error) {
+        throw createProviderError(OPENROUTER_IMAGE_REDRAW_PROVIDER, 'OpenRouter tidak dapat dihubungi.', {
+          statusCode: 502,
+          responseData: { cause: error instanceof Error ? error.message : String(error || '') },
+          fallbackReason: 'upstream_unavailable'
+        });
+      }
       const data = await parseJsonResponse(response);
 
       if (!response.ok) {
@@ -1877,8 +1710,7 @@ async function handleAppConfig(env) {
       aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
       aiRedrawPrimaryProvider: aiRedrawModel.primaryProvider,
       aiRedrawFallbackProvider: aiRedrawModel.fallbackProvider || '',
-      hfConfigured: redrawAvailability.hfConfigured,
-      geminiConfigured: redrawAvailability.geminiConfigured,
+      liteLlmConfigured: redrawAvailability.liteLlmConfigured,
       openRouterConfigured: redrawAvailability.openRouterConfigured
     }
   });

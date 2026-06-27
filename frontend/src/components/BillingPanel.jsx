@@ -3,8 +3,7 @@ import { useEffect, useState } from 'react';
 import { getAppConfig } from '../lib/api.js';
 
 function providerLabel(provider) {
-  if (provider === 'huggingface_pix2pix') return 'Hugging Face pix2pix';
-  if (provider === 'gemini_direct_image') return 'Gemini direct';
+  if (provider === 'litellm_image') return 'LiteLLM';
   if (provider === 'openrouter_image') return 'OpenRouter';
   return provider || '';
 }
@@ -60,8 +59,8 @@ export default function BillingPanel({ session }) {
           }`}
         >
           {aiRedrawAvailable
-            ? `AI Redraw aktif di deploy ini. Jalur utama: ${providerLabel(aiRedrawPrimaryProvider) || 'Gemini direct'}${aiRedrawFallbackProvider ? `, fallback: ${providerLabel(aiRedrawFallbackProvider)}.` : '.'}`
-            : 'AI Redraw belum aktif di deploy ini. Mode Ready Trace tetap tersedia sampai HF_PIX2PIX_ENDPOINT_URL atau secret provider fallback diisi.'}
+            ? `AI Redraw aktif di deploy ini. Jalur utama: ${providerLabel(aiRedrawPrimaryProvider) || 'LiteLLM'}${aiRedrawFallbackProvider ? `, fallback: ${providerLabel(aiRedrawFallbackProvider)}.` : '.'}`
+            : 'AI Redraw belum aktif di deploy ini. Mode Ready Trace tetap tersedia sampai secret LiteLLM atau OpenRouter diisi di Worker.'}
         </div>
       </div>
     </section>

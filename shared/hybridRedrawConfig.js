@@ -1,39 +1,25 @@
-export const GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER = 'gemini_direct_image';
+export const LITELLM_IMAGE_REDRAW_PROVIDER = 'litellm_image';
 export const OPENROUTER_IMAGE_REDRAW_PROVIDER = 'openrouter_image';
-export const HUGGINGFACE_PIX2PIX_PROVIDER = 'huggingface_pix2pix';
 export const OPENROUTER_GEMINI_REDRAW_PROVIDER = 'openrouter_gemini_image';
 export const OPENROUTER_RIVERFLOW_REDRAW_PROVIDER = 'openrouter_riverflow_image';
-export const HYBRID_REDRAW_PROVIDER = HUGGINGFACE_PIX2PIX_PROVIDER;
+export const LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER = 'gemini_direct_image';
+export const HYBRID_REDRAW_PROVIDER = LITELLM_IMAGE_REDRAW_PROVIDER;
 
-export const GEMINI_FALLBACK_POLICY_QUOTA_OR_MODEL_UNAVAILABLE = 'quota_or_model_unavailable';
-export const GEMINI_FALLBACK_POLICY_ALL = 'all';
-export const GEMINI_FALLBACK_POLICY_QUOTA_ONLY = 'quota_only';
-
-export const DEFAULT_GEMINI_IMAGE_MODEL = 'gemini-3.1-flash-image';
-export const DEFAULT_GEMINI_REASONING_MODEL = 'gemini-2.5-pro';
-export const DEFAULT_GEMINI_FALLBACK_POLICY = GEMINI_FALLBACK_POLICY_QUOTA_OR_MODEL_UNAVAILABLE;
-
+export const DEFAULT_LITELLM_IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
 export const DEFAULT_OPENROUTER_IMAGE_MODEL = 'black-forest-labs/flux.2-klein-4b';
 export const DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK = 'sourceful/riverflow-v2-fast';
 export const DEFAULT_OPENROUTER_SAFETY_MODEL = 'nvidia/nemotron-3.5-content-safety:free';
 export const DEFAULT_OPENROUTER_PROMPT_PROFILE = 'generic_trace_clone';
-export const DEFAULT_HF_PIX2PIX_MODEL = 'nunchaku-tech/nunchaku-flux.1-schnell-pix2pix-turbo';
-export const DEFAULT_HF_PIX2PIX_TIMEOUT_MS = 90000;
 
 export const HYBRID_REDRAW_PRESETS = {
   budget: {
     mode: 'budget',
     preset: 'budget',
     label: 'Hemat',
-    provider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    primaryProvider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    fallbackProvider: '',
-    hfModel: DEFAULT_HF_PIX2PIX_MODEL,
-    hfEndpointUrl: '',
-    hfTimeoutMs: DEFAULT_HF_PIX2PIX_TIMEOUT_MS,
-    geminiGenerationModel: DEFAULT_GEMINI_IMAGE_MODEL,
-    geminiReasoningModel: DEFAULT_GEMINI_REASONING_MODEL,
-    geminiFallbackPolicy: DEFAULT_GEMINI_FALLBACK_POLICY,
+    provider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    liteLlmImageModel: DEFAULT_LITELLM_IMAGE_MODEL,
     analysisModel: '',
     generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
@@ -50,21 +36,16 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.03,
-    note: 'Hugging Face pix2pix hemat untuk redraw sketch/trace tanpa provider cadangan, cocok untuk mode gratis CPU.'
+    note: 'LiteLLM jadi jalur hemat default untuk redraw sketch/trace dengan OpenRouter sebagai fallback otomatis.'
   },
   standard: {
     mode: 'standard',
     preset: 'standard',
     label: 'Standar',
-    provider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    primaryProvider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    fallbackProvider: '',
-    hfModel: DEFAULT_HF_PIX2PIX_MODEL,
-    hfEndpointUrl: '',
-    hfTimeoutMs: DEFAULT_HF_PIX2PIX_TIMEOUT_MS,
-    geminiGenerationModel: DEFAULT_GEMINI_IMAGE_MODEL,
-    geminiReasoningModel: DEFAULT_GEMINI_REASONING_MODEL,
-    geminiFallbackPolicy: DEFAULT_GEMINI_FALLBACK_POLICY,
+    provider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    liteLlmImageModel: DEFAULT_LITELLM_IMAGE_MODEL,
     analysisModel: '',
     generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
@@ -81,21 +62,16 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.04,
-    note: 'Hugging Face pix2pix jadi jalur utama default untuk sketch/trace redraw tanpa fallback berbayar.'
+    note: 'LiteLLM sebagai jalur utama default, OpenRouter tetap siap sebagai cadangan saat diperlukan.'
   },
   quality: {
     mode: 'quality',
     preset: 'quality',
     label: 'Kualitas',
-    provider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    primaryProvider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    fallbackProvider: '',
-    hfModel: DEFAULT_HF_PIX2PIX_MODEL,
-    hfEndpointUrl: '',
-    hfTimeoutMs: DEFAULT_HF_PIX2PIX_TIMEOUT_MS,
-    geminiGenerationModel: DEFAULT_GEMINI_IMAGE_MODEL,
-    geminiReasoningModel: DEFAULT_GEMINI_REASONING_MODEL,
-    geminiFallbackPolicy: DEFAULT_GEMINI_FALLBACK_POLICY,
+    provider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    liteLlmImageModel: DEFAULT_LITELLM_IMAGE_MODEL,
     analysisModel: '',
     generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
@@ -112,21 +88,16 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.05,
-    note: 'Default Hugging Face pix2pix 1K untuk trace/sketch redraw tanpa fallback berbayar.'
+    note: 'Default LiteLLM Gemini image preview 1K trace-clone dengan OpenRouter fallback untuk upstream error yang layak dialihkan.'
   },
   premium: {
     mode: 'premium',
     preset: 'premium',
     label: 'Premium',
-    provider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    primaryProvider: HUGGINGFACE_PIX2PIX_PROVIDER,
-    fallbackProvider: '',
-    hfModel: DEFAULT_HF_PIX2PIX_MODEL,
-    hfEndpointUrl: '',
-    hfTimeoutMs: DEFAULT_HF_PIX2PIX_TIMEOUT_MS,
-    geminiGenerationModel: DEFAULT_GEMINI_IMAGE_MODEL,
-    geminiReasoningModel: DEFAULT_GEMINI_REASONING_MODEL,
-    geminiFallbackPolicy: DEFAULT_GEMINI_FALLBACK_POLICY,
+    provider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    liteLlmImageModel: DEFAULT_LITELLM_IMAGE_MODEL,
     analysisModel: '',
     generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
@@ -143,17 +114,12 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: true,
     estimatedUsdPerImage: 0.08,
-    note: 'Hugging Face pix2pix kualitas tinggi dengan ukuran lebih besar tanpa fallback berbayar.'
+    note: 'LiteLLM kualitas tinggi dengan OpenRouter sebagai fallback untuk menjaga kontinuitas redraw.'
   }
 };
 
-const SUPPORTED_PROVIDERS = [HUGGINGFACE_PIX2PIX_PROVIDER, GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER, OPENROUTER_IMAGE_REDRAW_PROVIDER];
+const SUPPORTED_PROVIDERS = [LITELLM_IMAGE_REDRAW_PROVIDER, OPENROUTER_IMAGE_REDRAW_PROVIDER];
 const SUPPORTED_PROMPT_PROFILES = ['generic_trace_clone', 'sourceful_trace_clone', 'gemini_trace_clone'];
-const SUPPORTED_GEMINI_FALLBACK_POLICIES = [
-  GEMINI_FALLBACK_POLICY_QUOTA_OR_MODEL_UNAVAILABLE,
-  GEMINI_FALLBACK_POLICY_ALL,
-  GEMINI_FALLBACK_POLICY_QUOTA_ONLY
-];
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -207,11 +173,6 @@ function normalizeBoolean(value, fallback) {
   return fallback;
 }
 
-function normalizeTimeoutMs(value, fallback) {
-  const parsed = Number.parseInt(String(value ?? ''), 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
 function inferPreset(input, env) {
   if (input.mode === 'custom' || input.preset === 'custom') return 'custom';
   if (typeof input.mode === 'string' && HYBRID_REDRAW_PRESETS[input.mode]) return input.mode;
@@ -221,6 +182,8 @@ function inferPreset(input, env) {
 }
 
 function normalizeProvider(value, fallback) {
+  if (value === LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) return LITELLM_IMAGE_REDRAW_PROVIDER;
+  if (value === OPENROUTER_GEMINI_REDRAW_PROVIDER || value === OPENROUTER_RIVERFLOW_REDRAW_PROVIDER) return OPENROUTER_IMAGE_REDRAW_PROVIDER;
   return SUPPORTED_PROVIDERS.includes(value) ? value : fallback;
 }
 
@@ -228,11 +191,6 @@ function normalizeFallbackProvider(value, fallback, primaryProvider) {
   if (value === 'none' || value === '') return '';
   const normalized = normalizeProvider(value, fallback);
   return normalized === primaryProvider ? '' : normalized;
-}
-
-function normalizeGeminiFallbackPolicy(value, fallback) {
-  const normalized = normalizeText(value, fallback).toLowerCase();
-  return SUPPORTED_GEMINI_FALLBACK_POLICIES.includes(normalized) ? normalized : fallback;
 }
 
 export function listHybridRedrawPresets() {
@@ -244,8 +202,11 @@ export function normalizeHybridRedrawConfig(value = {}, env = {}) {
   const requestedPresetKey = inferPreset(input, env);
   const presetKey = requestedPresetKey === 'custom' ? 'quality' : requestedPresetKey;
   const preset = HYBRID_REDRAW_PRESETS[presetKey] || HYBRID_REDRAW_PRESETS.quality;
-  const legacyOpenRouterConfig = input.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER || input.provider === OPENROUTER_GEMINI_REDRAW_PROVIDER || input.provider === OPENROUTER_RIVERFLOW_REDRAW_PROVIDER;
-  const primaryProvider = normalizeProvider(input.primaryProvider, normalizeProvider(env.AI_REDRAW_PRIMARY_PROVIDER, preset.primaryProvider));
+  const legacyOpenRouterConfig =
+    input.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER ||
+    input.provider === OPENROUTER_GEMINI_REDRAW_PROVIDER ||
+    input.provider === OPENROUTER_RIVERFLOW_REDRAW_PROVIDER;
+  const primaryProvider = normalizeProvider(input.primaryProvider || input.provider, normalizeProvider(env.AI_REDRAW_PRIMARY_PROVIDER, preset.primaryProvider));
   const fallbackProvider = normalizeFallbackProvider(
     input.fallbackProvider,
     normalizeFallbackProvider(env.AI_REDRAW_FALLBACK_PROVIDER, preset.fallbackProvider, primaryProvider),
@@ -259,29 +220,9 @@ export function normalizeHybridRedrawConfig(value = {}, env = {}) {
     provider: primaryProvider,
     primaryProvider,
     fallbackProvider,
-    hfModel: normalizeText(
-      input.hfModel,
-      normalizeText(env.HF_PIX2PIX_MODEL, preset.hfModel)
-    ),
-    hfEndpointUrl: normalizeOptionalText(
-      input.hfEndpointUrl,
-      normalizeOptionalText(env.HF_PIX2PIX_ENDPOINT_URL, preset.hfEndpointUrl)
-    ),
-    hfTimeoutMs: normalizeTimeoutMs(
-      input.hfTimeoutMs,
-      normalizeTimeoutMs(env.HF_PIX2PIX_TIMEOUT_MS, preset.hfTimeoutMs)
-    ),
-    geminiGenerationModel: normalizeText(
-      input.geminiGenerationModel || input.geminiModel,
-      normalizeText(env.GEMINI_IMAGE_MODEL, preset.geminiGenerationModel)
-    ),
-    geminiReasoningModel: normalizeOptionalText(
-      input.geminiReasoningModel,
-      normalizeOptionalText(env.GEMINI_REASONING_MODEL, preset.geminiReasoningModel)
-    ),
-    geminiFallbackPolicy: normalizeGeminiFallbackPolicy(
-      input.geminiFallbackPolicy,
-      normalizeGeminiFallbackPolicy(env.GEMINI_FALLBACK_POLICY, preset.geminiFallbackPolicy)
+    liteLlmImageModel: normalizeText(
+      input.liteLlmImageModel || input.geminiGenerationModel || input.geminiModel,
+      normalizeText(env.LITELLM_IMAGE_MODEL, preset.liteLlmImageModel)
     ),
     analysisModel: normalizeOptionalText(
       input.analysisModel,

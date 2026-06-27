@@ -3,13 +3,10 @@ main = "src/index.js"
 compatibility_date = "2026-06-13"
 
 [vars]
-HF_PIX2PIX_ENDPOINT_URL = ""
-HF_PIX2PIX_MODEL = "nunchaku-tech/nunchaku-flux.1-schnell-pix2pix-turbo"
-HF_PIX2PIX_TIMEOUT_MS = "90000"
-GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image"
-GEMINI_REASONING_MODEL = "gemini-2.5-pro"
-GEMINI_FALLBACK_POLICY = "quota_or_model_unavailable"
+LITELLM_BASE_URL = "https://litellm.example.com/v1"
+LITELLM_IMAGE_MODEL = "gemini-3.1-flash-image-preview"
+LITELLM_APP_NAME = "EasyRedesign Pro"
+LITELLM_MAX_IMAGE_INPUT_BYTES = "3200000"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_ANALYSIS_MODEL = ""
 OPENROUTER_IMAGE_MODEL = "black-forest-labs/flux.2-klein-4b"
@@ -24,11 +21,11 @@ OPENROUTER_SAFETY_ENABLED = "1"
 OPENROUTER_APP_NAME = "EasyRedesign Pro"
 OPENROUTER_MAX_IMAGE_INPUT_BYTES = "3200000"
 AI_REDRAW_PRESET = "quality"
-AI_REDRAW_PRIMARY_PROVIDER = "huggingface_pix2pix"
-AI_REDRAW_FALLBACK_PROVIDER = ""
+AI_REDRAW_PRIMARY_PROVIDER = "litellm_image"
+AI_REDRAW_FALLBACK_PROVIDER = "openrouter_image"
 SUPABASE_URL = "https://wrjhedlygozqtsdallzr.supabase.co"
 # Isi setelah backend processor berhasil deploy ke Cloud Run.
 # PROCESSOR_BASE_URL = "https://design-mudah-processor-xxxxx.a.run.app"
 
 # Secrets tetap diset di dashboard Cloudflare Worker > Settings > Variables and Secrets.
-# Recommended for free CPU mode: HF_TOKEN optional, HF_PIX2PIX endpoint vars, and SUPABASE_SERVICE_ROLE_KEY
+# Recommended: LITELLM_API_KEY, OPENROUTER_API_KEY, dan SUPABASE_SERVICE_ROLE_KEY

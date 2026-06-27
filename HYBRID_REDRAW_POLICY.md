@@ -1,11 +1,10 @@
 # Hybrid Redraw Policy
 
-Design Mudah uses a Hugging Face pix2pix-first redraw architecture with optional provider fallback:
+Design Mudah uses a LiteLLM-first redraw architecture with OpenRouter fallback:
 
-- `HF pix2pix endpoint = primary sketch/trace redraw`
-- `nunchaku-tech/nunchaku-flux.1-schnell-pix2pix-turbo = default HF pix2pix model`
-- `Gemini 3.1 Flash Image = optional secondary provider when selected manually`
-- `FLUX.2 Klein 1K = optional OpenRouter fallback image redraw`
+- `LiteLLM image redraw = primary sketch/trace redraw`
+- `gemini-3.1-flash-image-preview = default LiteLLM model`
+- `OpenRouter = secondary provider and automatic fallback`
 - `Riverflow V2 Fast = optional fallback image model inside the OpenRouter path when its primary model is unavailable`
 - deterministic Logo Restore, trace, vector, cutline, film, PDF, and ZIP stay outside AI
 
@@ -18,24 +17,20 @@ Design Mudah uses a Hugging Face pix2pix-first redraw architecture with optional
    - remove border-connected background
    - preserve enclosed artwork
 3. Logo Restore runs first for flat logo/text artwork and can return vector artifacts without generative redraw.
-4. For AI redraw, the Worker sends the upload to the configured Hugging Face pix2pix endpoint first using the configured HF model.
-5. If a secondary provider is configured and the HF endpoint fails with timeout, billing, rate-limit, auth, or model-unavailable conditions, the Worker falls back automatically.
+4. For AI redraw, the Worker sends the upload to the configured LiteLLM image model first.
+5. If LiteLLM fails because of quota, billing, model-unavailable, timeout, network, or 5xx conditions, the Worker falls back automatically to OpenRouter.
 6. Inside the OpenRouter path, the backend retries once with `OPENROUTER_IMAGE_MODEL_FALLBACK` when the primary OpenRouter model is unavailable or returns no image.
 7. The resulting PNG is postprocessed, then returned to the existing trace and separation flow.
 
 ## Invariants
 
 - Ready trace mode must stay local/backend trace only and must not call any remote image generation provider.
-- HF endpoint URL, HF model, Gemini model IDs, OpenRouter model IDs, and fallback policy must stay env-editable.
-- Default free CPU deploy should leave the fallback provider empty.
+- LiteLLM model IDs and OpenRouter model IDs must stay env-editable.
+- Default deploy should use LiteLLM as primary provider.
 - Persist redraw metadata to the job manifest:
   - configured primary provider
   - actual provider used
-  - HF model
-  - HF endpoint type
-  - HF endpoint logical name or Space id
-  - Gemini generation model
-  - Gemini reasoning model
+  - LiteLLM image model
   - OpenRouter generation model
   - OpenRouter fallback model and fallback-used flag
   - fallback reason
@@ -53,4 +48,4 @@ Design Mudah uses a Hugging Face pix2pix-first redraw architecture with optional
 ## Admin Setting
 
 The active pipeline config lives in `app_settings.ai_redraw_model`.
-Saved settings normalize into the `huggingface_pix2pix | gemini_direct_image | openrouter_image` config shape, while older OpenRouter-only rows are upgraded without losing the fallback model values.
+Saved settings normalize into the `litellm_image | openrouter_image` config shape, while older `gemini_direct_image` rows upgrade into LiteLLM-primary and older legacy OpenRouter rows keep their OpenRouter semantics without losing fallback model values.

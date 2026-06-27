@@ -200,9 +200,9 @@ set email = excluded.email,
 
 insert into public.pricing_rules (key, amount_idr, description, active)
 values
-  ('ready_trace', 2000, 'Vector Siap Proses SVG tanpa AI', true),
-  ('ai_redraw', 3000, 'AI Redesign Premium image-to-image', true),
-  ('separation_film', 0, 'Download film separasi gratis', true)
+('ready_trace', 2000, 'Vector Siap Proses SVG tanpa AI', true),
+('ai_redraw', 5000, 'AI Redesign Premium image-to-image', true),
+('separation_film', 0, 'Download film separasi gratis', true)
 on conflict (key) do update
 set amount_idr = excluded.amount_idr,
     description = excluded.description,
@@ -214,7 +214,7 @@ values
   ('shopee_payment', '{"url":"https://shopee.co.id/","note":"Checkout nominal credit di Shopee, lalu kirim email akun Design Mudah melalui chat Shopee. Admin top up manual 5-15 menit pada jam kerja.","contact":""}'::jsonb, true, 'Konfigurasi pembayaran manual Shopee'),
   ('app_status', '{"maintenance":false,"message":""}'::jsonb, true, 'Status aplikasi publik'),
   ('example_jobs', '{"sticker":null,"sablon":null}'::jsonb, true, 'Contoh gambar aktif untuk sticker dan sablon'),
-  ('ai_redraw_model', '{"mode":"quality","preset":"quality","label":"Kualitas","provider":"huggingface_pix2pix","primaryProvider":"huggingface_pix2pix","fallbackProvider":"","hfModel":"nunchaku-tech/nunchaku-flux.1-schnell-pix2pix-turbo","hfEndpointUrl":"","hfTimeoutMs":90000,"geminiGenerationModel":"gemini-3.1-flash-image","geminiReasoningModel":"gemini-2.5-pro","geminiFallbackPolicy":"quota_or_model_unavailable","analysisModel":"","generationModel":"black-forest-labs/flux.2-klein-4b","fallbackModel":"sourceful/riverflow-v2-fast","safetyModel":"nvidia/nemotron-3.5-content-safety:free","promptProfile":"generic_trace_clone","generationQuality":"high","imageSize":"1K","reasoningEffort":"medium","backgroundMode":"transparent","safetyEnabled":true,"aspectPolicy":"match_source","resolutionPolicy":"high","preprocess":"node_heuristic","persistPrompt":true,"retryOnLowConfidence":false,"estimatedUsdPerImage":0.05,"note":"Default Hugging Face pix2pix 1K untuk trace/sketch redraw tanpa fallback berbayar."}'::jsonb, false, 'Pipeline Hugging Face pix2pix primary untuk AI redraw gratis CPU')
+  ('ai_redraw_model', '{"mode":"quality","preset":"quality","label":"Kualitas","provider":"litellm_image","primaryProvider":"litellm_image","fallbackProvider":"openrouter_image","liteLlmImageModel":"gemini-3.1-flash-image-preview","analysisModel":"","generationModel":"black-forest-labs/flux.2-klein-4b","fallbackModel":"sourceful/riverflow-v2-fast","safetyModel":"nvidia/nemotron-3.5-content-safety:free","promptProfile":"generic_trace_clone","generationQuality":"high","imageSize":"1K","reasoningEffort":"medium","backgroundMode":"transparent","safetyEnabled":true,"aspectPolicy":"match_source","resolutionPolicy":"high","preprocess":"node_heuristic","persistPrompt":true,"retryOnLowConfidence":false,"estimatedUsdPerImage":0.05,"note":"Default LiteLLM Gemini image preview 1K trace-clone dengan OpenRouter fallback otomatis."}'::jsonb, false, 'Pipeline LiteLLM primary + OpenRouter fallback untuk AI redraw')
 on conflict (key) do update
 set value = case
       when public.app_settings.value is null or public.app_settings.value = '{}'::jsonb then excluded.value

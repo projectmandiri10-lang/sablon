@@ -9,6 +9,8 @@ const exampleJobsMigration = fs.readFileSync(path.join(import.meta.dirname, 'mig
 const publishedExamplesMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260528153000_publishable_example_jobs.sql'), 'utf8');
 const bootstrapSql = fs.readFileSync(path.join(import.meta.dirname, 'SUPABASE_BOOTSTRAP.sql'), 'utf8');
 const signupBonusMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260621103000_signup_bonus_three_credit.sql'), 'utf8');
+const liteLlmPrimaryMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627120000_litellm_primary_openrouter_fallback.sql'), 'utf8');
+const pricingRefreshMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627123000_set_ai_redraw_5000_ready_trace_2000.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -63,11 +65,25 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules', 'app_settings', 'contact_messages']) {
     assert.match(bootstrapSql, new RegExp(`create table if not exists public\\.${table}`));
   }
-  assert.match(bootstrapSql, /huggingface_pix2pix/);
-  assert.match(bootstrapSql, /nunchaku-tech\/nunchaku-flux\.1-schnell-pix2pix-turbo/);
-  assert.match(bootstrapSql, /gemini-3\.1-flash-image/);
+  assert.match(bootstrapSql, /"provider":"litellm_image"/);
+  assert.match(bootstrapSql, /"fallbackProvider":"openrouter_image"/);
+  assert.match(bootstrapSql, /gemini-3\.1-flash-image-preview/);
   assert.match(bootstrapSql, /black-forest-labs\/flux\.2-klein-4b/);
   assert.match(bootstrapSql, /example-jobs/);
+});
+
+test('latest redraw migration seeds litellm primary with openrouter fallback', () => {
+  assert.match(liteLlmPrimaryMigration, /'provider', 'litellm_image'/);
+  assert.match(liteLlmPrimaryMigration, /'primaryProvider', 'litellm_image'/);
+  assert.match(liteLlmPrimaryMigration, /'fallbackProvider', 'openrouter_image'/);
+  assert.match(liteLlmPrimaryMigration, /'liteLlmImageModel', 'gemini-3\.1-flash-image-preview'/);
+  assert.match(liteLlmPrimaryMigration, /Pipeline LiteLLM primary \+ OpenRouter fallback untuk AI redraw/);
+});
+
+test('latest pricing migration sets ready trace to 2000 and ai redraw to 5000', () => {
+  assert.match(pricingRefreshMigration, /select 'ready_trace', 2000/);
+  assert.match(pricingRefreshMigration, /amount_idr = 5000/);
+  assert.match(pricingRefreshMigration, /select 'ai_redraw', 5000/);
 });
 
 test('bootstrap sql hardens helper functions and policy indexes', () => {
