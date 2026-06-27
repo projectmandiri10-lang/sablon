@@ -148,7 +148,7 @@ VITE_GOOGLE_OAUTH_REDIRECT_TO=http://localhost:5173
 2. Coba register dan login Google.
 3. Pastikan `GET /api/app-config` terbaca dari Worker.
 4. Pastikan credit dan admin data terbaca dari Supabase.
-5. Coba mode Ready Trace saat secret LiteLLM dan OpenRouter belum diisi.
+5. Coba mode Ready Trace saat secret LiteLLM dan OpenRouter belum diisi; mode ini diproses lokal di browser dan hanya memakai Worker untuk quote/commit credit.
 6. Pastikan pesan error AI redraw jelas, bukan error teknis mentah.
 
 ## 6. Jika Anda Mau Menyalakan AI Redraw

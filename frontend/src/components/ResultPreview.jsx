@@ -51,6 +51,7 @@ export default function ResultPreview({
   const showFullColorDownloads = !(historyView && isVectorReadyMode);
   const showStickerCutlinePreview = historyView && isVectorReadyMode && settings.productionType === 'sticker';
   const showSeparationPreviewTitle = historyView && isVectorReadyMode && settings.productionType === 'sablon';
+  const prepressQuality = job.prepressQuality || job.manifest?.prepressQuality || null;
 
   return (
     <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
@@ -61,6 +62,21 @@ export default function ResultPreview({
           {(subheading || settings.projectName) && <p className="text-xs text-gray-600">{subheading || settings.projectName}</p>}
         </div>
       </div>
+
+      {prepressQuality && (
+        <div className="mb-4 border border-line bg-panel px-3 py-2 text-sm text-gray-700">
+          <p className="font-semibold text-ink">
+            Prepress: {prepressQuality.status === 'ready' ? 'siap dicek' : 'perlu review'} - {prepressQuality.dpiEstimate || 0} DPI, {prepressQuality.colorCount || 0} warna
+          </p>
+          {prepressQuality.warnings?.length > 0 && (
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5">
+              {prepressQuality.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {!isVectorReadyMode && (
         <div className="grid gap-4 xl:grid-cols-3">
@@ -157,7 +173,9 @@ export default function ResultPreview({
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-ink">{film.label}</p>
                       <p className="text-xs text-gray-600">
-                        {film.kind === 'underbase' ? 'Film dasar hitam 100% untuk bahan gelap' : 'Film hitam 100% dengan registration mark'}
+                        {film.kind === 'underbase'
+                          ? `Film dasar hitam 100%${film.chokePx ? `, choke ${film.chokePx}px` : ''}`
+                          : `Film hitam 100% dengan registration mark${film.spotName ? ` - ${film.spotName}` : ''}`}
                       </p>
                     </div>
                   </div>

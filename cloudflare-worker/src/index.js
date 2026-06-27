@@ -250,7 +250,7 @@ function guessOpenRouterModalities(model = '') {
   return /gemini|image-preview|gpt-5-image|recraft|mai-image|nano-banana/i.test(model) ? ['image', 'text'] : ['image'];
 }
 
-function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
+export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   const profile = String(aiModelConfig.promptProfile || 'generic_trace_clone');
   const parts = ['Redraw the uploaded artwork as a clean, trace-friendly raster image with a transparent background.'];
 
@@ -268,6 +268,15 @@ function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
 
   if (settings.separateColors) {
     parts.push('Keep colors clearly separated and avoid gradients or noisy shading.');
+    const maxColors = Number.parseInt(settings.maxColors || 4, 10);
+    if (Number.isInteger(maxColors) && maxColors >= 2) {
+      parts.push(`Target no more than ${Math.min(6, Math.max(2, maxColors))} solid spot colors for the main artwork.`);
+    }
+    parts.push('Avoid semi-transparent pixels, soft glows, halftones, and antialiased fuzzy edges.');
+  }
+
+  if (settings.createUnderbaseFilm) {
+    parts.push('Keep the silhouette suitable for a slightly choked underbase film on dark fabric.');
   }
 
   switch (profile) {
@@ -282,7 +291,7 @@ function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
       break;
   }
 
-  parts.push('Do not add extra text, watermarks, mockups, or decorative effects.');
+  parts.push('Do not add extra text, watermarks, mockups, decorative effects, shadows, or gradients.');
   return parts.join(' ');
 }
 
@@ -1183,9 +1192,17 @@ function buildAiRedrawMetadata(aiModelConfig, image, extra = {}) {
     promptProfile: aiModelConfig.promptProfile,
     imageSize: aiModelConfig.imageSize,
     generationQuality: aiModelConfig.generationQuality,
+    reasoningEffort: aiModelConfig.reasoningEffort || '',
+    backgroundMode: aiModelConfig.backgroundMode || '',
+    preset: aiModelConfig.preset || aiModelConfig.mode || '',
+    preprocess: aiModelConfig.preprocess || '',
+    persistPrompt: aiModelConfig.persistPrompt !== false,
+    safetyEnabled: aiModelConfig.safetyEnabled !== false,
+    safetyModel: aiModelConfig.safetyModel || '',
     sourceContentType: image.type || 'application/octet-stream',
     sourceFileName: image.name || 'upload.png',
-    ...extra
+    ...extra,
+    finalTechnicalPrompt: aiModelConfig.persistPrompt === false ? '' : extra.finalTechnicalPrompt || ''
   };
 }
 
@@ -1307,7 +1324,8 @@ async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig,
       providerUsed: LITELLM_IMAGE_REDRAW_PROVIDER,
       model: aiModelConfig.liteLlmImageModel,
       fallbackAttempted: routing.fallbackAttempted,
-      fallbackReason: routing.fallbackReason
+      fallbackReason: routing.fallbackReason,
+      finalTechnicalPrompt: prompt
     })
   };
 }
@@ -1385,7 +1403,8 @@ async function requestOpenRouterRetouchedImage(env, image, settings, aiModelConf
         fallbackModelUsed: index > 0,
         generatedImageCount: Array.isArray(data?.choices?.[0]?.message?.images) ? data.choices[0].message.images.length : 1,
         fallbackAttempted: routing.fallbackAttempted,
-        fallbackReason: routing.fallbackReason
+        fallbackReason: routing.fallbackReason,
+        finalTechnicalPrompt: prompt
       });
 
       return {

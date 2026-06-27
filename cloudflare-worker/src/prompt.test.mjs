@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getAiRedrawModelPresets, normalizeAiRedrawModelConfig } from './index.js';
+import { buildAiRedrawPrompt, getAiRedrawModelPresets, normalizeAiRedrawModelConfig } from './index.js';
 
 test('AI redraw model presets expose LiteLLM primary with OpenRouter fallback', () => {
   const presets = getAiRedrawModelPresets();
@@ -90,4 +90,22 @@ test('explicit fallback provider still works when project defaults are LiteLLM-f
 
   assert.equal(normalized.primaryProvider, 'litellm_image');
   assert.equal(normalized.fallbackProvider, 'openrouter_image');
+});
+
+test('sablon redraw prompt constrains spot colors and fuzzy effects', () => {
+  const prompt = buildAiRedrawPrompt(
+    {
+      productionType: 'sablon',
+      separateColors: true,
+      maxColors: 4,
+      createUnderbaseFilm: true
+    },
+    { promptProfile: 'generic_trace_clone' }
+  );
+
+  assert.match(prompt, /screen-print friendly shapes/);
+  assert.match(prompt, /no more than 4 solid spot colors/);
+  assert.match(prompt, /semi-transparent pixels/);
+  assert.match(prompt, /choked underbase film/);
+  assert.match(prompt, /shadows, or gradients/);
 });

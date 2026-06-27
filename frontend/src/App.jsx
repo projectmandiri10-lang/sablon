@@ -9,7 +9,7 @@ import LandingPage, { AboutPage, ContactPage, PrivacyPage, TermsPage } from './c
 import ResultPreview from './components/ResultPreview.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
 import UploadBox from './components/UploadBox.jsx';
-import { commitJob, deleteCloudJob, getBalance, listExampleJobs, quoteJob, requestImageRetouch, requestReadyTrace, toUserApiError, uploadExampleArtifacts } from './lib/api.js';
+import { commitJob, deleteCloudJob, getBalance, listExampleJobs, quoteJob, requestImageRetouch, toUserApiError, uploadExampleArtifacts } from './lib/api.js';
 import { createNormalizedImagePreviewBlob } from './lib/imagePreview.js';
 import { deleteHistoryJob, loadHistoryJobs, releaseHistoryJobs, saveHistoryJob } from './lib/localHistoryStore.js';
 import { processImageLocally } from './lib/localProcessor.js';
@@ -117,7 +117,9 @@ function buildExampleArtifactsFormData({ sourcePreviewBlob, sourceFileName, job 
         index: separation.index,
         kind: separation.kind || 'color',
         hex: separation.hex || '#000000',
-        label: separation.label || ''
+        label: separation.label || '',
+        spotName: separation.spotName || '',
+        chokePx: separation.chokePx || 0
       }))
     })
   );
@@ -531,11 +533,12 @@ export default function App() {
         aiRedrawMetadata = retouchResult.aiRedrawMetadata || null;
         backendVectorResult = retouchResult.localResult || null;
       } else {
-        setJob(statusJob('processing_image', 'Menjalankan jalur Vector Siap Proses untuk pisah warna dan contour sticker.', 30));
-        const readyTraceResult = await requestReadyTrace(file, settings, session.access_token);
-        processingFile = readyTraceResult.file || file;
-        backendVectorResult = readyTraceResult.localResult || null;
-        readyTraceMetadata = readyTraceResult.readyTraceMetadata || null;
+        setJob(statusJob('processing_image', 'Menjalankan Vector Siap Proses langsung di browser.', 30));
+        readyTraceMetadata = {
+          processor: 'browser_local_trace',
+          vectorEngine: 'canvas_boundary_trace',
+          noRemoteGeneration: true
+        };
       }
 
       setJob(

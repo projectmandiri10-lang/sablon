@@ -58,6 +58,19 @@ function normalizeNumber(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function normalizeSpotName(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 48);
+}
+
+function spotNameForColor(color, fallbackIndex = 1) {
+  const index = String(color?.index || fallbackIndex).padStart(2, '0');
+  return `SPOT_${index}_${normalizeSpotName(color?.hex || '000000').replace(/^#/, '')}`;
+}
+
 async function loadBitmap(file) {
   if ('createImageBitmap' in window) return createImageBitmap(file);
 
@@ -617,6 +630,11 @@ function erode(binary, width, height, radius) {
   return output;
 }
 
+function chokeBinary(binary, width, height, radius = 1) {
+  const choked = erode(binary, width, height, radius);
+  return choked.some((value) => value === 1) ? choked : binary;
+}
+
 function findBinaryComponents(binary, width, height) {
   const visited = new Uint8Array(binary.length);
   const components = [];
@@ -730,6 +748,48 @@ function refineAssignmentsForTrace(assignments, colors, width, height, settings 
     : { assignments, colors: recomputeColors(assignments, colors, width, height) };
 }
 
+function estimateOutputDpi(bounds, settings = {}) {
+  const actualWidthCm = Math.max(0.1, normalizeNumber(settings.actualWidthCm, 10));
+  return Math.round(bounds.width / (actualWidthCm / 2.54));
+}
+
+function buildPrepressQualityAssessment({ sourceWidth, sourceHeight, width, height, bounds, printable, separationFilmCount, wasColorLimited, settings }) {
+  const warnings = [];
+  const dpiEstimate = estimateOutputDpi(bounds, settings);
+  const sourceDownscaled = width < sourceWidth || height < sourceHeight;
+
+  if (dpiEstimate < 180) {
+    warnings.push(`Resolusi artwork sekitar ${dpiEstimate} DPI pada ukuran ${settings.actualWidthCm || 10} cm; detail kecil bisa pecah saat film dicetak.`);
+  }
+  if (sourceDownscaled) {
+    warnings.push('Gambar sumber diperkecil agar aman diproses browser; periksa ulang detail halus sebelum naik film.');
+  }
+  if (wasColorLimited) {
+    warnings.push('Jumlah warna disederhanakan ke batas sablon; warna kecil digabung ke warna terdekat.');
+  }
+  if (settings.separateColors && separationFilmCount === 0) {
+    warnings.push('Tidak ada film warna yang terbentuk; coba gambar dengan kontras lebih jelas.');
+  }
+  return {
+    status: warnings.length > 0 ? 'review_required' : 'ready',
+    dpiEstimate,
+    colorCount: printable.length,
+    separationFilmCount,
+    sourceDownscaled,
+    wasColorLimited: Boolean(wasColorLimited),
+    checks: {
+      spotColors: printable.map((color, index) => ({
+        index: color.index,
+        hex: color.hex,
+        spotName: spotNameForColor(color, index + 1)
+      })),
+      registrationMarks: settings.separateColors === true,
+      underbaseChokePx: settings.createUnderbaseFilm !== false && settings.productionType === 'sablon' ? 1 : 0
+    },
+    warnings
+  };
+}
+
 function boundaryPaths(binary, width, height) {
   const segments = new Map();
   const add = (x1, y1, x2, y2) => {
@@ -765,9 +825,10 @@ function boundaryPaths(binary, width, height) {
       current = next;
       if (current === start) break;
     }
-    if (points.length > 2) {
-      const [firstX, firstY] = points[0].split(',').map(Number);
-      const lines = points.slice(1).map((point) => {
+    const simplifiedPoints = simplifyCollinearPoints(points);
+    if (simplifiedPoints.length > 2) {
+      const [firstX, firstY] = simplifiedPoints[0].split(',').map(Number);
+      const lines = simplifiedPoints.slice(1).map((point) => {
         const [x, y] = point.split(',').map(Number);
         return `L${x} ${y}`;
       });
@@ -777,6 +838,25 @@ function boundaryPaths(binary, width, height) {
   return paths.join('');
 }
 
+function simplifyCollinearPoints(points) {
+  if (points.length <= 3) return points;
+  const closed = points[0] === points[points.length - 1];
+  const source = closed ? points.slice(0, -1) : points;
+  const simplified = [];
+
+  for (let index = 0; index < source.length; index += 1) {
+    const previous = source[(index - 1 + source.length) % source.length].split(',').map(Number);
+    const current = source[index].split(',').map(Number);
+    const next = source[(index + 1) % source.length].split(',').map(Number);
+    const sameVertical = previous[0] === current[0] && current[0] === next[0];
+    const sameHorizontal = previous[1] === current[1] && current[1] === next[1];
+    if (!sameVertical && !sameHorizontal) simplified.push(source[index]);
+  }
+
+  if (closed && simplified.length > 0) simplified.push(simplified[0]);
+  return simplified.length > 2 ? simplified : points;
+}
+
 function pathFromAssignments(assignments, width, height, activeIndexes) {
   const active = activeIndexes instanceof Set ? activeIndexes : new Set([activeIndexes]);
   const binary = new Uint8Array(width * height);
@@ -784,6 +864,10 @@ function pathFromAssignments(assignments, width, height, activeIndexes) {
     if (active.has(assignments[index])) binary[index] = 1;
   }
   return boundaryPaths(binary, width, height) || rowRunPath(assignments, width, height, active);
+}
+
+function pathFromBinary(binary, width, height, fallbackPath = '') {
+  return boundaryPaths(binary, width, height) || fallbackPath;
 }
 
 function svgDocument({ width, height, body, label = 'Vector output', physicalWidthCm }) {
@@ -797,9 +881,10 @@ ${body}
 
 function buildFullSvg({ colors, assignments, width, height, settings }) {
   const groups = colors
-    .map((color) => {
+    .map((color, index) => {
       const path = pathFromAssignments(assignments, width, height, color.index - 1);
-      return `<g id="color-${String(color.index).padStart(2, '0')}" data-color="${color.hex}">
+      const spotName = spotNameForColor(color, index + 1);
+      return `<g id="color-${String(color.index).padStart(2, '0')}" data-color="${color.hex}" data-spot-color="${spotName}">
 <path d="${path}" fill="${color.hex}" fill-rule="evenodd"/>
 </g>`;
     })
@@ -807,9 +892,9 @@ function buildFullSvg({ colors, assignments, width, height, settings }) {
   return svgDocument({ width, height, body: groups, label: 'Sticker and screen print vector', physicalWidthCm: settings.actualWidthCm });
 }
 
-function buildFilmSvg({ assignments, width, height, settings, activeIndexes, label, bounds }) {
+function buildFilmSvg({ assignments, width, height, settings, activeIndexes, label, bounds, pathOverride = '', spotName = 'BLACK_100', inkHex = '#000000' }) {
   const artworkBounds = bounds || fullCanvasBounds(width, height);
-  const path = pathFromAssignments(assignments, width, height, activeIndexes);
+  const path = pathOverride || pathFromAssignments(assignments, width, height, activeIndexes);
   const layout = buildPrintLayout({
     sourceWidth: artworkBounds.width,
     sourceHeight: artworkBounds.height,
@@ -825,7 +910,7 @@ function buildFilmSvg({ assignments, width, height, settings, activeIndexes, lab
   });
   const transform = `translate(${layout.artworkX.toFixed(3)} ${layout.artworkY.toFixed(3)}) scale(${layout.scale.toFixed(8)}) translate(${(-artworkBounds.x).toFixed(3)} ${(-artworkBounds.y).toFixed(3)})`;
   const body = `${marks}
-<g id="film-artwork" transform="${transform}">
+<g id="film-artwork" transform="${transform}" data-spot-color="${escapeXml(spotName)}" data-ink-color="${escapeXml(inkHex)}">
 <path d="${path}" fill="#000000" fill-rule="evenodd"/>
 </g>
 <text x="${layout.artworkX.toFixed(3)}" y="${(layout.artworkY + layout.artworkHeightMm + 12).toFixed(3)}" fill="#000000" font-family="Arial, sans-serif" font-size="4">${escapeXml(label)}</text>`;
@@ -1050,14 +1135,28 @@ export async function processImageLocally(file, settings) {
   if (settings.separateColors) {
     if (settings.createUnderbaseFilm && printable.length > 0) {
       const label = 'FILM DASAR - HITAM 100%';
+      const underbaseActiveIndexes = new Set(printable.map((color) => color.index - 1));
+      const underbaseBinary = new Uint8Array(width * height);
+      for (let index = 0; index < assignments.length; index += 1) {
+        if (underbaseActiveIndexes.has(assignments[index])) underbaseBinary[index] = 1;
+      }
+      const underbasePath = pathFromBinary(
+        chokeBinary(underbaseBinary, width, height, 1),
+        width,
+        height,
+        pathFromAssignments(assignments, width, height, underbaseActiveIndexes)
+      );
       const film = buildFilmSvg({
         assignments,
         width,
         height,
         settings: effectiveSettings,
-        activeIndexes: new Set(printable.map((color) => color.index - 1)),
+        activeIndexes: underbaseActiveIndexes,
         label,
-        bounds: filmPlan.bounds
+        bounds: filmPlan.bounds,
+        pathOverride: underbasePath,
+        spotName: 'UNDERBASE_CHOKE_1PX',
+        inkHex: '#000000'
       });
       const files = await addSvgPdf(zip, 'separations/film-underbase', film.svg, width, height, {
         includePreviewPng: true,
@@ -1067,12 +1166,13 @@ export async function processImageLocally(file, settings) {
       separationZip.file('film-underbase.svg', files.svgBlob);
       separationZip.file('film-underbase.pdf', files.pdfBlob);
       if (files.previewBlob) separationZip.file('film-underbase-preview.png', files.previewBlob);
-      separations.push({ index: 'underbase', kind: 'underbase', hex: '#000000', label, ...files });
+      separations.push({ index: 'underbase', kind: 'underbase', hex: '#000000', label, spotName: 'UNDERBASE_CHOKE_1PX', chokePx: 1, ...files });
     }
 
-    for (const color of printable) {
+    for (const [colorIndex, color] of printable.entries()) {
       const index = String(color.index).padStart(2, '0');
       const label = `FILM ${index} - ${color.hex}`;
+      const spotName = spotNameForColor(color, colorIndex + 1);
       const film = buildFilmSvg({
         assignments,
         width,
@@ -1080,7 +1180,9 @@ export async function processImageLocally(file, settings) {
         settings: effectiveSettings,
         activeIndexes: color.index - 1,
         label,
-        bounds: filmPlan.bounds
+        bounds: filmPlan.bounds,
+        spotName,
+        inkHex: color.hex
       });
       const files = await addSvgPdf(zip, `separations/film-color-${index}`, film.svg, width, height, {
         includePreviewPng: true,
@@ -1090,7 +1192,7 @@ export async function processImageLocally(file, settings) {
       separationZip.file(`film-color-${index}.svg`, files.svgBlob);
       separationZip.file(`film-color-${index}.pdf`, files.pdfBlob);
       if (files.previewBlob) separationZip.file(`film-color-${index}-preview.png`, files.previewBlob);
-      separations.push({ index: color.index, kind: 'color', hex: color.hex, label, ...files });
+      separations.push({ index: color.index, kind: 'color', hex: color.hex, label, spotName, ...files });
     }
   }
 
@@ -1103,6 +1205,17 @@ export async function processImageLocally(file, settings) {
   const zipBlob = await zip.generateAsync({ type: 'blob' });
   const separationZipBlob = separations.length > 0 ? await separationZip.generateAsync({ type: 'blob' }) : null;
   const separationFilmCount = separations.length;
+  const prepressQuality = buildPrepressQualityAssessment({
+    sourceWidth: bitmap.width,
+    sourceHeight: bitmap.height,
+    width,
+    height,
+    bounds,
+    printable,
+    separationFilmCount,
+    wasColorLimited: limited.wasColorLimited,
+    settings: effectiveSettings
+  });
   const priceIdr = calculateJobPrice({
     inputMode: settings.inputMode,
     separationFilmCount,
@@ -1119,6 +1232,7 @@ export async function processImageLocally(file, settings) {
     localOnly: true,
     priceIdr,
     separationFilmCount,
+    prepressQuality,
     palette: exportColors,
     settings: effectiveSettings,
     files: {
@@ -1144,6 +1258,8 @@ export async function processImageLocally(file, settings) {
         kind: separation.kind,
         hex: separation.hex,
         label: separation.label,
+        spotName: separation.spotName || '',
+        chokePx: separation.chokePx || 0,
         svgBlob: separation.svgBlob,
         pdfBlob: separation.pdfBlob,
         previewBlob: separation.previewBlob || null
@@ -1153,6 +1269,7 @@ export async function processImageLocally(file, settings) {
       width,
       height,
       palette: outputColors,
+      prepressQuality,
       separationFilmCount,
       hasStickerCutline: Boolean(stickerCutline),
       edgeRefinement: settings.edgeRefinement !== false,

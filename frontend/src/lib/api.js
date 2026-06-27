@@ -78,6 +78,8 @@ function hydrateBackendRetouchResult(data, settings) {
       kind: film.kind || 'color',
       hex: film.hex || '#000000',
       label: film.label || '',
+      spotName: film.spotName || '',
+      chokePx: film.chokePx || 0,
       svg: blobUrl(svgBlob),
       pdf: blobUrl(pdfBlob),
       preview: blobUrl(previewBlob),
@@ -108,6 +110,7 @@ function hydrateBackendRetouchResult(data, settings) {
     localOnly: true,
     backendVectorized: true,
     separationFilmCount: data.separationFilmCount || 0,
+    prepressQuality: data.prepressQuality || data.manifest?.prepressQuality || null,
     palette: data.palette || [],
     settings: data.settings || settings,
     files: {

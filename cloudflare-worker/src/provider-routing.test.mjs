@@ -81,6 +81,8 @@ test('LiteLLM primary returns image bytes and metadata', async () => {
     assert.equal(result.headers.get('Content-Type'), 'image/png');
     assert.equal(result.metadata.providerUsed, 'litellm_image');
     assert.equal(result.metadata.model, 'gemini-3.1-flash-image-preview');
+    assert.match(result.metadata.finalTechnicalPrompt, /screen-print friendly shapes/);
+    assert.equal(result.metadata.safetyEnabled, true);
   } finally {
     globalThis.fetch = originalFetch;
   }

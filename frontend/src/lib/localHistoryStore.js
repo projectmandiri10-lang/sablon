@@ -49,6 +49,8 @@ function serializeSeparationArtifacts(separations = []) {
     kind: separation.kind || 'color',
     hex: separation.hex || '#000000',
     label: separation.label || '',
+    spotName: separation.spotName || '',
+    chokePx: separation.chokePx || 0,
     svgBlob: separation.svgBlob || null,
     pdfBlob: separation.pdfBlob || null,
     previewBlob: separation.previewBlob || null
@@ -91,6 +93,8 @@ function hydrateArtifacts(record, objectUrls) {
       kind: separation.kind || 'color',
       hex: separation.hex || '#000000',
       label: separation.label || '',
+      spotName: separation.spotName || '',
+      chokePx: separation.chokePx || 0,
       svg: makeObjectUrl(separation.svgBlob, objectUrls),
       pdf: makeObjectUrl(separation.pdfBlob, objectUrls),
       preview: makeObjectUrl(separation.previewBlob, objectUrls)
@@ -109,6 +113,7 @@ function toStorageRecord({ ownerId, ownerEmail, sourcePreviewBlob, sourceFileNam
     updatedAt: job.updatedAt,
     priceIdr: job.priceIdr || 0,
     separationFilmCount: job.separationFilmCount || 0,
+    prepressQuality: job.prepressQuality || job.manifest?.prepressQuality || null,
     settings: job.settings || {},
     sourceFileName: sourceFileName || '',
     sourcePreviewBlob: sourcePreviewBlob || null,
@@ -159,6 +164,8 @@ function hydrateRecord(record) {
       updatedAt: record.updatedAt,
       priceIdr: record.priceIdr || 0,
       separationFilmCount: record.separationFilmCount || 0,
+      prepressQuality: record.prepressQuality || null,
+      manifest: record.prepressQuality ? { prepressQuality: record.prepressQuality } : {},
       settings: record.settings || {},
       files: hydrateArtifacts(record, objectUrls)
     },
