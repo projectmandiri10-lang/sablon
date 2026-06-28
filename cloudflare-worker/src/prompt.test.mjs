@@ -92,20 +92,42 @@ test('explicit fallback provider still works when project defaults are LiteLLM-f
   assert.equal(normalized.fallbackProvider, 'openrouter_image');
 });
 
-test('sablon redraw prompt constrains spot colors and fuzzy effects', () => {
+test('sablon redraw prompt preserves original colors automatically and improves trace quality', () => {
   const prompt = buildAiRedrawPrompt(
     {
       productionType: 'sablon',
       separateColors: true,
+      colorLimitMode: 'auto',
       maxColors: 4,
       createUnderbaseFilm: true
     },
     { promptProfile: 'generic_trace_clone' }
   );
 
+  assert.match(prompt, /trace-friendly/);
   assert.match(prompt, /screen-print friendly shapes/);
-  assert.match(prompt, /no more than 4 solid spot colors/);
+  assert.match(prompt, /Preserve original subject/);
+  assert.match(prompt, /Repair blur, camera distortion, jagged edges, broken strokes, stains, scratches, compression artifacts/);
+  assert.match(prompt, /clean edges/);
+  assert.match(prompt, /Detect and preserve the important original colors/);
+  assert.match(prompt, /brand or logo colors/);
+  assert.doesNotMatch(prompt, /no more than 4 solid spot colors/);
   assert.match(prompt, /semi-transparent pixels/);
   assert.match(prompt, /choked underbase film/);
   assert.match(prompt, /shadows, or gradients/);
+});
+
+test('manual sablon redraw prompt can constrain spot colors', () => {
+  const prompt = buildAiRedrawPrompt(
+    {
+      productionType: 'sablon',
+      separateColors: true,
+      colorLimitMode: 'manual',
+      maxColors: 4
+    },
+    { promptProfile: 'generic_trace_clone' }
+  );
+
+  assert.match(prompt, /no more than 4 solid spot colors/);
+  assert.match(prompt, /Detect and preserve the important original colors/);
 });

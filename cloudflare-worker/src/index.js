@@ -253,25 +253,32 @@ function guessOpenRouterModalities(model = '') {
 
 export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   const profile = String(aiModelConfig.promptProfile || 'generic_trace_clone');
-  const parts = ['Redraw the uploaded artwork as a clean, trace-friendly raster image with a transparent background.'];
+  const parts = [
+    'Redraw the uploaded artwork as the best clean trace-friendly raster image for vectorization and screen printing.',
+    'Preserve original subject, layout, proportions, typography, readable text, and brand identity.'
+  ];
 
   if (String(settings.productionType || '').toLowerCase() === 'sablon') {
-    parts.push('Prioritize flat color separation, bold contours, and screen-print friendly shapes.');
+    parts.push('Prioritize flat color separation, bold contours, clean edges, and screen-print friendly shapes.');
   } else {
-    parts.push('Prioritize crisp sticker-ready edges and a clear subject silhouette.');
+    parts.push('Prioritize crisp sticker-ready edges, clean curves, and a clear subject silhouette.');
   }
 
   if (settings.removeBackground !== false) {
-    parts.push('Remove the background and isolate the main subject.');
+    parts.push('Remove the background and isolate the main subject; remove shadows, glare, fabric texture, mockup texture, and photo noise.');
   } else {
     parts.push('Preserve the important background only if it supports the composition.');
   }
 
   if (settings.separateColors) {
-    parts.push('Keep colors clearly separated and avoid gradients or noisy shading.');
-    const maxColors = Number.parseInt(settings.maxColors || 4, 10);
-    if (Number.isInteger(maxColors) && maxColors >= 2) {
-      parts.push(`Target no more than ${Math.min(6, Math.max(2, maxColors))} solid spot colors for the main artwork.`);
+    parts.push('Detect and preserve the important original colors from the source artwork, including distinct brand or logo colors.');
+    parts.push('Keep colors flat, solid, and clearly separated for tracing and screen printing.');
+    parts.push('Merge only noise, compression artifacts, shadows, and near-duplicate shades; do not invent new colors unless needed to repair damaged areas.');
+    if (settings.colorLimitMode === 'manual') {
+      const maxColors = Number.parseInt(settings.maxColors || 4, 10);
+      if (Number.isInteger(maxColors) && maxColors >= 2) {
+        parts.push(`When simplifying for production, target no more than ${Math.min(6, Math.max(2, maxColors))} solid spot colors for the main artwork.`);
+      }
     }
     parts.push('Avoid semi-transparent pixels, soft glows, halftones, and antialiased fuzzy edges.');
   }
@@ -280,15 +287,19 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
     parts.push('Keep the silhouette suitable for a slightly choked underbase film on dark fabric.');
   }
 
+  parts.push('Repair blur, camera distortion, jagged edges, broken strokes, stains, scratches, compression artifacts, and uneven fills.');
+  parts.push('Smooth and sharpen edges for tracing while keeping corners, curves, and intentional design details accurate.');
+  parts.push('Make intended geometric or symmetric shapes cleaner and balanced without changing the design identity.');
+
   switch (profile) {
     case 'sourceful_trace_clone':
-      parts.push('Stay very close to the source image while cleaning noise, artifacts, and rough edges.');
+      parts.push('Stay very close to the source image while cleaning noise, artifacts, rough edges, and damaged areas.');
       break;
     case 'gemini_trace_clone':
-      parts.push('Preserve composition and readable text while improving clarity and edge definition.');
+      parts.push('Preserve composition and readable text while improving clarity, edge definition, and trace readiness.');
       break;
     default:
-      parts.push('Preserve the original subject and composition while making the output cleaner and easier to trace.');
+      parts.push('Preserve original artwork shape and composition while making the output cleaner and easier to trace.');
       break;
   }
 

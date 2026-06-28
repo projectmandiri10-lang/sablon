@@ -4,6 +4,7 @@ import { calculateJobPrice } from './pricing.js';
 
 const MAX_CANVAS_EDGE = 2048;
 const BIN_SIZE = 24;
+const AUTO_SPOT_COLOR_LIMIT = 8;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -25,11 +26,12 @@ function averageChannel({ r, g, b }) {
   return (r + g + b) / 3;
 }
 
-function shouldUseHardSpotColors(settings = {}) {
+export function shouldUseHardSpotColors(settings = {}) {
   return settings.productionType === 'sablon' || settings.separateColors === true;
 }
 
-function requestedSpotColorLimit(settings = {}) {
+export function requestedSpotColorLimit(settings = {}) {
+  if (settings.colorLimitMode !== 'manual') return AUTO_SPOT_COLOR_LIMIT;
   return clamp(Number.parseInt(settings.maxColors || 4, 10), 2, 6);
 }
 
@@ -206,7 +208,7 @@ function remapAssignmentsToSelectedColors(assignments, colors, selectedColors, w
   };
 }
 
-function enforcePrintableColorLimit(assignments, colors, settings, width, height) {
+export function enforcePrintableColorLimit(assignments, colors, settings, width, height) {
   if (!shouldUseHardSpotColors(settings)) {
     return { assignments, colors };
   }
