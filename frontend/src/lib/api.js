@@ -314,6 +314,25 @@ export async function getAppConfig() {
   return apiFetch('/api/app-config');
 }
 
+export async function createMidtransCheckout(payload, accessToken) {
+  return apiFetch('/api/payments/midtrans/checkout', {
+    method: 'POST',
+    accessToken,
+    body: payload
+  });
+}
+
+export async function listMidtransPayments(accessToken) {
+  return apiFetch('/api/payments/midtrans', { accessToken });
+}
+
+export async function refreshMidtransPayment(orderId, accessToken) {
+  return apiFetch(`/api/payments/midtrans/${orderId}/refresh`, {
+    method: 'POST',
+    accessToken
+  });
+}
+
 export async function submitContactMessage(payload) {
   return apiFetch('/api/contact', {
     method: 'POST',
@@ -353,6 +372,10 @@ export async function unsetAdminJobExample(jobId, accessToken) {
 
 export async function listAdminManualPayments(accessToken) {
   return apiFetch('/api/admin/manual-payments', { accessToken });
+}
+
+export async function listAdminMidtransPayments(accessToken) {
+  return apiFetch('/api/admin/midtrans-payments', { accessToken });
 }
 
 export async function approveManualPayment(paymentId, accessToken) {

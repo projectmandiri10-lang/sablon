@@ -3,9 +3,13 @@ main = "src/index.js"
 compatibility_date = "2026-06-13"
 
 [vars]
-LITELLM_BASE_URL = "https://litellm.example.com/v1"
+APP_BASE_URL = "https://sablon-5gx.pages.dev"
+MIDTRANS_MERCHANT_ID = "M020138519"
+MIDTRANS_CLIENT_KEY = "Mid-client-poSk7Xki68kLxq8F"
+MIDTRANS_IS_PRODUCTION = "0"
+LITELLM_BASE_URL = "https://litellm.koboi2026.biz.id/v1"
 LITELLM_IMAGE_MODEL = "gemini-3.1-flash-image-preview"
-LITELLM_APP_NAME = "EasyRedesign Pro"
+LITELLM_APP_NAME = "Redesign AI"
 LITELLM_MAX_IMAGE_INPUT_BYTES = "3200000"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_ANALYSIS_MODEL = ""
@@ -18,14 +22,17 @@ OPENROUTER_IMAGE_SIZE = "1K"
 OPENROUTER_REASONING_EFFORT = "low"
 OPENROUTER_BACKGROUND_MODE = "transparent"
 OPENROUTER_SAFETY_ENABLED = "1"
-OPENROUTER_APP_NAME = "EasyRedesign Pro"
+OPENROUTER_APP_NAME = "Design Mudah Vector"
 OPENROUTER_MAX_IMAGE_INPUT_BYTES = "3200000"
 AI_REDRAW_PRESET = "quality"
 AI_REDRAW_PRIMARY_PROVIDER = "litellm_image"
 AI_REDRAW_FALLBACK_PROVIDER = "openrouter_image"
 SUPABASE_URL = "https://wrjhedlygozqtsdallzr.supabase.co"
+LOGO_RESTORE_ENABLED = "1"
+LOGO_RESTORE_STRICT_SPOTS = "1"
+REQUIRE_PROCESSOR_AUTH = "1"
 # Isi setelah backend processor berhasil deploy ke Cloud Run.
 # PROCESSOR_BASE_URL = "https://design-mudah-processor-xxxxx.a.run.app"
 
 # Secrets tetap diset di dashboard Cloudflare Worker > Settings > Variables and Secrets.
-# Recommended: LITELLM_SECRET_KEY, OPENROUTER_API_KEY, dan SUPABASE_SERVICE_ROLE_KEY
+# Recommended: LITELLM_SECRET_KEY, OPENROUTER_API_KEY, SUPABASE_SERVICE_ROLE_KEY, dan MIDTRANS_SERVER_KEY

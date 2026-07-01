@@ -21,6 +21,11 @@ const DEFAULT_PRICING = {
   separation_film: 0
 };
 
+const MIDTRANS_PROVIDER = 'midtrans';
+const MIDTRANS_MIN_AMOUNT_IDR = 2000;
+const MIDTRANS_PAYMENT_REASON = 'midtrans_payment';
+const MIDTRANS_FINAL_STATUSES = new Set(['settlement', 'deny', 'cancel', 'expire', 'failure', 'refund', 'chargeback', 'partial_refund', 'partial_chargeback']);
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
@@ -417,6 +422,121 @@ function formatDate(date) {
   return date.toISOString();
 }
 
+function normalizeBooleanString(value) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
+}
+
+function isMidtransConfigured(env) {
+  return hasEnvValue(env, 'MIDTRANS_SERVER_KEY') && hasEnvValue(env, 'APP_BASE_URL');
+}
+
+function isMidtransProduction(env) {
+  return normalizeBooleanString(env.MIDTRANS_IS_PRODUCTION);
+}
+
+function midtransApiBaseUrl(env) {
+  return isMidtransProduction(env) ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
+}
+
+function midtransSnapBaseUrl(env) {
+  return isMidtransProduction(env) ? 'https://app.midtrans.com' : 'https://app.sandbox.midtrans.com';
+}
+
+function appBaseUrl(env) {
+  return String(requireEnvValue(env, 'APP_BASE_URL')).replace(/\/+$/, '');
+}
+
+export function buildMidtransAuthHeader(env) {
+  return `Basic ${btoa(`${requireEnvValue(env, 'MIDTRANS_SERVER_KEY')}:`)}`;
+}
+
+function buildMidtransOrderId() {
+  return `mt-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+function buildMidtransFinishUrl(env, orderId) {
+  const url = new URL(`${appBaseUrl(env)}/`);
+  url.searchParams.set('view', 'billing');
+  url.searchParams.set('midtrans_return', '1');
+  url.searchParams.set('midtrans_order_id', orderId);
+  return url.toString();
+}
+
+function midtransDisplayName() {
+  return 'Top up credit EasyRedesign Pro';
+}
+
+export function buildMidtransSnapPayload({ orderId, amountIdr, user, profile, finishUrl }) {
+  return {
+    transaction_details: {
+      order_id: orderId,
+      gross_amount: amountIdr
+    },
+    item_details: [
+      {
+        id: 'credit_topup',
+        price: amountIdr,
+        quantity: 1,
+        name: midtransDisplayName()
+      }
+    ],
+    customer_details: {
+      first_name: profile?.full_name || user?.user_metadata?.full_name || user?.email || 'User',
+      email: user?.email || ''
+    },
+    callbacks: {
+      finish: finishUrl
+    },
+    custom_field1: profile?.id || user?.id || '',
+    custom_field2: user?.email || ''
+  };
+}
+
+async function sha512Hex(value) {
+  const bytes = new TextEncoder().encode(String(value || ''));
+  const digest = await crypto.subtle.digest('SHA-512', bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export async function verifyMidtransSignature(notification, env) {
+  const signature = String(notification?.signature_key || '').trim().toLowerCase();
+  if (!signature) return false;
+  const payload = `${notification?.order_id || ''}${notification?.status_code || ''}${notification?.gross_amount || ''}${requireEnvValue(env, 'MIDTRANS_SERVER_KEY')}`;
+  const computed = await sha512Hex(payload);
+  return computed === signature;
+}
+
+export function mapMidtransTransactionState(data = {}) {
+  const transactionStatus = String(data.transaction_status || '').trim().toLowerCase() || 'pending';
+  const fraudStatus = String(data.fraud_status || '').trim().toLowerCase();
+  const statusCode = String(data.status_code || '').trim();
+  const grossAmount = Number.parseInt(String(data.gross_amount || '0').split('.')[0], 10) || 0;
+  const creditEligible = transactionStatus === 'settlement' || (transactionStatus === 'capture' && fraudStatus === 'accept');
+  const isFinal =
+    creditEligible ||
+    MIDTRANS_FINAL_STATUSES.has(transactionStatus) ||
+    (transactionStatus === 'capture' && fraudStatus === 'deny');
+
+  return {
+    provider: MIDTRANS_PROVIDER,
+    status: transactionStatus,
+    statusCode,
+    fraudStatus,
+    grossAmount,
+    paymentType: String(data.payment_type || '').trim(),
+    externalTransactionId: String(data.transaction_id || '').trim(),
+    creditEligible,
+    isFinal,
+    paidAt: creditEligible ? String(data.settlement_time || data.transaction_time || new Date().toISOString()) : null,
+    expiredAt: transactionStatus === 'expire' ? String(data.transaction_time || new Date().toISOString()) : null
+  };
+}
+
+function isDuplicateConstraintError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('duplicate key') || message.includes('unique constraint');
+}
+
 function calculateDynamicJobPrice({ inputMode = 'ready_trace', separationFilmCount = 0, aiAlreadyCharged = false } = {}, pricing = DEFAULT_PRICING) {
   const basePrice =
     inputMode === 'ai_redraw'
@@ -719,18 +839,25 @@ function handleHealth(env) {
       supabaseServiceRoleKey: hasEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY'),
       liteLlmConfigured: redrawAvailability.liteLlmConfigured,
       openRouterConfigured: redrawAvailability.openRouterConfigured,
+      midtransConfigured: isMidtransConfigured(env),
+      midtransIsProduction: isMidtransProduction(env),
       aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
       defaultAiRedrawModel,
       redrawPipeline: 'worker_auth_credit_to_litellm_primary_with_openrouter_fallback'
     },
     endpoints: [
       'GET /api/app-config',
+      'POST /api/payments/midtrans/checkout',
+      'GET /api/payments/midtrans',
+      'POST /api/payments/midtrans/:orderId/refresh',
+      'POST /api/payments/midtrans/webhook',
       'GET /api/me/balance',
       'POST /api/jobs/quote',
       'POST /api/jobs/commit',
       'DELETE /api/jobs/:jobId',
       'POST /api/jobs/:jobId/artifacts',
       'GET /api/example-jobs',
+      'GET /api/admin/midtrans-payments',
       'POST /api/admin/jobs/:jobId/set-example',
       'POST /api/admin/jobs/:jobId/unset-example',
       'POST /api/image-retouch',
@@ -878,6 +1005,58 @@ function withUserEmails(rows, users) {
   }));
 }
 
+async function getPaymentTransactionByOrderId(env, orderId) {
+  const rows = await supabaseFetch(
+    env,
+    `/rest/v1/payment_transactions?select=*&provider=eq.${encodeURIComponent(MIDTRANS_PROVIDER)}&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
+    {}
+  );
+  return rows?.[0] || null;
+}
+
+async function listUserMidtransPayments(env, userId) {
+  return supabaseFetch(
+    env,
+    `/rest/v1/payment_transactions?select=id,user_id,provider,order_id,external_transaction_id,amount_idr,currency,status,payment_type,redirect_url,credited_ledger_id,paid_at,expired_at,created_at,updated_at&provider=eq.${encodeURIComponent(MIDTRANS_PROVIDER)}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=20`,
+    {}
+  );
+}
+
+async function listAdminMidtransPaymentsRows(env) {
+  return supabaseFetch(
+    env,
+    `/rest/v1/payment_transactions?select=id,user_id,provider,order_id,external_transaction_id,amount_idr,currency,status,payment_type,credited_ledger_id,paid_at,expired_at,created_at,updated_at&provider=eq.${encodeURIComponent(MIDTRANS_PROVIDER)}&order=created_at.desc&limit=100`,
+    {}
+  );
+}
+
+async function createPaymentTransaction(env, payload) {
+  const rows = await supabaseFetch(env, '/rest/v1/payment_transactions?select=*', {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: payload
+  });
+  return rows?.[0] || null;
+}
+
+async function updatePaymentTransactionById(env, paymentId, patch) {
+  const rows = await supabaseFetch(env, `/rest/v1/payment_transactions?id=eq.${encodeURIComponent(paymentId)}&select=*`, {
+    method: 'PATCH',
+    prefer: 'return=representation',
+    body: patch
+  });
+  return rows?.[0] || null;
+}
+
+async function findLedgerByReference(env, referenceId, reason) {
+  const rows = await supabaseFetch(
+    env,
+    `/rest/v1/credit_ledger?select=id&reference_id=eq.${encodeURIComponent(referenceId)}&reason=eq.${encodeURIComponent(reason)}&limit=1`,
+    {}
+  );
+  return rows?.[0] || null;
+}
+
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -1020,6 +1199,87 @@ async function insertLedger(env, { userId, amountIdr, kind, reason, referenceId,
     }
   });
   return rows?.[0];
+}
+
+async function fetchMidtrans(env, path, { method = 'GET', body } = {}) {
+  const response = await fetch(`${path.startsWith('/snap/') ? midtransSnapBaseUrl(env) : midtransApiBaseUrl(env)}${path}`, {
+    method,
+    headers: {
+      Accept: 'application/json',
+      Authorization: buildMidtransAuthHeader(env),
+      ...(body ? { 'Content-Type': 'application/json' } : {})
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    const messages = Array.isArray(data?.error_messages) ? data.error_messages.join(' ') : data?.status_message || data?.message || 'Midtrans request gagal.';
+    throw new Error(messages);
+  }
+  return data || {};
+}
+
+async function createMidtransSnapTransaction(env, payload) {
+  return fetchMidtrans(env, '/snap/v1/transactions', {
+    method: 'POST',
+    body: payload
+  });
+}
+
+async function getMidtransTransactionStatus(env, orderId) {
+  return fetchMidtrans(env, `/v2/${encodeURIComponent(orderId)}/status`);
+}
+
+async function ensureMidtransCreditLedger(env, payment, snapshot, createdBy) {
+  if (payment.credited_ledger_id) return payment.credited_ledger_id;
+
+  const existingLedger = await findLedgerByReference(env, payment.id, MIDTRANS_PAYMENT_REASON);
+  if (existingLedger?.id) return existingLedger.id;
+
+  try {
+    const ledger = await insertLedger(env, {
+      userId: payment.user_id,
+      amountIdr: Number(payment.amount_idr) || snapshot.grossAmount,
+      kind: 'credit',
+      reason: MIDTRANS_PAYMENT_REASON,
+      referenceId: payment.id,
+      createdBy: createdBy || payment.user_id,
+      metadata: {
+        provider: MIDTRANS_PROVIDER,
+        orderId: payment.order_id,
+        externalTransactionId: snapshot.externalTransactionId,
+        paymentType: snapshot.paymentType,
+        transactionStatus: snapshot.status,
+        fraudStatus: snapshot.fraudStatus,
+        amountIdr: Number(payment.amount_idr) || snapshot.grossAmount
+      }
+    });
+    return ledger?.id || null;
+  } catch (error) {
+    if (!isDuplicateConstraintError(error)) throw error;
+    const duplicateLedger = await findLedgerByReference(env, payment.id, MIDTRANS_PAYMENT_REASON);
+    if (duplicateLedger?.id) return duplicateLedger.id;
+    throw error;
+  }
+}
+
+export async function syncMidtransPaymentTransaction(env, payment, sourceData, { createdBy } = {}) {
+  const snapshot = mapMidtransTransactionState(sourceData);
+  const patch = {
+    external_transaction_id: snapshot.externalTransactionId || payment.external_transaction_id || null,
+    status: snapshot.status,
+    payment_type: snapshot.paymentType || payment.payment_type || null,
+    raw_notification: sourceData || {},
+    paid_at: snapshot.paidAt || payment.paid_at || null,
+    expired_at: snapshot.expiredAt || payment.expired_at || null
+  };
+
+  if (snapshot.creditEligible && !payment.credited_ledger_id) {
+    const ledgerId = await ensureMidtransCreditLedger(env, payment, snapshot, createdBy);
+    if (ledgerId) patch.credited_ledger_id = ledgerId;
+  }
+
+  return updatePaymentTransactionById(env, payment.id, patch);
 }
 
 async function validateAiLedgerForCommit(env, { userId, ledgerId, expectedAmountIdr }) {
@@ -1731,6 +1991,91 @@ async function handleCreateManualPayment(env, request) {
   return json({ payment: rows?.[0] });
 }
 
+async function handleCreateMidtransCheckout(env, request) {
+  if (!isMidtransConfigured(env)) {
+    throw new Error('Midtrans belum diaktifkan di deploy ini.');
+  }
+
+  const { user, profile } = await requireUser(env, request);
+  const body = await readJson(request);
+  const amountIdr = Number.parseInt(body.amountIdr, 10);
+  if (!Number.isInteger(amountIdr) || amountIdr < MIDTRANS_MIN_AMOUNT_IDR) {
+    throw new Error(`Nominal Midtrans minimal Rp${MIDTRANS_MIN_AMOUNT_IDR}.`);
+  }
+
+  const orderId = buildMidtransOrderId();
+  const snapPayload = buildMidtransSnapPayload({
+    orderId,
+    amountIdr,
+    user,
+    profile,
+    finishUrl: buildMidtransFinishUrl(env, orderId)
+  });
+  const created = await createMidtransSnapTransaction(env, snapPayload);
+  const payment = await createPaymentTransaction(env, {
+    user_id: user.id,
+    provider: MIDTRANS_PROVIDER,
+    order_id: orderId,
+    amount_idr: amountIdr,
+    currency: 'IDR',
+    status: 'pending',
+    payment_type: null,
+    snap_token: created.token || '',
+    redirect_url: created.redirect_url || '',
+    raw_create_response: created,
+    raw_notification: {},
+    credited_ledger_id: null,
+    paid_at: null,
+    expired_at: null
+  });
+
+  return json({
+    payment,
+    redirectUrl: payment?.redirect_url || created.redirect_url || '',
+    token: payment?.snap_token || created.token || ''
+  });
+}
+
+async function handleListMidtransPayments(env, request) {
+  const { user } = await requireUser(env, request);
+  const payments = await listUserMidtransPayments(env, user.id);
+  return json({ payments });
+}
+
+async function handleRefreshMidtransPayment(env, request, orderId) {
+  const { user } = await requireUser(env, request);
+  const payment = await getPaymentTransactionByOrderId(env, orderId);
+  if (!payment) throw new Error('Transaksi Midtrans tidak ditemukan.');
+  if (payment.user_id !== user.id) throw new Error('Akses pembayaran ditolak.');
+
+  const statusData = await getMidtransTransactionStatus(env, payment.order_id);
+  const updated = await syncMidtransPaymentTransaction(env, payment, statusData, { createdBy: user.id });
+  return json({ payment: updated, status: mapMidtransTransactionState(statusData) });
+}
+
+async function handleMidtransWebhook(env, request) {
+  if (!isMidtransConfigured(env)) {
+    throw new Error('Midtrans belum diaktifkan di deploy ini.');
+  }
+
+  const body = await readJson(request);
+  const isValidSignature = await verifyMidtransSignature(body, env);
+  if (!isValidSignature) {
+    return error('Signature Midtrans tidak valid.', 401);
+  }
+
+  const orderId = String(body.order_id || '').trim();
+  if (!orderId) throw new Error('order_id Midtrans tidak ditemukan.');
+
+  const payment = await getPaymentTransactionByOrderId(env, orderId);
+  if (!payment) {
+    return json({ received: true, ignored: true, reason: 'payment_not_found', orderId });
+  }
+
+  const updated = await syncMidtransPaymentTransaction(env, payment, body, { createdBy: payment.user_id });
+  return json({ received: true, payment: updated });
+}
+
 async function handleAppConfig(env) {
   const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=key,value,is_public&is_public=eq.true&order=key.asc', {});
   const aiRedrawModel = await getAiRedrawModelConfig(env);
@@ -1742,7 +2087,10 @@ async function handleAppConfig(env) {
       aiRedrawPrimaryProvider: aiRedrawModel.primaryProvider,
       aiRedrawFallbackProvider: aiRedrawModel.fallbackProvider || '',
       liteLlmConfigured: redrawAvailability.liteLlmConfigured,
-      openRouterConfigured: redrawAvailability.openRouterConfigured
+      openRouterConfigured: redrawAvailability.openRouterConfigured,
+      midtransAvailable: isMidtransConfigured(env),
+      midtransIsProduction: isMidtransProduction(env),
+      midtransMinimumAmountIdr: MIDTRANS_MIN_AMOUNT_IDR
     }
   });
 }
@@ -1836,6 +2184,13 @@ async function handleAdminPayments(env, request) {
   await requireAdmin(env, request);
   const users = await supabaseFetch(env, '/rest/v1/profiles?select=id,email', {});
   const payments = await supabaseFetch(env, '/rest/v1/manual_payments?select=id,user_id,marketplace,order_ref,amount_idr,status,notes,rejected_reason,approved_at,created_at,updated_at&order=created_at.desc&limit=100', {});
+  return json({ payments: withUserEmails(payments, users) });
+}
+
+async function handleAdminMidtransPayments(env, request) {
+  await requireAdmin(env, request);
+  const users = await supabaseFetch(env, '/rest/v1/profiles?select=id,email', {});
+  const payments = await listAdminMidtransPaymentsRows(env);
   return json({ payments: withUserEmails(payments, users) });
 }
 
@@ -2061,6 +2416,9 @@ export default {
     try {
       if ((url.pathname === '/' || url.pathname === '/health') && request.method === 'GET') return handleHealth(env);
       if (url.pathname === '/api/app-config' && request.method === 'GET') return await handleAppConfig(env);
+      if (url.pathname === '/api/payments/midtrans/webhook' && request.method === 'POST') return await handleMidtransWebhook(env, request);
+      if (url.pathname === '/api/payments/midtrans/checkout' && request.method === 'POST') return await handleCreateMidtransCheckout(env, request);
+      if (url.pathname === '/api/payments/midtrans' && request.method === 'GET') return await handleListMidtransPayments(env, request);
       if (url.pathname === '/api/manual-payments' && request.method === 'POST') return await handleCreateManualPayment(env, request);
       if (url.pathname === '/api/me/balance' && request.method === 'GET') return await handleBalance(env, request);
       if (url.pathname === '/api/jobs/quote' && request.method === 'POST') return await handleQuote(env, request);
@@ -2076,8 +2434,11 @@ export default {
       if (url.pathname === '/api/admin/overview' && request.method === 'GET') return await handleAdminOverview(env, request);
       if (url.pathname === '/api/admin/jobs' && request.method === 'GET') return await handleAdminJobs(env, request);
       if (url.pathname === '/api/admin/manual-payments' && request.method === 'GET') return await handleAdminPayments(env, request);
+      if (url.pathname === '/api/admin/midtrans-payments' && request.method === 'GET') return await handleAdminMidtransPayments(env, request);
       if (url.pathname === '/api/admin/pricing-rules') return await handleAdminPricingRules(env, request);
       if (url.pathname === '/api/admin/settings') return await handleAdminSettings(env, request);
+      const midtransRefreshMatch = url.pathname.match(/^\/api\/payments\/midtrans\/([^/]+)\/refresh$/);
+      if (midtransRefreshMatch && request.method === 'POST') return await handleRefreshMidtransPayment(env, request, midtransRefreshMatch[1]);
       const setExampleMatch = url.pathname.match(/^\/api\/admin\/jobs\/([^/]+)\/set-example$/);
       if (setExampleMatch && request.method === 'POST') return await handleSetExampleJob(env, request, setExampleMatch[1]);
       const unsetExampleMatch = url.pathname.match(/^\/api\/admin\/jobs\/([^/]+)\/unset-example$/);

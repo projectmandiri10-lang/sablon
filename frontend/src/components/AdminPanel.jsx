@@ -7,6 +7,7 @@ import {
   deleteAdminUser,
   getAdminOverview,
   listAdminJobs,
+  listAdminMidtransPayments,
   listAdminManualPayments,
   listAdminPricingRules,
   listAdminSettings,
@@ -86,6 +87,7 @@ export default function AdminPanel({ session, enabled }) {
   const [overview, setOverview] = useState(null);
   const [users, setUsers] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [midtransPayments, setMidtransPayments] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [pricingRules, setPricingRules] = useState([]);
   const [settings, setSettings] = useState([]);
@@ -113,10 +115,11 @@ export default function AdminPanel({ session, enabled }) {
     setIsBusy(true);
     setMessage('');
     try {
-      const [overviewData, usersData, paymentsData, pricingData, settingsData, jobsData] = await Promise.all([
+      const [overviewData, usersData, paymentsData, midtransPaymentsData, pricingData, settingsData, jobsData] = await Promise.all([
         getAdminOverview(accessToken),
         listAdminUsers(accessToken),
         listAdminManualPayments(accessToken),
+        listAdminMidtransPayments(accessToken),
         listAdminPricingRules(accessToken),
         listAdminSettings(accessToken),
         listAdminJobs(accessToken)
@@ -124,6 +127,7 @@ export default function AdminPanel({ session, enabled }) {
       setOverview(overviewData.overview || null);
       setUsers(usersData.users || []);
       setPayments(paymentsData.payments || []);
+      setMidtransPayments(midtransPaymentsData.payments || []);
       setPricingRules(pricingData.rules || []);
       setSettings(settingsData.settings || []);
       setJobs(jobsData.jobs || []);
@@ -605,50 +609,92 @@ export default function AdminPanel({ session, enabled }) {
       )}
 
       {activeTab === 'payments' && (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[940px] border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-line text-xs uppercase text-gray-600">
-                <th className="py-2 pr-3">User</th>
-                <th className="py-2 pr-3">Nominal</th>
-                <th className="py-2 pr-3">Order Shopee</th>
-                <th className="py-2 pr-3">Status</th>
-                <th className="py-2 pr-3">Catatan</th>
-                <th className="py-2 pr-3">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map((payment) => (
-                <tr key={payment.id} className="border-b border-line">
-                  <td className="py-2 pr-3 font-medium text-ink">{payment.user_email}</td>
-                  <td className="py-2 pr-3">{formatRupiah(payment.amount_idr)}</td>
-                  <td className="py-2 pr-3">{payment.order_ref || '-'}</td>
-                  <td className="py-2 pr-3"><StatusBadge status={payment.status} /></td>
-                  <td className="py-2 pr-3">{payment.notes || payment.rejected_reason || '-'}</td>
-                  <td className="py-2 pr-3">
-                    {payment.status === 'pending' ? (
-                      <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => approvePayment(payment.id)} className="inline-flex h-8 w-8 items-center justify-center border border-spruce text-spruce" title="Approve">
-                          <Check className="h-4 w-4" aria-hidden="true" />
-                        </button>
-                        <input
-                          value={rejectReasonByPayment[payment.id] || ''}
-                          onChange={(event) => setRejectReasonByPayment((current) => ({ ...current, [payment.id]: event.target.value }))}
-                          className="w-36 border border-line px-2 py-1"
-                          placeholder="Alasan tolak"
-                        />
-                        <button type="button" onClick={() => rejectPayment(payment.id)} className="inline-flex h-8 w-8 items-center justify-center border border-tomato text-tomato" title="Reject">
-                          <X className="h-4 w-4" aria-hidden="true" />
-                        </button>
-                      </div>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-5">
+          <div>
+            <h3 className="mb-3 text-sm font-bold text-ink">Pembayaran manual Shopee</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[940px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-line text-xs uppercase text-gray-600">
+                    <th className="py-2 pr-3">User</th>
+                    <th className="py-2 pr-3">Nominal</th>
+                    <th className="py-2 pr-3">Order Shopee</th>
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2 pr-3">Catatan</th>
+                    <th className="py-2 pr-3">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((payment) => (
+                    <tr key={payment.id} className="border-b border-line">
+                      <td className="py-2 pr-3 font-medium text-ink">{payment.user_email}</td>
+                      <td className="py-2 pr-3">{formatRupiah(payment.amount_idr)}</td>
+                      <td className="py-2 pr-3">{payment.order_ref || '-'}</td>
+                      <td className="py-2 pr-3"><StatusBadge status={payment.status} /></td>
+                      <td className="py-2 pr-3">{payment.notes || payment.rejected_reason || '-'}</td>
+                      <td className="py-2 pr-3">
+                        {payment.status === 'pending' ? (
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={() => approvePayment(payment.id)} className="inline-flex h-8 w-8 items-center justify-center border border-spruce text-spruce" title="Approve">
+                              <Check className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                            <input
+                              value={rejectReasonByPayment[payment.id] || ''}
+                              onChange={(event) => setRejectReasonByPayment((current) => ({ ...current, [payment.id]: event.target.value }))}
+                              className="w-36 border border-line px-2 py-1"
+                              placeholder="Alasan tolak"
+                            />
+                            <button type="button" onClick={() => rejectPayment(payment.id)} className="inline-flex h-8 w-8 items-center justify-center border border-tomato text-tomato" title="Reject">
+                              <X className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          </div>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-bold text-ink">Transaksi Midtrans otomatis</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[940px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-line text-xs uppercase text-gray-600">
+                    <th className="py-2 pr-3">User</th>
+                    <th className="py-2 pr-3">Order</th>
+                    <th className="py-2 pr-3">Nominal</th>
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2 pr-3">Channel</th>
+                    <th className="py-2 pr-3">Credit</th>
+                    <th className="py-2 pr-3">Waktu bayar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {midtransPayments.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="py-3 text-sm text-gray-600">Belum ada transaksi Midtrans.</td>
+                    </tr>
+                  ) : (
+                    midtransPayments.map((payment) => (
+                      <tr key={payment.id} className="border-b border-line">
+                        <td className="py-2 pr-3 font-medium text-ink">{payment.user_email}</td>
+                        <td className="py-2 pr-3">{payment.order_id}</td>
+                        <td className="py-2 pr-3">{formatRupiah(payment.amount_idr)}</td>
+                        <td className="py-2 pr-3"><StatusBadge status={payment.status} /></td>
+                        <td className="py-2 pr-3">{payment.payment_type || '-'}</td>
+                        <td className="py-2 pr-3">{payment.credited_ledger_id ? 'Masuk' : 'Belum'}</td>
+                        <td className="py-2 pr-3">{payment.paid_at ? new Date(payment.paid_at).toLocaleString('id-ID') : '-'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

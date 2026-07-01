@@ -12,6 +12,7 @@ import UploadBox from './components/UploadBox.jsx';
 import { commitJob, deleteCloudJob, getBalance, listExampleJobs, quoteJob, requestImageRetouch, toUserApiError, uploadExampleArtifacts } from './lib/api.js';
 import { createNormalizedImagePreviewBlob } from './lib/imagePreview.js';
 import { deleteHistoryJob, loadHistoryJobs, releaseHistoryJobs, saveHistoryJob } from './lib/localHistoryStore.js';
+import { parseMidtransReturnParams, stripMidtransReturnParams } from './lib/billingPanelState.js';
 import { processImageLocally } from './lib/localProcessor.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from './lib/modes.js';
 import { IMAGE_RETOUCH_PRICE_IDR, calculateJobPrice, formatRupiah } from './lib/pricing.js';
@@ -242,6 +243,7 @@ export default function App() {
   const [deletingLibraryJobId, setDeletingLibraryJobId] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
   const [publicRoute, setPublicRoute] = useState(() => getPublicRouteFromPathname(window.location.pathname || '/'));
+  const [midtransReturnState, setMidtransReturnState] = useState(() => parseMidtransReturnParams(window.location.search || ''));
 
   useEffect(() => {
     if (previewRef.current) {
@@ -276,6 +278,12 @@ export default function App() {
   useEffect(() => {
     document.title = getDocumentTitle(publicRoute, Boolean(session));
   }, [publicRoute, session]);
+
+  useEffect(() => {
+    if (midtransReturnState.isReturn && session?.access_token) {
+      setView('billing');
+    }
+  }, [midtransReturnState.isReturn, session?.access_token]);
 
   function navigatePublicPath(path, { replace = false } = {}) {
     const normalized = normalizePathname(path);
@@ -479,6 +487,12 @@ export default function App() {
     setExampleJobs([]);
     setExampleError('');
     setDeletingLibraryJobId('');
+  }
+
+  function handleMidtransReturnHandled() {
+    const nextSearch = stripMidtransReturnParams(window.location.search || '');
+    window.history.replaceState({}, document.title, `${window.location.pathname || '/'}${nextSearch}`);
+    setMidtransReturnState(parseMidtransReturnParams(nextSearch));
   }
 
   async function ensureCanRun(estimatedFilmCount = 0) {
@@ -777,7 +791,7 @@ export default function App() {
 
       {session && view === 'billing' && (
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
-          <BillingPanel session={session} />
+          <BillingPanel session={session} returnState={midtransReturnState} onRefreshBalance={refreshBalance} onReturnHandled={handleMidtransReturnHandled} />
         </div>
       )}
 
