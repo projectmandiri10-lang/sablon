@@ -22,6 +22,27 @@ function Toggle({ checked, onChange, label, disabled }) {
 
 export default function SettingsPanel({ locale = 'id', settings, inputMode, onChange, disabled }) {
   const isId = locale === 'id';
+  const copy = {
+    sablon: isId ? 'Sablon' : 'Screen print',
+    vectorOnlyAuto: isId ? 'Vector only (otomatis)' : 'Vector only (automatic)',
+    readyModeNote: isId
+      ? 'Mode siap trace selalu menjalankan vector, pisah warna, dan contour sticker lewat jalur backend lokal.'
+      : 'Production-ready trace mode always runs vectoring, color separation, and sticker cutline generation through the local backend path.',
+    filmSizeTitle: isId ? 'Ukuran film sablon' : 'Screen print film size',
+    horizontalWidth: isId ? 'Lebar gambar horizontal' : 'Horizontal artwork width',
+    widthHint: isId ? 'Yang diisi adalah lebar gambar dari sisi kiri ke kanan.' : 'Enter the artwork width from left to right, not the height.',
+    includeBackground: isId ? 'Sertakan background dalam ukuran' : 'Include background in size calculation',
+    underbaseFilm: isId ? 'Buat film dasar untuk bahan gelap' : 'Create underbase film for dark garments',
+    paperSize: isId ? 'Ukuran kertas' : 'Paper size',
+    paperOrientation: isId ? 'Orientasi kertas' : 'Paper orientation',
+    artworkWidth: isId ? 'Lebar artwork horizontal' : 'Horizontal artwork width',
+    cutlineOffset: isId ? 'Jarak garis potong' : 'Cutline offset',
+    stickerOutput: isId ? 'Output sticker' : 'Sticker output',
+    stickerCutline: isId ? 'Buat garis potong sticker' : 'Create sticker cutline',
+    portrait: isId ? 'Potret' : 'Portrait',
+    landscape: isId ? 'Lanskap' : 'Landscape'
+  };
+
   function update(key, value) {
     onChange({ ...settings, [key]: value });
   }
@@ -72,7 +93,7 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
                   settings.productionType === type ? 'border-spruce bg-spruce text-white' : 'border-line bg-white text-ink hover:border-spruce'
                 }`}
               >
-                {type === 'sticker' ? 'Sticker' : 'Sablon'}
+                {type === 'sticker' ? 'Sticker' : copy.sablon}
               </button>
             ))}
           </div>
@@ -82,7 +103,7 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
           <Toggle
             checked={inputMode === INPUT_MODE_READY ? true : settings.makeVector}
             onChange={(value) => update('makeVector', value)}
-            label={inputMode === INPUT_MODE_READY ? (isId ? 'Vector only (otomatis)' : 'Vector only (automatic)') : isId ? 'Buat versi vector' : 'Create vector version'}
+            label={inputMode === INPUT_MODE_READY ? copy.vectorOnlyAuto : isId ? 'Buat versi vector' : 'Create vector version'}
             disabled={disabled || settings.separateColors || inputMode === INPUT_MODE_READY}
           />
           <Toggle checked={settings.separateColors} onChange={setSeparateColors} label={isId ? 'Pecah warna untuk sablon' : 'Separate colors for screen print'} disabled={disabled} />
@@ -90,7 +111,7 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
 
         {inputMode === INPUT_MODE_READY && (
           <div className="border border-spruce bg-primary/5 px-3 py-2 text-xs leading-5 text-ink">
-            {isId ? 'Mode siap trace selalu menjalankan vector, pisah warna, dan contour sticker lewat jalur backend lokal.' : 'Production-ready trace mode always runs vectoring, color separation, and sticker contour generation through the local backend path.'}
+            {copy.readyModeNote}
           </div>
         )}
 
@@ -138,18 +159,18 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
 
         {settings.productionType === 'sticker' && (
           <div className="border border-line bg-panel p-3">
-            <p className="mb-3 text-sm font-semibold text-ink">{isId ? 'Output sticker' : 'Sticker output'}</p>
+            <p className="mb-3 text-sm font-semibold text-ink">{copy.stickerOutput}</p>
             <Toggle
               checked={settings.stickerCutlineEnabled}
               onChange={(value) => update('stickerCutlineEnabled', value)}
-              label={isId ? 'Buat garis potong sticker' : 'Create sticker cutline'}
+              label={copy.stickerCutline}
               disabled={disabled}
             />
 
             {settings.stickerCutlineEnabled && (
               <div className="mt-3 grid gap-3">
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">{isId ? 'Lebar artwork horizontal' : 'Artwork width'}</span>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">{copy.artworkWidth}</span>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
@@ -164,11 +185,11 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
                     />
                     <span className="text-sm font-medium text-gray-700">cm</span>
                   </div>
-                  <p className="mt-1.5 text-xs text-gray-600">Isi ukuran dari kiri ke kanan gambar, bukan tinggi.</p>
+                  <p className="mt-1.5 text-xs text-gray-600">{isId ? 'Isi ukuran dari kiri ke kanan gambar, bukan tinggi.' : 'Enter the size from the left side to the right side of the artwork, not the height.'}</p>
                 </label>
 
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Jarak garis potong</span>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">{copy.cutlineOffset}</span>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
@@ -186,7 +207,7 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
 
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium text-ink">Ukuran kertas</span>
+                    <span className="mb-1.5 block text-sm font-medium text-ink">{copy.paperSize}</span>
                     <select
                       value={settings.paperSize}
                       onChange={(event) => update('paperSize', event.target.value)}
@@ -199,15 +220,15 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
                   </label>
 
                   <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium text-ink">Orientasi kertas</span>
+                    <span className="mb-1.5 block text-sm font-medium text-ink">{copy.paperOrientation}</span>
                     <select
                       value={settings.paperOrientation}
                       onChange={(event) => update('paperOrientation', event.target.value)}
                       disabled={disabled}
                       className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                     >
-                      <option value="portrait">Portrait</option>
-                      <option value="landscape">Landscape</option>
+                      <option value="portrait">{copy.portrait}</option>
+                      <option value="landscape">{copy.landscape}</option>
                     </select>
                   </label>
                 </div>
@@ -218,9 +239,9 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
 
         {settings.separateColors && (
           <div className="border border-line bg-panel p-3">
-            <p className="mb-3 text-sm font-semibold text-ink">Ukuran film sablon</p>
+            <p className="mb-3 text-sm font-semibold text-ink">{copy.filmSizeTitle}</p>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">Lebar gambar horizontal</span>
+              <span className="mb-1.5 block text-sm font-medium text-ink">{copy.horizontalWidth}</span>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -235,7 +256,7 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
                 />
                 <span className="text-sm font-medium text-gray-700">cm</span>
               </div>
-              <p className="mt-1.5 text-xs text-gray-600">Yang diisi adalah lebar gambar dari sisi kiri ke kanan.</p>
+              <p className="mt-1.5 text-xs text-gray-600">{copy.widthHint}</p>
             </label>
 
             <label className="mt-3 flex cursor-pointer items-center gap-3 border border-line bg-white px-3 py-2.5 text-sm">
@@ -245,7 +266,7 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
                 disabled={disabled || settings.removeBackground}
                 onChange={(event) => update('includeBackgroundInFilmSize', event.target.checked)}
               />
-              Sertakan background dalam ukuran
+              {copy.includeBackground}
             </label>
 
             <label className="mt-3 flex cursor-pointer items-center gap-3 border border-line bg-white px-3 py-2.5 text-sm">
@@ -255,12 +276,12 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
                 onChange={(event) => update('createUnderbaseFilm', event.target.checked)}
                 disabled={disabled}
               />
-              Buat film dasar untuk bahan gelap
+              {copy.underbaseFilm}
             </label>
 
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">Ukuran kertas</span>
+                <span className="mb-1.5 block text-sm font-medium text-ink">{copy.paperSize}</span>
                 <select
                   value={settings.paperSize}
                   onChange={(event) => update('paperSize', event.target.value)}
@@ -273,15 +294,15 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
               </label>
 
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">Orientasi kertas</span>
+                <span className="mb-1.5 block text-sm font-medium text-ink">{copy.paperOrientation}</span>
                 <select
                   value={settings.paperOrientation}
                   onChange={(event) => update('paperOrientation', event.target.value)}
                   disabled={disabled}
                   className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                 >
-                  <option value="portrait">Portrait</option>
-                  <option value="landscape">Landscape</option>
+                  <option value="portrait">{copy.portrait}</option>
+                  <option value="landscape">{copy.landscape}</option>
                 </select>
               </label>
             </div>

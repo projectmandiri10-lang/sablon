@@ -8,33 +8,45 @@ const rasterExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const readyTraceMimeTypes = new Set(['image/svg+xml']);
 const readyTraceExtensions = new Set(['.svg']);
 
-const modeOptions = [
-  {
-    value: INPUT_MODE_RETOUCH,
-    title: 'Gambar perlu digambar ulang',
-    description: 'Untuk foto buram, scan, atau logo yang perlu dirapikan sebelum diproses.',
-    priceIdr: IMAGE_RETOUCH_PRICE_IDR,
-    helper: 'Upload JPG, PNG, atau WebP. Cocok untuk foto logo yang masih perlu dibersihkan sebelum redraw AI.',
-    accept: 'image/png,image/jpeg,image/webp',
-    badge: 'Raster + AI'
-  },
-  {
-    value: INPUT_MODE_READY,
-    title: 'Vector Siap Proses',
-    description: 'Tanpa AI. Khusus file vector murni untuk pisah warna dan contour sticker.',
-    priceIdr: READY_PROCESS_PRICE_IDR,
-    helper: 'Upload SVG vector murni. EPS/AI akan mengikuti jalur ini setelah parser dedicated diaktifkan.',
-    accept: '.svg,image/svg+xml',
-    badge: 'Vector only'
-  }
-];
+function getModeOptions(locale) {
+  const isId = locale === 'id';
+  return [
+    {
+      value: INPUT_MODE_RETOUCH,
+      title: isId ? 'Gambar perlu digambar ulang' : 'Image needs AI redraw',
+      description: isId
+        ? 'Untuk foto buram, scan, atau logo yang perlu dirapikan sebelum diproses.'
+        : 'For blurry photos, scans, or logos that need cleanup before processing.',
+      priceIdr: IMAGE_RETOUCH_PRICE_IDR,
+      helper: isId
+        ? 'Upload JPG, PNG, atau WebP. Cocok untuk foto logo yang masih perlu dibersihkan sebelum redraw AI.'
+        : 'Upload JPG, PNG, or WebP files. Best for logo photos that still need cleanup before AI redraw.',
+      accept: 'image/png,image/jpeg,image/webp',
+      badge: isId ? 'Raster + AI' : 'Raster + AI'
+    },
+    {
+      value: INPUT_MODE_READY,
+      title: isId ? 'Vector Siap Proses' : 'Production-Ready Vector',
+      description: isId
+        ? 'Tanpa AI. Khusus file vector murni untuk pisah warna dan contour sticker.'
+        : 'No AI. For pure vector files used for color separation and sticker cutlines.',
+      priceIdr: READY_PROCESS_PRICE_IDR,
+      helper: isId
+        ? 'Upload SVG vector murni. EPS/AI akan mengikuti jalur ini setelah parser dedicated diaktifkan.'
+        : 'Upload pure SVG vector files. EPS/AI will follow this path after the dedicated parser is enabled.',
+      accept: '.svg,image/svg+xml',
+      badge: isId ? 'Khusus vector' : 'Vector only'
+    }
+  ];
+}
 
 export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, onInputModeChange, onFileChange, disabled }) {
   const [previewFailed, setPreviewFailed] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const hasPreview = Boolean(file && previewUrl);
-  const activeOption = useMemo(() => modeOptions.find((option) => option.value === inputMode) || modeOptions[0], [inputMode]);
   const isId = locale === 'id';
+  const modeOptions = useMemo(() => getModeOptions(locale), [locale]);
+  const activeOption = useMemo(() => modeOptions.find((option) => option.value === inputMode) || modeOptions[0], [inputMode, modeOptions]);
 
   useEffect(() => {
     setUploadError('');
@@ -87,7 +99,7 @@ export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, 
               </p>
             </div>
           ) : (
-            <img className="h-full w-full object-cover" src={previewUrl} alt="Preview gambar asli" onError={() => setPreviewFailed(true)} />
+            <img className="h-full w-full object-cover" src={previewUrl} alt={isId ? 'Preview gambar asli' : 'Original image preview'} onError={() => setPreviewFailed(true)} />
           )}
           <div className="absolute inset-0 bg-white/65" />
         </div>
@@ -123,7 +135,7 @@ export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, 
           <div className="flex w-full justify-center">
             <div className="checkerboard flex max-h-56 w-full max-w-80 items-center justify-center overflow-hidden border border-line bg-white/75 p-3 shadow-sm">
               <div className="flex w-full flex-col items-center gap-2 text-center">
-                <p className="text-xs font-semibold uppercase tracking-wide text-spruce">Preview terunggah</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-spruce">{isId ? 'Preview terunggah' : 'Uploaded preview'}</p>
                 <p className="text-sm text-gray-700">{isId ? 'Klik area ini untuk mengganti gambar.' : 'Click this area to replace the image.'}</p>
               </div>
             </div>
@@ -178,7 +190,7 @@ export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, 
                   <p className="mt-1.5 text-xs leading-5 text-gray-700">{option.description}</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-base font-black text-spruce">{formatRupiah(option.priceIdr)}/gambar</p>
+                  <p className="text-base font-black text-spruce">{formatRupiah(option.priceIdr)}/{isId ? 'gambar' : 'image'}</p>
                   <p className="text-[11px] text-gray-600">{option.badge}</p>
                 </div>
               </div>
@@ -189,7 +201,7 @@ export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, 
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border border-spruce/30 bg-primary/5 px-3 py-2">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-spruce">Mode aktif</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-spruce">{isId ? 'Mode aktif' : 'Active mode'}</p>
           <p className="text-xs text-gray-700">
             <span className="font-semibold text-ink">{activeOption.title}</span>
             {' - '}
