@@ -7,7 +7,7 @@ const authPanelSource = fs.readFileSync(path.join(import.meta.dirname, '..', 'co
 
 test('google login button keeps readable text styling when disabled', () => {
   const googleButtonSnippet = authPanelSource.match(/className=\{`mt-3 inline-flex min-h-11 w-full[\s\S]+?`\}/)?.[0] || '';
-  assert.match(authPanelSource, /text-\[#3C4043\]/);
+  assert.match(authPanelSource, /text-white transition-colors/);
   assert.equal(googleButtonSnippet.includes('opacity-60'), false);
-  assert.match(googleButtonSnippet, /cursor-not-allowed bg-gray-50/);
+  assert.match(googleButtonSnippet, /cursor-not-allowed border-white\/20 bg-white\/10 text-white\/90/);
 });

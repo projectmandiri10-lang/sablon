@@ -145,7 +145,7 @@ export default function AuthPanel({ locale = 'id', onSignedIn }) {
           if (!googleAuthUrl || isBusy) return;
           signInWithGoogle();
         }}
-        className={`mt-3 inline-flex min-h-11 w-full items-center justify-center gap-3 border border-[#DADCE0] bg-white px-4 py-2.5 text-sm font-semibold text-[#3C4043] ${!googleAuthUrl || isBusy ? 'cursor-not-allowed bg-gray-50' : 'hover:bg-gray-50'}`}
+        className={`mt-3 inline-flex min-h-11 w-full items-center justify-center gap-3 border px-4 py-2.5 text-sm font-semibold text-white transition-colors ${!googleAuthUrl || isBusy ? 'cursor-not-allowed border-white/20 bg-white/10 text-white/90' : 'border-white/30 bg-white/5 hover:bg-white/10'}`}
         aria-disabled={!googleAuthUrl || isBusy}
       >
         {googleIcon}
