@@ -9,6 +9,24 @@ import {
   updateExampleJobsSetting
 } from './example-jobs.js';
 import {
+  buildDateRangeQuery,
+  buildFinanceCsv,
+  buildFinanceSummary,
+  buildTimestampRangeQuery,
+  BUSINESS_FINANCE_CASH_DIRECTIONS,
+  BUSINESS_FINANCE_ENTRY_TYPES,
+  BUSINESS_FINANCE_TAX_TREATMENTS,
+  DEFAULT_TAX_CODE,
+  filterFinanceTransactions,
+  isSuccessfulGatewayPayment,
+  normalizeBusinessLedgerTransaction,
+  normalizeFinanceRange,
+  normalizeGatewayPaymentTransaction,
+  normalizeJobUsageTransaction,
+  normalizeLedgerTransaction,
+  normalizeManualPaymentTransaction
+} from './admin-finance.js';
+import {
   HYBRID_REDRAW_PRESETS,
   LITELLM_IMAGE_REDRAW_PROVIDER,
   OPENROUTER_IMAGE_REDRAW_PROVIDER,
@@ -908,6 +926,12 @@ function handleHealth(env) {
       'DELETE /api/jobs/:jobId',
       'POST /api/jobs/:jobId/artifacts',
       'GET /api/example-jobs',
+      'GET /api/admin/finance/summary',
+      'GET /api/admin/finance/transactions',
+      'GET /api/admin/finance/usage',
+      'GET /api/admin/finance/export.csv',
+      'GET/POST /api/admin/finance/business-entries',
+      'GET/POST /api/admin/finance/tax-rules',
       'GET /api/admin/midtrans-payments',
       'POST /api/admin/jobs/:jobId/set-example',
       'POST /api/admin/jobs/:jobId/unset-example',
@@ -1081,6 +1105,93 @@ async function listAdminMidtransPaymentsRows(env) {
   );
 }
 
+async function listProfileEmails(env) {
+  return supabaseFetch(env, '/rest/v1/profiles?select=id,email', {});
+}
+
+function withCreatedByEmails(rows, users) {
+  const emailById = new Map(users.map((user) => [user.id, user.email]));
+  return rows.map((row) => ({
+    ...row,
+    created_by_email: row.created_by ? emailById.get(row.created_by) || '' : ''
+  }));
+}
+
+async function listFinanceManualPaymentsRows(env, range) {
+  return supabaseFetch(
+    env,
+    `/rest/v1/manual_payments?select=id,user_id,marketplace,order_ref,amount_idr,status,notes,approved_by,approved_at,created_at&status=eq.approved&${buildTimestampRangeQuery('approved_at', range)}&order=approved_at.desc&limit=5000`,
+    {}
+  );
+}
+
+async function listFinanceGatewayPaymentsRows(env, range) {
+  return supabaseFetch(
+    env,
+    `/rest/v1/payment_transactions?select=id,user_id,provider,order_id,external_transaction_id,amount_idr,currency,status,payment_type,credited_ledger_id,paid_at,created_at&${buildTimestampRangeQuery('paid_at', range)}&order=paid_at.desc&limit=5000`,
+    {}
+  );
+}
+
+async function listFinanceLedgerRows(env, range) {
+  return supabaseFetch(
+    env,
+    `/rest/v1/credit_ledger?select=id,user_id,amount_idr,kind,reason,reference_id,created_by,metadata,created_at&${buildTimestampRangeQuery('created_at', range)}&order=created_at.desc&limit=5000`,
+    {}
+  );
+}
+
+async function listFinanceJobsRows(env, range) {
+  return queryJobsWithPublishFallback(
+    env,
+    `/rest/v1/jobs?select=id,user_id,project_name,input_mode,production_type,status,price_idr,separation_film_count,created_at&${buildTimestampRangeQuery('created_at', range)}&${notDeletedQuery()}&order=created_at.desc&limit=5000`,
+    `/rest/v1/jobs?select=id,user_id,project_name,input_mode,production_type,status,price_idr,separation_film_count,created_at&${buildTimestampRangeQuery('created_at', range)}&order=created_at.desc&limit=5000`
+  );
+}
+
+async function listBusinessFinanceEntriesRows(env, range) {
+  return supabaseFetch(
+    env,
+    `/rest/v1/business_finance_entries?select=id,entry_date,entry_type,cash_direction,amount_idr,counterparty,document_ref,note,tax_treatment,created_by,created_at&${buildDateRangeQuery('entry_date', range)}&order=entry_date.desc&limit=5000`,
+    {}
+  );
+}
+
+async function listTaxRulesRows(env) {
+  return supabaseFetch(
+    env,
+    '/rest/v1/tax_rules?select=id,tax_code,rate_percent,effective_from,effective_to,note,created_at&order=effective_from.desc&limit=500',
+    {}
+  );
+}
+
+async function createBusinessFinanceEntry(env, payload) {
+  const rows = await supabaseFetch(env, '/rest/v1/business_finance_entries?select=*', {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: payload
+  });
+  return rows?.[0] || null;
+}
+
+async function upsertTaxRule(env, payload) {
+  if (payload.id) {
+    const { id, ...patch } = payload;
+    const rows = await supabaseFetch(env, `/rest/v1/tax_rules?id=eq.${encodeURIComponent(payload.id)}&select=*`, {
+      method: 'PATCH',
+      prefer: 'return=representation',
+      body: patch
+    });
+    return rows?.[0] || null;
+  }
+  const rows = await supabaseFetch(env, '/rest/v1/tax_rules?select=*', {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: payload
+  });
+  return rows?.[0] || null;
+}
+
 async function createPaymentTransaction(env, payload) {
   const rows = await supabaseFetch(env, '/rest/v1/payment_transactions?select=*', {
     method: 'POST',
@@ -1128,6 +1239,111 @@ function sanitizeUserPatch(patch = {}, existingProfile) {
     delete allowed.deleted_at;
   }
   return allowed;
+}
+
+function parsePositiveInteger(value, label) {
+  const amount = Number.parseInt(String(value || ''), 10);
+  if (!Number.isInteger(amount) || amount <= 0) throw new Error(`${label} wajib berupa angka positif.`);
+  return amount;
+}
+
+function normalizeBusinessFinancePayload(body = {}, createdBy) {
+  const entryDate = String(body.entryDate || body.entry_date || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) throw new Error('Tanggal entry bisnis wajib diisi dengan format YYYY-MM-DD.');
+
+  const entryType = String(body.entryType || body.entry_type || '').trim();
+  if (!BUSINESS_FINANCE_ENTRY_TYPES.includes(entryType)) throw new Error('Jenis entry bisnis tidak valid.');
+
+  const cashDirection = String(body.cashDirection || body.cash_direction || '').trim();
+  if (!BUSINESS_FINANCE_CASH_DIRECTIONS.includes(cashDirection)) throw new Error('Arah kas bisnis tidak valid.');
+
+  const taxTreatment = String(body.taxTreatment || body.tax_treatment || 'other').trim();
+  if (!BUSINESS_FINANCE_TAX_TREATMENTS.includes(taxTreatment)) throw new Error('Perlakuan pajak bisnis tidak valid.');
+
+  return {
+    entry_date: entryDate,
+    entry_type: entryType,
+    cash_direction: cashDirection,
+    amount_idr: parsePositiveInteger(body.amountIdr || body.amount_idr, 'Nominal entry bisnis'),
+    counterparty: String(body.counterparty || '').trim() || null,
+    document_ref: String(body.documentRef || body.document_ref || '').trim() || null,
+    note: String(body.note || '').trim() || null,
+    tax_treatment: taxTreatment,
+    created_by: createdBy || null
+  };
+}
+
+function normalizeTaxRulePayload(body = {}) {
+  const effectiveFrom = String(body.effectiveFrom || body.effective_from || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)) throw new Error('Tanggal mulai aturan pajak wajib diisi dengan format YYYY-MM-DD.');
+
+  const effectiveTo = String(body.effectiveTo || body.effective_to || '').trim();
+  if (effectiveTo && !/^\d{4}-\d{2}-\d{2}$/.test(effectiveTo)) throw new Error('Tanggal akhir aturan pajak harus berformat YYYY-MM-DD.');
+  if (effectiveTo && effectiveTo < effectiveFrom) throw new Error('Tanggal akhir aturan pajak tidak boleh lebih kecil dari tanggal mulai.');
+
+  const ratePercent = Number.parseFloat(String(body.ratePercent ?? body.rate_percent ?? '0'));
+  if (!Number.isFinite(ratePercent) || ratePercent < 0) throw new Error('Tarif pajak wajib berupa angka nol atau lebih.');
+
+  const payload = {
+    tax_code: String(body.taxCode || body.tax_code || DEFAULT_TAX_CODE).trim() || DEFAULT_TAX_CODE,
+    rate_percent: ratePercent,
+    effective_from: effectiveFrom,
+    effective_to: effectiveTo || null,
+    note: String(body.note || '').trim() || null
+  };
+
+  if (body.id) payload.id = String(body.id);
+  return payload;
+}
+
+async function loadAdminFinanceData(env, range) {
+  const normalizedRange = normalizeFinanceRange(range);
+  const [users, manualPayments, gatewayPayments, ledgerEntries, businessEntries, jobs, taxRules] = await Promise.all([
+    listProfileEmails(env),
+    listFinanceManualPaymentsRows(env, normalizedRange),
+    listFinanceGatewayPaymentsRows(env, normalizedRange),
+    listFinanceLedgerRows(env, normalizedRange),
+    listBusinessFinanceEntriesRows(env, normalizedRange),
+    listFinanceJobsRows(env, normalizedRange),
+    listTaxRulesRows(env)
+  ]);
+
+  const paymentsWithEmail = withUserEmails(manualPayments, users);
+  const gatewayWithEmail = withUserEmails(gatewayPayments, users);
+  const ledgerWithEmail = withCreatedByEmails(withUserEmails(ledgerEntries, users), users);
+  const businessWithEmail = withCreatedByEmails(businessEntries, users);
+  const jobsWithEmail = withUserEmails(jobs, users);
+
+  return {
+    range: normalizedRange,
+    users,
+    manualPayments: paymentsWithEmail,
+    gatewayPayments: gatewayWithEmail,
+    ledgerEntries: ledgerWithEmail,
+    businessEntries: businessWithEmail,
+    jobs: jobsWithEmail,
+    taxRules
+  };
+}
+
+function buildAdminFinanceTransactionsPayload(dataset, filters = {}) {
+  const transactions = [
+    ...dataset.manualPayments.map((entry) => normalizeManualPaymentTransaction(entry)),
+    ...dataset.gatewayPayments.filter((entry) => isSuccessfulGatewayPayment(entry)).map((entry) => normalizeGatewayPaymentTransaction(entry)),
+    ...dataset.ledgerEntries.map((entry) => normalizeLedgerTransaction(entry, entry.user_email, entry.created_by_email)),
+    ...dataset.businessEntries.map((entry) => normalizeBusinessLedgerTransaction(entry, entry.created_by_email))
+  ].sort((left, right) => new Date(right.occurredAt || 0) - new Date(left.occurredAt || 0));
+
+  const filtered = filterFinanceTransactions(transactions, filters);
+  const sourceFilter = String(filters.source || '').trim().toLowerCase();
+  const categoryFilter = String(filters.category || '').trim().toLowerCase();
+  if (sourceFilter === 'jobs' || categoryFilter === 'usage_value') {
+    return filterFinanceTransactions(
+      dataset.jobs.map((entry) => normalizeJobUsageTransaction(entry)),
+      filters
+    ).sort((left, right) => new Date(right.occurredAt || 0) - new Date(left.occurredAt || 0));
+  }
+  return filtered;
 }
 
 async function sleep(ms) {
@@ -2255,6 +2471,129 @@ async function handleSignupBonusClaim(env, request) {
   });
 }
 
+async function handleAdminFinanceSummary(env, request) {
+  await requireAdmin(env, request);
+  const url = new URL(request.url);
+  const dataset = await loadAdminFinanceData(env, {
+    from: url.searchParams.get('from'),
+    to: url.searchParams.get('to')
+  });
+  return json({
+    range: dataset.range,
+    summary: buildFinanceSummary(dataset),
+    taxRules: dataset.taxRules
+  });
+}
+
+async function handleAdminFinanceTransactions(env, request) {
+  await requireAdmin(env, request);
+  const url = new URL(request.url);
+  const dataset = await loadAdminFinanceData(env, {
+    from: url.searchParams.get('from'),
+    to: url.searchParams.get('to')
+  });
+  const filters = {
+    source: url.searchParams.get('source'),
+    category: url.searchParams.get('category'),
+    userEmail: url.searchParams.get('userEmail')
+  };
+  return json({
+    range: dataset.range,
+    filters,
+    transactions: buildAdminFinanceTransactionsPayload(dataset, filters)
+  });
+}
+
+async function handleAdminFinanceUsage(env, request) {
+  await requireAdmin(env, request);
+  const url = new URL(request.url);
+  const dataset = await loadAdminFinanceData(env, {
+    from: url.searchParams.get('from'),
+    to: url.searchParams.get('to')
+  });
+  const summary = buildFinanceSummary(dataset);
+  return json({
+    range: dataset.range,
+    usage: {
+      summary: {
+        jobValueIdr: summary.jobValueIdr,
+        aiRedrawCount: summary.aiRedrawCount,
+        readyTraceCount: summary.readyTraceCount
+      },
+      jobs: dataset.jobs
+    }
+  });
+}
+
+async function handleAdminBusinessFinanceEntries(env, request) {
+  const admin = await requireAdmin(env, request);
+  if (request.method === 'GET') {
+    const url = new URL(request.url);
+    const range = normalizeFinanceRange({
+      from: url.searchParams.get('from'),
+      to: url.searchParams.get('to')
+    });
+    const [users, entries] = await Promise.all([listProfileEmails(env), listBusinessFinanceEntriesRows(env, range)]);
+    return json({
+      range,
+      entries: withCreatedByEmails(entries, users)
+    });
+  }
+
+  const body = await readJson(request);
+  const created = await createBusinessFinanceEntry(env, normalizeBusinessFinancePayload(body, admin.user.id));
+  return json({ entry: created });
+}
+
+async function handleAdminTaxRules(env, request) {
+  await requireAdmin(env, request);
+  if (request.method === 'GET') {
+    return json({ rules: await listTaxRulesRows(env) });
+  }
+
+  const body = await readJson(request);
+  const rule = await upsertTaxRule(env, normalizeTaxRulePayload(body));
+  return json({ rule });
+}
+
+async function handleAdminFinanceExport(env, request) {
+  await requireAdmin(env, request);
+  const url = new URL(request.url);
+  const section = String(url.searchParams.get('section') || 'summary').trim().toLowerCase();
+  const dataset = await loadAdminFinanceData(env, {
+    from: url.searchParams.get('from'),
+    to: url.searchParams.get('to')
+  });
+
+  let csv = '';
+  if (section === 'summary') {
+    csv = buildFinanceCsv('summary', { summary: buildFinanceSummary(dataset) });
+  } else if (section === 'usage') {
+    csv = buildFinanceCsv('usage', { jobs: dataset.jobs });
+  } else if (section === 'business-ledger') {
+    csv = buildFinanceCsv('business-ledger', { entries: dataset.businessEntries });
+  } else if (section === 'transactions') {
+    csv = buildFinanceCsv('transactions', {
+      transactions: buildAdminFinanceTransactionsPayload(dataset, {
+        source: url.searchParams.get('source'),
+        category: url.searchParams.get('category'),
+        userEmail: url.searchParams.get('userEmail')
+      })
+    });
+  } else {
+    throw new Error('Section export finance tidak valid.');
+  }
+
+  const filename = `finance-${section}-${dataset.range.from}-${dataset.range.to}.csv`;
+  return new Response(csv, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      ...corsHeaders
+    }
+  });
+}
+
 async function handleAppConfig(env, request) {
   const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=key,value,is_public&is_public=eq.true&order=key.asc', {});
   const aiRedrawModel = await getAiRedrawModelConfig(env);
@@ -2619,6 +2958,12 @@ export default {
       if (url.pathname === '/api/admin/jobs' && request.method === 'GET') return await handleAdminJobs(env, request);
       if (url.pathname === '/api/admin/manual-payments' && request.method === 'GET') return await handleAdminPayments(env, request);
       if (url.pathname === '/api/admin/midtrans-payments' && request.method === 'GET') return await handleAdminMidtransPayments(env, request);
+      if (url.pathname === '/api/admin/finance/summary' && request.method === 'GET') return await handleAdminFinanceSummary(env, request);
+      if (url.pathname === '/api/admin/finance/transactions' && request.method === 'GET') return await handleAdminFinanceTransactions(env, request);
+      if (url.pathname === '/api/admin/finance/usage' && request.method === 'GET') return await handleAdminFinanceUsage(env, request);
+      if (url.pathname === '/api/admin/finance/export.csv' && request.method === 'GET') return await handleAdminFinanceExport(env, request);
+      if (url.pathname === '/api/admin/finance/business-entries') return await handleAdminBusinessFinanceEntries(env, request);
+      if (url.pathname === '/api/admin/finance/tax-rules') return await handleAdminTaxRules(env, request);
       if (url.pathname === '/api/admin/pricing-rules') return await handleAdminPricingRules(env, request);
       if (url.pathname === '/api/admin/settings') return await handleAdminSettings(env, request);
       const midtransRefreshMatch = url.pathname.match(/^\/api\/payments\/midtrans\/([^/]+)\/refresh$/);

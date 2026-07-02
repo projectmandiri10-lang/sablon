@@ -64,16 +64,16 @@ export function stripMidtransReturnParams(search = '') {
 
 export function buildMidtransReturnMessage(status = '', payment = null) {
   if (payment?.credited_ledger_id) {
-    return 'Pembayaran Midtrans sudah terverifikasi dan credit masuk ke saldo Anda.';
+    return 'Pembayaran sudah terverifikasi dan credit masuk ke saldo Anda.';
   }
   if (payment?.status === 'pending' || status === 'pending') {
-    return 'Pembayaran Midtrans masih pending. Gunakan tombol refresh status setelah pembayaran selesai.';
+    return 'Pembayaran masih pending. Gunakan tombol refresh status setelah pembayaran selesai.';
   }
   if (payment?.status === 'settlement' || payment?.status === 'capture' || status === 'success') {
-    return 'Pembayaran Midtrans berhasil. Saldo akan diperbarui otomatis setelah status terkonfirmasi.';
+    return 'Pembayaran berhasil. Saldo akan diperbarui otomatis setelah status terkonfirmasi.';
   }
   if (status === 'error') {
-    return 'Pembayaran Midtrans belum berhasil atau dibatalkan. Anda bisa membuat checkout baru kapan saja.';
+    return 'Pembayaran belum berhasil atau dibatalkan. Anda bisa membuat checkout baru kapan saja.';
   }
-  return 'Status pembayaran Midtrans sedang diperiksa.';
+  return 'Status pembayaran sedang diperiksa.';
 }

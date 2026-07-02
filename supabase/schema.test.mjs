@@ -12,6 +12,7 @@ const signupBonusGuardMigration = fs.readFileSync(path.join(import.meta.dirname,
 const liteLlmPrimaryMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627120000_litellm_primary_openrouter_fallback.sql'), 'utf8');
 const pricingRefreshMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627123000_set_ai_redraw_5000_ready_trace_2000.sql'), 'utf8');
 const midtransPaymentsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260701103000_add_midtrans_payment_transactions.sql'), 'utf8');
+const adminFinanceMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260702143000_add_admin_finance_tax_reporting.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -63,7 +64,7 @@ test('published example migration adds job publish and delete columns', () => {
 });
 
 test('bootstrap sql includes the core tables and settings seed', () => {
-  for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'payment_transactions', 'pricing_rules', 'signup_bonus_claims', 'app_settings', 'contact_messages']) {
+  for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'payment_transactions', 'pricing_rules', 'signup_bonus_claims', 'business_finance_entries', 'tax_rules', 'app_settings', 'contact_messages']) {
     assert.match(bootstrapSql, new RegExp(`create table if not exists public\\.${table}`));
   }
   assert.match(bootstrapSql, /"provider":"litellm_image"/);
@@ -118,4 +119,16 @@ test('midtrans payment migration provisions automatic payment transaction storag
   assert.match(midtransPaymentsMigration, /payment_transactions_select_own_or_admin/);
   assert.match(midtransPaymentsMigration, /credit_ledger_midtrans_reference_unique_idx/);
   assert.match(midtransPaymentsMigration, /payment_transactions_order_id_unique_idx/);
+});
+
+test('admin finance migration provisions business ledger and tax rules with admin policies', () => {
+  assert.match(adminFinanceMigration, /create table if not exists public\.business_finance_entries/);
+  assert.match(adminFinanceMigration, /create table if not exists public\.tax_rules/);
+  assert.match(adminFinanceMigration, /business_finance_entries_admin_read/);
+  assert.match(adminFinanceMigration, /tax_rules_admin_insert/);
+  assert.match(adminFinanceMigration, /business_finance_entries_entry_date_idx/);
+  assert.match(adminFinanceMigration, /tax_rules_code_effective_from_idx/);
+  assert.match(adminFinanceMigration, /umkm_final_revenue/);
+  assert.match(bootstrapSql, /business_finance_entries_admin_read/);
+  assert.match(bootstrapSql, /tax_rules_admin_update/);
 });

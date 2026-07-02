@@ -1,0 +1,32 @@
+update public.app_settings
+set value = jsonb_build_object(
+    'mode', 'quality',
+    'preset', 'quality',
+    'label', 'Kualitas',
+    'provider', 'openrouter_image',
+    'primaryProvider', 'openrouter_image',
+    'fallbackProvider', 'gemini_direct_image',
+    'geminiGenerationModel', 'gemini-3.1-flash-image',
+    'geminiReasoningModel', 'gemini-2.5-pro',
+    'geminiFallbackPolicy', 'quota_or_model_unavailable',
+    'analysisModel', '',
+    'generationModel', 'black-forest-labs/flux.2-klein-4b',
+    'fallbackModel', 'sourceful/riverflow-v2-fast',
+    'safetyModel', 'nvidia/nemotron-3.5-content-safety:free',
+    'promptProfile', 'generic_trace_clone',
+    'generationQuality', 'high',
+    'imageSize', '1K',
+    'reasoningEffort', 'medium',
+    'backgroundMode', 'transparent',
+    'safetyEnabled', true,
+    'aspectPolicy', 'match_source',
+    'resolutionPolicy', 'high',
+    'preprocess', 'node_heuristic',
+    'persistPrompt', true,
+    'retryOnLowConfidence', false,
+    'estimatedUsdPerImage', 0.05,
+    'note', 'Default OpenRouter 1K trace-clone dengan Gemini fallback otomatis.'
+  ),
+  description = 'Pipeline OpenRouter primary + Gemini fallback untuk AI redraw',
+  updated_at = timezone('utc', now())
+where key = 'ai_redraw_model';

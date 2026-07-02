@@ -20,6 +20,7 @@ import {
   updateAdminSetting,
   updateAdminUser
 } from '../lib/api.js';
+import AdminFinancePanel from './AdminFinancePanel.jsx';
 import {
   LITELLM_IMAGE_REDRAW_PROVIDER,
   OPENROUTER_IMAGE_REDRAW_PROVIDER,
@@ -159,6 +160,7 @@ export default function AdminPanel({ session, enabled }) {
     ['overview', 'Ringkasan', BarChart3],
     ['users', 'User & credit', CreditCard],
     ['payments', 'Pembayaran', Check],
+    ['finance', 'Keuangan & pajak', BarChart3],
     ['pricing', 'Harga', SlidersHorizontal],
     ['settings', 'Setting aplikasi', Shield],
     ['jobs', 'Job', BriefcaseBusiness]
@@ -659,7 +661,7 @@ export default function AdminPanel({ session, enabled }) {
             </div>
           </div>
           <div>
-            <h3 className="mb-3 text-sm font-bold text-ink">Transaksi Midtrans otomatis</h3>
+            <h3 className="mb-3 text-sm font-bold text-ink">Transaksi payment gateway</h3>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[940px] border-collapse text-left text-sm">
                 <thead>
@@ -676,7 +678,7 @@ export default function AdminPanel({ session, enabled }) {
                 <tbody>
                   {midtransPayments.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="py-3 text-sm text-gray-600">Belum ada transaksi Midtrans.</td>
+                      <td colSpan="7" className="py-3 text-sm text-gray-600">Belum ada transaksi payment gateway.</td>
                     </tr>
                   ) : (
                     midtransPayments.map((payment) => (
@@ -697,6 +699,8 @@ export default function AdminPanel({ session, enabled }) {
           </div>
         </div>
       )}
+
+      {activeTab === 'finance' && <AdminFinancePanel accessToken={accessToken} />}
 
       {activeTab === 'pricing' && (
         <div className="grid gap-3">

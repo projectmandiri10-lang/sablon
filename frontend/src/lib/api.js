@@ -1,3 +1,5 @@
+import { buildAdminFinanceExportFilename, buildAdminFinanceQuery } from './adminFinance.js';
+
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 
 function isNetworkLikeError(message = '') {
@@ -156,6 +158,28 @@ async function apiFetch(path, { accessToken, method = 'GET', body, headers = {} 
     throw new Error(data?.error || 'Request API gagal.');
   }
   return data;
+}
+
+async function apiFetchBlob(path, { accessToken, method = 'GET', headers = {} } = {}) {
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...headers
+      }
+    });
+  } catch (error) {
+    throw toUserApiError(error, 'Koneksi ke layanan belum tersambung. Periksa URL API aplikasi.');
+  }
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.error || 'Request API gagal.');
+  }
+
+  return response.blob();
 }
 
 export async function getBalance(accessToken) {
@@ -423,6 +447,51 @@ export async function updateAdminSetting(payload, accessToken) {
     accessToken,
     body: payload
   });
+}
+
+export async function getAdminFinanceSummary(params, accessToken) {
+  return apiFetch(`/api/admin/finance/summary${buildAdminFinanceQuery(params)}`, { accessToken });
+}
+
+export async function listAdminFinanceTransactions(params, accessToken) {
+  return apiFetch(`/api/admin/finance/transactions${buildAdminFinanceQuery(params)}`, { accessToken });
+}
+
+export async function getAdminFinanceUsage(params, accessToken) {
+  return apiFetch(`/api/admin/finance/usage${buildAdminFinanceQuery(params)}`, { accessToken });
+}
+
+export async function listAdminBusinessFinanceEntries(params, accessToken) {
+  return apiFetch(`/api/admin/finance/business-entries${buildAdminFinanceQuery(params)}`, { accessToken });
+}
+
+export async function createAdminBusinessFinanceEntry(payload, accessToken) {
+  return apiFetch('/api/admin/finance/business-entries', {
+    method: 'POST',
+    accessToken,
+    body: payload
+  });
+}
+
+export async function listAdminTaxRules(accessToken) {
+  return apiFetch('/api/admin/finance/tax-rules', { accessToken });
+}
+
+export async function saveAdminTaxRule(payload, accessToken) {
+  return apiFetch('/api/admin/finance/tax-rules', {
+    method: 'POST',
+    accessToken,
+    body: payload
+  });
+}
+
+export async function downloadAdminFinanceExport(params, accessToken) {
+  const query = buildAdminFinanceQuery(params);
+  const blob = await apiFetchBlob(`/api/admin/finance/export.csv${query}`, { accessToken });
+  return {
+    blob,
+    filename: buildAdminFinanceExportFilename(params?.section, params)
+  };
 }
 
 export async function createJob(file, settings) {

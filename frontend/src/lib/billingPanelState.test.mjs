@@ -49,6 +49,6 @@ test('midtrans return params can be stripped from the url query', () => {
 test('midtrans return message prioritizes credited payments', () => {
   assert.equal(
     buildMidtransReturnMessage('success', { status: 'settlement', credited_ledger_id: 'ledger-1' }),
-    'Pembayaran Midtrans sudah terverifikasi dan credit masuk ke saldo Anda.'
+    'Pembayaran sudah terverifikasi dan credit masuk ke saldo Anda.'
   );
 });
