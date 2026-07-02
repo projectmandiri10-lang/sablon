@@ -8,7 +8,7 @@ const superadminMigration = fs.readFileSync(path.join(import.meta.dirname, 'migr
 const exampleJobsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260528091500_example_jobs_bucket.sql'), 'utf8');
 const publishedExamplesMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260528153000_publishable_example_jobs.sql'), 'utf8');
 const bootstrapSql = fs.readFileSync(path.join(import.meta.dirname, 'SUPABASE_BOOTSTRAP.sql'), 'utf8');
-const signupBonusMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260621103000_signup_bonus_three_credit.sql'), 'utf8');
+const signupBonusGuardMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260702110000_signup_bonus_device_ip_guard.sql'), 'utf8');
 const liteLlmPrimaryMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627120000_litellm_primary_openrouter_fallback.sql'), 'utf8');
 const pricingRefreshMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627123000_set_ai_redraw_5000_ready_trace_2000.sql'), 'utf8');
 const midtransPaymentsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260701103000_add_midtrans_payment_transactions.sql'), 'utf8');
@@ -63,7 +63,7 @@ test('published example migration adds job publish and delete columns', () => {
 });
 
 test('bootstrap sql includes the core tables and settings seed', () => {
-  for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'payment_transactions', 'pricing_rules', 'app_settings', 'contact_messages']) {
+  for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'payment_transactions', 'pricing_rules', 'signup_bonus_claims', 'app_settings', 'contact_messages']) {
     assert.match(bootstrapSql, new RegExp(`create table if not exists public\\.${table}`));
   }
   assert.match(bootstrapSql, /"provider":"litellm_image"/);
@@ -100,12 +100,15 @@ test('bootstrap sql hardens helper functions and policy indexes', () => {
   assert.match(bootstrapSql, /payment_transactions_order_id_unique_idx/);
 });
 
-test('signup bonus migration grants 3 free credits to new and existing users', () => {
-  assert.match(signupBonusMigration, /create or replace function public\.handle_new_user/);
-  assert.match(signupBonusMigration, /6000/);
-  assert.match(signupBonusMigration, /'signup_free_credit'/);
-  assert.match(signupBonusMigration, /'freeCredits', 3/);
-  assert.match(signupBonusMigration, /from public\.profiles/);
+test('signup bonus guard migration provisions guarded claim storage without auto-credit trigger grants', () => {
+  assert.match(signupBonusGuardMigration, /create table if not exists public\.signup_bonus_claims/);
+  assert.match(signupBonusGuardMigration, /signup_bonus_claims_user_id_key/);
+  assert.match(signupBonusGuardMigration, /signup_bonus_claims_device_hash_idx/);
+  assert.match(signupBonusGuardMigration, /signup_bonus_claims_ip_hash_idx/);
+  assert.match(signupBonusGuardMigration, /create or replace function public\.handle_new_user/);
+  assert.doesNotMatch(signupBonusGuardMigration, /signup_free_credit/);
+  assert.doesNotMatch(signupBonusGuardMigration, /6000/);
+  assert.doesNotMatch(signupBonusGuardMigration, /freeCredits', 3/);
 });
 
 test('midtrans payment migration provisions automatic payment transaction storage', () => {

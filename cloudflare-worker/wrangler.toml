@@ -35,4 +35,4 @@ REQUIRE_PROCESSOR_AUTH = "1"
 # PROCESSOR_BASE_URL = "https://design-mudah-processor-xxxxx.a.run.app"
 
 # Secrets tetap diset di dashboard Cloudflare Worker > Settings > Variables and Secrets.
-# Recommended: LITELLM_SECRET_KEY, OPENROUTER_API_KEY, SUPABASE_SERVICE_ROLE_KEY, dan MIDTRANS_SERVER_KEY
+# Recommended: LITELLM_SECRET_KEY, OPENROUTER_API_KEY, SUPABASE_SERVICE_ROLE_KEY, MIDTRANS_SERVER_KEY, dan SIGNUP_BONUS_HASH_SALT

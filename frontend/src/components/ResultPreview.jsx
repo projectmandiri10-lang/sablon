@@ -34,6 +34,7 @@ function PreviewCard({ title, icon: Icon, src, alt, notice }) {
 }
 
 export default function ResultPreview({
+  locale = 'id',
   job,
   sourcePreviewUrl = '',
   sourcePreviewLabel = 'Preview gambar awal',
@@ -45,6 +46,7 @@ export default function ResultPreview({
   historyView = false
 }) {
   if (!job || job.status !== 'done') return null;
+  const isId = locale === 'id';
   const files = job.files || {};
   const settings = job.settings || {};
   const isVectorReadyMode = settings.inputMode === INPUT_MODE_READY;
@@ -66,7 +68,7 @@ export default function ResultPreview({
       {prepressQuality && (
         <div className="mb-4 border border-line bg-panel px-3 py-2 text-sm text-gray-700">
           <p className="font-semibold text-ink">
-            Prepress: {prepressQuality.status === 'ready' ? 'siap dicek' : 'perlu review'} - {prepressQuality.dpiEstimate || 0} DPI, {prepressQuality.colorCount || 0} warna
+            Prepress: {prepressQuality.status === 'ready' ? (isId ? 'siap dicek' : 'ready to review') : isId ? 'perlu review' : 'needs review'} - {prepressQuality.dpiEstimate || 0} DPI, {prepressQuality.colorCount || 0} {isId ? 'warna' : 'colors'}
           </p>
           {prepressQuality.warnings?.length > 0 && (
             <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5">
@@ -82,35 +84,43 @@ export default function ResultPreview({
         <div className="grid gap-4 xl:grid-cols-3">
           <PreviewCard title={sourcePreviewLabel} icon={FileImage} src={sourcePreviewUrl} alt={sourcePreviewLabel} />
           <PreviewCard
-            title="Preview PNG hasil jadi"
+            title={isId ? 'Preview PNG hasil jadi' : 'PNG output preview'}
             icon={FileImage}
             src={files.fullPng}
-            alt="Preview PNG hasil jadi"
+            alt={isId ? 'Preview PNG hasil jadi' : 'PNG output preview'}
             notice={
               settings.removeBackground && settings.includeBackgroundInFilmSize !== true
-                ? `Ukuran cetak: objek utama ${settings.actualWidthCm} cm, background dihilangkan. Kertas ${settings.paperSize} ${settings.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}.`
+                ? isId
+                  ? `Ukuran cetak: objek utama ${settings.actualWidthCm} cm, background dihilangkan. Kertas ${settings.paperSize} ${settings.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}.`
+                  : `Print size: main object ${settings.actualWidthCm} cm, background removed. Paper ${settings.paperSize} ${settings.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}.`
                 : settings.separateColors || settings.stickerCutlineEnabled
-                  ? `Ukuran cetak: lebar ${settings.separateColors && settings.includeBackgroundInFilmSize ? 'termasuk background' : 'area artwork'} ${settings.actualWidthCm} cm, tinggi mengikuti rasio. Kertas ${settings.paperSize} ${settings.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}.`
+                  ? isId
+                    ? `Ukuran cetak: lebar ${settings.separateColors && settings.includeBackgroundInFilmSize ? 'termasuk background' : 'area artwork'} ${settings.actualWidthCm} cm, tinggi mengikuti rasio. Kertas ${settings.paperSize} ${settings.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}.`
+                    : `Print size: width ${settings.actualWidthCm} cm for the ${settings.separateColors && settings.includeBackgroundInFilmSize ? 'full background area' : 'artwork area'}, with height following the source ratio. Paper ${settings.paperSize} ${settings.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}.`
                   : ''
             }
           />
-          <PreviewCard title="Preview SVG full color" icon={FileText} src={files.fullSvg} alt="Preview SVG full color" />
+          <PreviewCard title={isId ? 'Preview SVG full color' : 'Full-color SVG preview'} icon={FileText} src={files.fullSvg} alt={isId ? 'Preview SVG full color' : 'Full-color SVG preview'} />
         </div>
       )}
 
       {isVectorReadyMode && (
         <>
           <div className="border border-line bg-panel px-3 py-2 text-sm text-gray-700">
-            Mode Vector Siap Proses menampilkan hasil produksi utama agar halaman tetap ringkas.
+            {isId ? 'Mode Vector Siap Proses menampilkan hasil produksi utama agar halaman tetap ringkas.' : 'Production-Ready Vector mode shows the main production output to keep this page compact.'}
           </div>
           {showStickerCutlinePreview && (
             <div className="mt-4 grid gap-4">
               <PreviewCard
-                title="Preview cutting sticker"
+                title={isId ? 'Preview cutting sticker' : 'Sticker cutline preview'}
                 icon={Scissors}
                 src={files.stickerCutlineSvg}
-                alt="Preview cutting sticker"
-                notice={`Ukuran cetak: area sticker ${settings.actualWidthCm} cm. Kertas ${settings.paperSize} ${settings.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}.`}
+                alt={isId ? 'Preview cutting sticker' : 'Sticker cutline preview'}
+                notice={
+                  isId
+                    ? `Ukuran cetak: area sticker ${settings.actualWidthCm} cm. Kertas ${settings.paperSize} ${settings.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}.`
+                    : `Print size: sticker area ${settings.actualWidthCm} cm. Paper ${settings.paperSize} ${settings.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}.`
+                }
               />
             </div>
           )}
@@ -120,30 +130,30 @@ export default function ResultPreview({
       <div className="mt-4 flex flex-wrap gap-2">
         {showFullColorDownloads && (
           <DownloadButton href={files.fullPng} icon={FileImage}>
-            Download PNG
+            {isId ? 'Download PNG' : 'Download PNG'}
           </DownloadButton>
         )}
         {showFullColorDownloads && (
           <DownloadButton href={files.fullSvg} icon={FileText}>
-            Download SVG full color
+            {isId ? 'Download SVG full color' : 'Download full-color SVG'}
           </DownloadButton>
         )}
         {showFullColorDownloads && (
           <DownloadButton href={files.fullPdf} icon={FileText}>
-            Download PDF full color
+            {isId ? 'Download PDF full color' : 'Download full-color PDF'}
           </DownloadButton>
         )}
         <DownloadButton href={files.stickerCutlineSvg} icon={Scissors}>
-          Download SVG sticker cutline
+          {isId ? 'Download SVG sticker cutline' : 'Download sticker cutline SVG'}
         </DownloadButton>
         <DownloadButton href={files.stickerCutlinePdf} icon={Scissors}>
-          Download PDF sticker cutline
+          {isId ? 'Download PDF sticker cutline' : 'Download sticker cutline PDF'}
         </DownloadButton>
         <DownloadButton href={files.zip} icon={Archive}>
-          Download ZIP semua file
+          {isId ? 'Download ZIP semua file' : 'Download ZIP bundle'}
         </DownloadButton>
         <DownloadButton href={files.separationZip} icon={Layers}>
-          Download ZIP Film Sablon
+          {isId ? 'Download ZIP Film Sablon' : 'Download screen-print films ZIP'}
         </DownloadButton>
         {showDelete && onDelete && (
           <button
@@ -153,7 +163,7 @@ export default function ResultPreview({
             className="inline-flex min-h-10 items-center justify-center gap-2 border border-tomato bg-white px-3 py-2 text-sm font-semibold text-tomato transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
-            <span>{isDeleting ? 'Menghapus' : 'Hapus hasil'}</span>
+            <span>{isDeleting ? (isId ? 'Menghapus' : 'Deleting') : isId ? 'Hapus hasil' : 'Delete result'}</span>
           </button>
         )}
       </div>
@@ -162,7 +172,7 @@ export default function ResultPreview({
         <div className="mt-6">
           <div className="mb-3 flex items-center gap-2">
             <Palette className="h-5 w-5 text-spruce" aria-hidden="true" />
-            <h3 className="text-sm font-semibold text-ink">{showSeparationPreviewTitle ? 'Preview separasi warna' : 'Daftar film sablon'}</h3>
+            <h3 className="text-sm font-semibold text-ink">{showSeparationPreviewTitle ? (isId ? 'Preview separasi warna' : 'Color separation preview') : isId ? 'Daftar film sablon' : 'Screen-print film list'}</h3>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {files.separations.map((film) => (
@@ -174,8 +184,12 @@ export default function ResultPreview({
                       <p className="truncate text-sm font-semibold text-ink">{film.label}</p>
                       <p className="text-xs text-gray-600">
                         {film.kind === 'underbase'
-                          ? `Film dasar hitam 100%${film.chokePx ? `, choke ${film.chokePx}px` : ''}`
-                          : `Film hitam 100% dengan registration mark${film.spotName ? ` - ${film.spotName}` : ''}`}
+                          ? isId
+                            ? `Film dasar hitam 100%${film.chokePx ? `, choke ${film.chokePx}px` : ''}`
+                            : `100% black underbase film${film.chokePx ? `, choke ${film.chokePx}px` : ''}`
+                          : isId
+                            ? `Film hitam 100% dengan registration mark${film.spotName ? ` - ${film.spotName}` : ''}`
+                            : `100% black film with registration marks${film.spotName ? ` - ${film.spotName}` : ''}`}
                       </p>
                     </div>
                   </div>
@@ -191,10 +205,10 @@ export default function ResultPreview({
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <DownloadButton href={film.svg} icon={FileText}>
-                    SVG film
+                    {isId ? 'SVG film' : 'Film SVG'}
                   </DownloadButton>
                   <DownloadButton href={film.pdf} icon={FileText}>
-                    PDF film
+                    {isId ? 'PDF film' : 'Film PDF'}
                   </DownloadButton>
                 </div>
               </div>

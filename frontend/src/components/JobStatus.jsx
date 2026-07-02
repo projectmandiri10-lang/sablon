@@ -1,19 +1,39 @@
 import { AlertTriangle, CheckCircle2, Loader2, Wand2 } from 'lucide-react';
 import { IMAGE_RETOUCH_PRICE_IDR, formatRupiah } from '../lib/pricing.js';
 
-const labels = {
-  uploaded: 'Gambar diterima',
-  preprocessing: 'Sedang menyiapkan gambar',
-  processing_ai: 'Sedang menggambar ulang',
-  vectorizing: 'Sedang membuat vector',
-  separating_colors: 'Sedang pecah warna',
-  exporting: 'Sedang menyiapkan file download',
-  done: 'Selesai',
-  failed: 'Gagal memproses gambar'
-};
+function getLabels(locale = 'id') {
+  if (locale === 'id') {
+    return {
+      uploaded: 'Gambar diterima',
+      preprocessing: 'Sedang menyiapkan gambar',
+      processing_ai: 'Sedang menggambar ulang',
+      vectorizing: 'Sedang membuat vector',
+      separating_colors: 'Sedang pecah warna',
+      exporting: 'Sedang menyiapkan file download',
+      done: 'Selesai',
+      failed: 'Gagal memproses gambar',
+      retryHelp: 'Silakan coba lagi atau hubungi admin.',
+      retryAi: `Gunakan AI Redraw Premium ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}`
+    };
+  }
 
-export default function JobStatus({ job, error, suggestedInputMode, onUseSuggestedMode }) {
+  return {
+    uploaded: 'Image received',
+    preprocessing: 'Preparing image',
+    processing_ai: 'Running AI redraw',
+    vectorizing: 'Creating vectors',
+    separating_colors: 'Separating colors',
+    exporting: 'Preparing download files',
+    done: 'Done',
+    failed: 'Failed to process the image',
+    retryHelp: 'Please try again or contact the admin.',
+    retryAi: `Use AI Redraw Premium ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}`
+  };
+}
+
+export default function JobStatus({ locale = 'id', job, error, suggestedInputMode, onUseSuggestedMode }) {
   if (!job && !error) return null;
+  const labels = getLabels(locale);
   const isDone = job?.status === 'done';
   const isFailed = job?.status === 'failed' || error;
   const progress = job?.progress || (isFailed ? 100 : 0);
@@ -33,7 +53,7 @@ export default function JobStatus({ job, error, suggestedInputMode, onUseSuggest
           {job?.status && !error && labels[job.status] !== job?.message && (
             <p className="mt-1 text-sm text-gray-600">{labels[job.status]}</p>
           )}
-          {job?.error && <p className="mt-1 text-sm text-tomato">Silakan coba lagi atau hubungi admin.</p>}
+          {job?.error && <p className="mt-1 text-sm text-tomato">{labels.retryHelp}</p>}
           {isFailed && suggestedInputMode === 'ai_redraw' && (
             <button
               type="button"
@@ -41,7 +61,7 @@ export default function JobStatus({ job, error, suggestedInputMode, onUseSuggest
               className="mt-3 inline-flex min-h-10 items-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-bold text-white hover:bg-primary/90"
             >
               <Wand2 className="h-4 w-4" aria-hidden="true" />
-              {`Gunakan AI Redraw Premium ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}`}
+              {labels.retryAi}
             </button>
           )}
           <div className="mt-3 h-2 overflow-hidden bg-panel">

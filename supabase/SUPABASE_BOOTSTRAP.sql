@@ -89,6 +89,19 @@ create table if not exists public.pricing_rules (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.signup_bonus_claims (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  email text not null default '',
+  device_id_hash text,
+  ip_hash text,
+  country_code text,
+  bonus_granted boolean not null default false,
+  reason text not null default 'limit_reached',
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.app_settings (
   key text primary key,
   value jsonb not null default '{}'::jsonb,
@@ -276,6 +289,7 @@ alter table public.jobs enable row level security;
 alter table public.manual_payments enable row level security;
 alter table public.payment_transactions enable row level security;
 alter table public.pricing_rules enable row level security;
+alter table public.signup_bonus_claims enable row level security;
 alter table public.app_settings enable row level security;
 alter table public.contact_messages enable row level security;
 
@@ -327,6 +341,12 @@ create policy "pricing_rules_read"
 on public.pricing_rules for select
 to authenticated
 using (active = true or private.is_superuser((select auth.uid())));
+
+drop policy if exists "signup_bonus_claims_select_own_or_admin" on public.signup_bonus_claims;
+create policy "signup_bonus_claims_select_own_or_admin"
+on public.signup_bonus_claims for select
+to authenticated
+using (user_id = (select auth.uid()) or private.is_superuser((select auth.uid())));
 
 drop policy if exists "pricing_rules_admin_write" on public.pricing_rules;
 drop policy if exists "pricing_rules_admin_insert" on public.pricing_rules;
@@ -397,6 +417,10 @@ using (private.is_superuser((select auth.uid())));
 create index if not exists credit_ledger_user_created_idx on public.credit_ledger (user_id, created_at desc);
 create index if not exists credit_ledger_created_by_idx on public.credit_ledger (created_by) where created_by is not null;
 create unique index if not exists credit_ledger_midtrans_reference_unique_idx on public.credit_ledger (reference_id, reason) where reference_id is not null and reason = 'midtrans_payment';
+create unique index if not exists signup_bonus_claims_user_id_key on public.signup_bonus_claims (user_id);
+create index if not exists signup_bonus_claims_device_hash_idx on public.signup_bonus_claims (device_id_hash) where device_id_hash is not null;
+create index if not exists signup_bonus_claims_ip_hash_idx on public.signup_bonus_claims (ip_hash) where ip_hash is not null;
+create index if not exists signup_bonus_claims_created_at_idx on public.signup_bonus_claims (created_at desc);
 create index if not exists jobs_user_created_idx on public.jobs (user_id, created_at desc);
 create unique index if not exists jobs_ai_ledger_id_unique_idx on public.jobs (ai_ledger_id) where ai_ledger_id is not null;
 create index if not exists jobs_example_public_created_idx on public.jobs (is_example_public, created_at desc) where deleted_at is null;

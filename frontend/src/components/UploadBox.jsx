@@ -29,11 +29,12 @@ const modeOptions = [
   }
 ];
 
-export default function UploadBox({ file, previewUrl, inputMode, onInputModeChange, onFileChange, disabled }) {
+export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, onInputModeChange, onFileChange, disabled }) {
   const [previewFailed, setPreviewFailed] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const hasPreview = Boolean(file && previewUrl);
   const activeOption = useMemo(() => modeOptions.find((option) => option.value === inputMode) || modeOptions[0], [inputMode]);
+  const isId = locale === 'id';
 
   useEffect(() => {
     setUploadError('');
@@ -48,10 +49,10 @@ export default function UploadBox({ file, previewUrl, inputMode, onInputModeChan
     const extension = getExtension(nextFile.name);
     if (inputMode === INPUT_MODE_READY) {
       if (readyTraceExtensions.has(extension) && (!nextFile.type || readyTraceMimeTypes.has(nextFile.type))) return '';
-      return 'Vector Siap Proses hanya menerima file vector SVG. EPS/AI belum aktif di server.';
+      return isId ? 'Vector Siap Proses hanya menerima file vector SVG. EPS/AI belum aktif di server.' : 'Production-Ready Vector only accepts SVG vector files. EPS/AI support is not enabled yet.';
     }
     if (rasterExtensions.has(extension) && (!nextFile.type || rasterMimeTypes.has(nextFile.type))) return '';
-    return 'Mode gambar ulang hanya menerima JPG, PNG, atau WebP.';
+    return isId ? 'Mode gambar ulang hanya menerima JPG, PNG, atau WebP.' : 'Redraw mode only accepts JPG, PNG, or WebP files.';
   }
 
   function handleChange(event) {
@@ -81,7 +82,9 @@ export default function UploadBox({ file, previewUrl, inputMode, onInputModeChan
         <div className="absolute inset-0">
           {previewFailed ? (
             <div className="checkerboard flex h-full w-full items-center justify-center p-4">
-              <p className="max-w-sm px-3 py-6 text-sm font-medium text-tomato">Preview lokal gagal ditampilkan, tetapi file tetap siap diproses.</p>
+              <p className="max-w-sm px-3 py-6 text-sm font-medium text-tomato">
+                {isId ? 'Preview lokal gagal ditampilkan, tetapi file tetap siap diproses.' : 'Local preview could not be shown, but the file is still ready to process.'}
+              </p>
             </div>
           ) : (
             <img className="h-full w-full object-cover" src={previewUrl} alt="Preview gambar asli" onError={() => setPreviewFailed(true)} />
@@ -102,12 +105,14 @@ export default function UploadBox({ file, previewUrl, inputMode, onInputModeChan
               <>
                 <UploadCloud className="mx-auto mb-3 h-9 w-9 text-spruce" aria-hidden="true" />
                 <span className="block text-sm font-semibold text-ink">
-                  {inputMode === INPUT_MODE_READY ? 'Pilih file SVG vector murni' : 'Pilih gambar JPG, PNG, atau WebP'}
+                  {inputMode === INPUT_MODE_READY
+                    ? isId ? 'Pilih file SVG vector murni' : 'Choose a pure SVG vector file'
+                    : isId ? 'Pilih gambar JPG, PNG, atau WebP' : 'Choose a JPG, PNG, or WebP image'}
                 </span>
                 <span className="mt-1 block text-xs text-gray-600">
                   {inputMode === INPUT_MODE_READY
-                    ? 'Maksimal 10 MB. Jalur ini khusus SVG murni untuk separasi warna dan contour sticker.'
-                    : 'Maksimal 10 MB. Gambar akan dirapikan sebelum diproses AI.'}
+                    ? isId ? 'Maksimal 10 MB. Jalur ini khusus SVG murni untuk separasi warna dan contour sticker.' : 'Maximum 10 MB. This path is for pure SVG files used for color separation and sticker cutlines.'
+                    : isId ? 'Maksimal 10 MB. Gambar akan dirapikan sebelum diproses AI.' : 'Maximum 10 MB. The image will be cleaned up before AI processing.'}
                 </span>
               </>
             )}
@@ -119,7 +124,7 @@ export default function UploadBox({ file, previewUrl, inputMode, onInputModeChan
             <div className="checkerboard flex max-h-56 w-full max-w-80 items-center justify-center overflow-hidden border border-line bg-white/75 p-3 shadow-sm">
               <div className="flex w-full flex-col items-center gap-2 text-center">
                 <p className="text-xs font-semibold uppercase tracking-wide text-spruce">Preview terunggah</p>
-                <p className="text-sm text-gray-700">Klik area ini untuk mengganti gambar.</p>
+                <p className="text-sm text-gray-700">{isId ? 'Klik area ini untuk mengganti gambar.' : 'Click this area to replace the image.'}</p>
               </div>
             </div>
           </div>
@@ -137,7 +142,7 @@ export default function UploadBox({ file, previewUrl, inputMode, onInputModeChan
             setUploadError('');
             onFileChange(null);
           }}
-          title="Hapus gambar"
+          title={isId ? 'Hapus gambar' : 'Remove image'}
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -151,7 +156,7 @@ export default function UploadBox({ file, previewUrl, inputMode, onInputModeChan
     <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-3 flex items-center gap-2">
         <ImagePlus className="h-5 w-5 text-spruce" aria-hidden="true" />
-        <h2 className="text-base font-semibold text-ink">Upload gambar</h2>
+        <h2 className="text-base font-semibold text-ink">{isId ? 'Upload gambar' : 'Upload image'}</h2>
       </div>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
@@ -202,7 +207,7 @@ export default function UploadBox({ file, previewUrl, inputMode, onInputModeChan
             }}
             className="inline-flex min-h-8 items-center justify-center border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink hover:border-spruce disabled:opacity-60"
           >
-            Kosongkan file
+            {isId ? 'Kosongkan file' : 'Clear file'}
           </button>
         )}
       </div>
@@ -210,13 +215,25 @@ export default function UploadBox({ file, previewUrl, inputMode, onInputModeChan
       {showRasterGuidelines && (
         <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.9fr)]">
           <div className="border border-amber-200 bg-amber-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Saran foto untuk AI redraw</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">{isId ? 'Saran foto untuk AI redraw' : 'Photo tips for AI redraw'}</p>
             <ul className="mt-2 space-y-1 text-xs leading-5 text-amber-900">
-              <li>Kamera Android minimal 16 MP.</li>
-              <li>Ambil foto di tempat dengan cahaya cukup dan tanpa bayangan di area logo.</li>
-              <li>Pastikan gambar tidak blur dan logo terlihat jelas.</li>
-              <li>Jangan gunakan efek, filter, atau mode beautify kamera.</li>
-              <li>Jangan gunakan zoom optik atau zoom digital saat memotret logo.</li>
+              {isId ? (
+                <>
+                  <li>Kamera Android minimal 16 MP.</li>
+                  <li>Ambil foto di tempat dengan cahaya cukup dan tanpa bayangan di area logo.</li>
+                  <li>Pastikan gambar tidak blur dan logo terlihat jelas.</li>
+                  <li>Jangan gunakan efek, filter, atau mode beautify kamera.</li>
+                  <li>Jangan gunakan zoom optik atau zoom digital saat memotret logo.</li>
+                </>
+              ) : (
+                <>
+                  <li>Use an Android camera with at least 16 MP.</li>
+                  <li>Take the photo in good lighting without shadows over the logo area.</li>
+                  <li>Make sure the image is not blurry and the logo is clearly visible.</li>
+                  <li>Do not use filters, effects, or beautify mode.</li>
+                  <li>Avoid optical or digital zoom when photographing the logo.</li>
+                </>
+              )}
             </ul>
           </div>
           {uploadZone}
@@ -226,11 +243,11 @@ export default function UploadBox({ file, previewUrl, inputMode, onInputModeChan
       {!showRasterGuidelines && uploadZone}
 
       {!isValidType && <p className="mt-3 text-sm text-tomato">{uploadError}</p>}
-      {!isValidSize && <p className="mt-3 text-sm text-tomato">Ukuran file maksimal 10 MB.</p>}
+      {!isValidSize && <p className="mt-3 text-sm text-tomato">{isId ? 'Ukuran file maksimal 10 MB.' : 'Maximum file size is 10 MB.'}</p>}
       <p className="mt-3 text-xs text-gray-600">
         {inputMode === INPUT_MODE_READY
-          ? 'Vector Siap Proses dipakai untuk file vector murni yang akan dipisah warna dan dibuat contour sticker.'
-          : 'Jika foto terlalu gelap, blur, atau banyak bayangan, hasil redraw bisa tetap meleset dan perlu upload ulang.'}
+          ? isId ? 'Vector Siap Proses dipakai untuk file vector murni yang akan dipisah warna dan dibuat contour sticker.' : 'Production-Ready Vector is meant for pure vector files that will be separated by color and used to create sticker cutlines.'
+          : isId ? 'Jika foto terlalu gelap, blur, atau banyak bayangan, hasil redraw bisa tetap meleset dan perlu upload ulang.' : 'If the photo is too dark, blurry, or heavily shadowed, the redraw can still miss details and may need a re-upload.'}
       </p>
     </section>
   );

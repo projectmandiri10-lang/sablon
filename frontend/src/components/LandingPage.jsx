@@ -123,29 +123,31 @@ const pricingCards = [
 const creditPackages = [
   {
     name: 'Paket Basic',
-    credits: 2,
+    credits: 1,
     price: 5000,
     pricePerCredit: 5000,
-    callout: 'Cukup untuk 1 AI Redesign atau 2 Vector Siap Proses.',
+    callout: 'Cukup untuk 1 AI Redesign atau top up awal yang fleksibel.',
     aiRedesign: 1,
     readyToTrace: 2
   },
   {
     name: 'Paket Standard',
-    credits: 4,
+    credits: 2,
     price: 10000,
     pricePerCredit: 5000,
+    callout: 'Cocok untuk 2 AI Redesign atau beberapa job vector ringan.',
     aiRedesign: 2,
-    readyToTrace: 4
+    readyToTrace: 5
   },
   {
     name: 'Paket Premium',
-    credits: 10,
+    credits: 5,
     price: 25000,
     pricePerCredit: 5000,
     highlight: true,
+    callout: 'Paling pas untuk kebutuhan produksi berulang.',
     aiRedesign: 5,
-    readyToTrace: 10
+    readyToTrace: 12
   }
 ];
 
@@ -204,7 +206,7 @@ const faqItems = [
   {
     question: 'Apakah ada credit gratis?',
     answer:
-      'Ya. Setiap pengguna baru yang mendaftar akan mendapatkan 3 credit gratis untuk mencoba layanan kami.'
+      'Ya. Pengguna baru yang memenuhi syarat akan mendapatkan 1 credit gratis. Bonus dibatasi maksimal 2 klaim untuk device atau IP yang sama.'
   },
   {
     question: 'Berapa lama proses gambar?',
@@ -220,7 +222,7 @@ const faqItems = [
 
 const trustBadges = [
   { icon: ShieldCheck, text: 'Tanpa Kartu Kredit', subtext: 'Bayar via Shopee' },
-  { icon: Gift, text: '3 Credit Gratis', subtext: 'Untuk pengguna baru' },
+  { icon: Gift, text: '1 Credit Gratis', subtext: 'Untuk pengguna baru yang memenuhi syarat' },
   { icon: Clock, text: 'Daftar 30 Detik', subtext: 'Proses instan' },
   { icon: Zap, text: 'Hasil Instan', subtext: 'Siap dalam hitungan detik' }
 ];
@@ -376,7 +378,7 @@ const termsSections = [
     subsections: [
       {
         subtitle: 'Hak Pengguna',
-        items: ['Menggunakan layanan sesuai ketentuan', 'Mendapat 3 credit gratis saat mendaftar', 'Mengunduh hasil pemrosesan', 'Meminta penghapusan data pribadi']
+        items: ['Menggunakan layanan sesuai ketentuan', 'Mendapat 1 credit gratis saat mendaftar jika memenuhi syarat', 'Mengunduh hasil pemrosesan', 'Meminta penghapusan data pribadi']
       },
       {
         subtitle: 'Kewajiban Pengguna',
@@ -395,7 +397,7 @@ const termsSections = [
     icon: CreditCard,
     title: '5. Sistem Credit dan Pembayaran',
     list: [
-      'Setiap pengguna baru mendapatkan 3 credit gratis',
+      'Pengguna baru yang memenuhi syarat mendapatkan 1 credit gratis, dibatasi maksimal 2 klaim untuk device atau IP yang sama',
       'Credit dapat dibeli melalui kanal resmi yang tersedia, termasuk Shopee, transfer manual, Midtrans, atau payment gateway lain bila sudah diaktifkan',
       'Pembayaran dapat diproses oleh pihak ketiga seperti Midtrans, bank, e-wallet, payment network, marketplace, atau penyedia pembayaran terkait',
       'Dengan membayar melalui kanal pihak ketiga, pengguna juga tunduk pada syarat, kebijakan privasi, keamanan, biaya kanal, batas waktu pembayaran, dan status transaksi dari kanal tersebut',
@@ -518,6 +520,152 @@ const aboutTeam = [
   { name: 'Maya Putri', role: 'UI/UX Designer', initials: 'MP' }
 ];
 
+const heroStatsEn = [
+  { icon: Star, value: '500+', label: 'Logos Processed', accent: 'text-chart-3' },
+  { icon: Sparkles, value: '98%', label: 'Satisfaction', accent: 'text-primary' },
+  { icon: Zap, value: '2', label: 'Output Modes', accent: 'text-chart-2' }
+];
+
+const howItWorksEn = [
+  {
+    number: '01',
+    icon: UploadCloud,
+    title: 'Upload Image',
+    description: 'Upload your shirt logo photo. Supports PNG, JPG, and WEBP files.',
+    detail: 'Drag and drop or choose a file'
+  },
+  {
+    number: '02',
+    icon: Wand2,
+    title: 'Choose a Mode',
+    description: `AI Redesign Premium (${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}) or Production-Ready Vector (${formatRupiah(READY_PROCESS_PRICE_IDR)}).`,
+    detail: 'Choose the output: screen print or sticker'
+  },
+  {
+    number: '03',
+    icon: Download,
+    title: 'Download Result',
+    description: 'Get a cleaner logo ready for screen printing or sticker production in seconds.',
+    detail: 'High quality, print-ready'
+  }
+];
+
+const pricingCardsEn = [
+  {
+    title: 'AI Redesign',
+    price: IMAGE_RETOUCH_PRICE_IDR,
+    description: 'For blurry photos, scans, or logos that need AI analysis and redraw.',
+    icon: Sparkles,
+    popular: true,
+    features: ['AI Image-to-Image', 'Safety Check', 'Screen Print + Sticker mode', 'High Quality Output', 'Results in 1-3 minutes']
+  },
+  {
+    title: 'Production-Ready Vector',
+    price: READY_PROCESS_PRICE_IDR,
+    description: 'For pure SVG vector files processed without AI for color separation and sticker cutlines.',
+    icon: Zap,
+    popular: false,
+    features: ['Direct Processing', 'Screen Print + Sticker mode', 'High Quality Output', 'Fast Processing (30-60s)', 'Budget Friendly']
+  }
+];
+
+const creditPackagesEn = [
+  {
+    name: 'Basic Package',
+    credits: 1,
+    price: 5000,
+    pricePerCredit: 5000,
+    callout: 'Fits 1 AI Redesign or can be combined with other top-ups.',
+    aiRedesign: 1,
+    readyToTrace: 2
+  },
+  {
+    name: 'Standard Package',
+    credits: 2,
+    price: 10000,
+    pricePerCredit: 5000,
+    callout: 'Good for 2 AI Redesign jobs or up to 5 ready-vector jobs.',
+    aiRedesign: 2,
+    readyToTrace: 5
+  },
+  {
+    name: 'Premium Package',
+    credits: 5,
+    price: 25000,
+    pricePerCredit: 5000,
+    highlight: true,
+    callout: 'Best value for recurring production work.',
+    aiRedesign: 5,
+    readyToTrace: 12
+  }
+];
+
+const testimonialsEn = [
+  {
+    name: 'Budi Santoso',
+    role: 'Garment Shop Owner',
+    initials: 'BS',
+    quote: `The redesign result is clean and ready for screen print. I used to pay designers much more, and now it only costs ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per image.`,
+    rating: 5
+  },
+  {
+    name: 'Siti Rahayu',
+    role: 'Online Shirt Seller',
+    initials: 'SR',
+    quote: 'The Production-Ready Vector mode is perfect for vector files that only need color separation and sticker contours. Fast and reliable.',
+    rating: 5
+  },
+  {
+    name: 'Ahmad Fauzi',
+    role: 'Freelance Designer',
+    initials: 'AF',
+    quote: 'I was skeptical at first, but the AI Redesign results are genuinely impressive and save a lot of time.',
+    rating: 5
+  }
+];
+
+const faqItemsEn = [
+  {
+    question: 'What is EasyRedesign Pro?',
+    answer: 'EasyRedesign Pro is an AI-based platform that helps turn shirt logo photos into cleaner, more professional artwork ready for screen printing or stickers.'
+  },
+  {
+    question: 'How much does each image cost?',
+    answer: `We currently offer two pricing modes: AI Redesign Premium at ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per image and Production-Ready Vector at ${formatRupiah(READY_PROCESS_PRICE_IDR)} per image. You can buy credits in packages.`
+  },
+  {
+    question: 'What is the difference between AI Redesign and Production-Ready Vector?',
+    answer: 'AI Redesign uses image-to-image AI to redraw difficult artwork. Production-Ready Vector processes pure SVG files without AI and is ideal for color separation and sticker cutlines.'
+  },
+  {
+    question: 'What output formats are available?',
+    answer: 'We provide two output directions: screen print and sticker, each optimized for production.'
+  },
+  {
+    question: 'How can I buy credits?',
+    answer: 'You can buy credits through the available payment channels, including Shopee and Midtrans when enabled.'
+  },
+  {
+    question: 'Do new users get free credits?',
+    answer: 'Yes. Eligible new users can receive 1 free credit, limited to the first two claims per matching device or IP.'
+  },
+  {
+    question: 'How long does processing take?',
+    answer: 'Production-Ready Vector usually finishes in 30-60 seconds. AI Redesign usually takes around 1-3 minutes.'
+  },
+  {
+    question: 'Are my images safe?',
+    answer: 'Your data security is a priority. Images are processed securely and are not shared with third parties.'
+  }
+];
+
+const trustBadgesEn = [
+  { icon: ShieldCheck, text: 'No Credit Card', subtext: 'Pay via Shopee or gateway' },
+  { icon: Gift, text: '1 Free Credit', subtext: 'For eligible new users' },
+  { icon: Clock, text: '30s Signup', subtext: 'Quick access' },
+  { icon: Zap, text: 'Fast Results', subtext: 'Ready in seconds' }
+];
+
 function navigatePath(path, onNavigate) {
   if (typeof onNavigate === 'function') {
     onNavigate(path);
@@ -593,13 +741,14 @@ function SectionHeader({ eyebrow, title, subtitle, id }) {
   );
 }
 
-function PublicNav({ onStart, onNavigate }) {
+function PublicNav({ locale = 'id', onLocaleChange, onStart, onNavigate }) {
+  const isId = locale === 'id';
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const links = [
-    { label: 'Beranda', id: 'beranda' },
-    { label: 'Cara Kerja', id: 'how-it-works' },
-    { label: 'Harga', id: 'pricing' },
+    { label: isId ? 'Beranda' : 'Home', id: 'beranda' },
+    { label: isId ? 'Cara Kerja' : 'How It Works', id: 'how-it-works' },
+    { label: isId ? 'Harga' : 'Pricing', id: 'pricing' },
     { label: 'FAQ', id: 'faq' }
   ];
 
@@ -649,20 +798,32 @@ function PublicNav({ onStart, onNavigate }) {
               {link.label}
             </button>
           ))}
+          <div className="ml-2 inline-flex items-center overflow-hidden rounded-md border border-border bg-white/5">
+            {['id', 'en'].map((nextLocale) => (
+              <button
+                key={nextLocale}
+                type="button"
+                onClick={() => onLocaleChange?.(nextLocale)}
+                className={`px-3 py-2 text-xs font-semibold uppercase ${locale === nextLocale ? 'bg-primary text-white' : 'text-mutedForeground hover:bg-white/5 hover:text-foreground'}`}
+              >
+                {nextLocale}
+              </button>
+            ))}
+          </div>
           <div className="ml-2 flex items-center gap-2">
             <button
               type="button"
               onClick={handleStart}
               className="rounded-md px-3 py-2 text-sm font-medium text-foreground transition hover:bg-white/5"
             >
-              Masuk
+              {isId ? 'Masuk' : 'Sign In'}
             </button>
             <button
               type="button"
               onClick={handleStart}
               className="gradient-bg rounded-md px-3 py-2 text-sm font-medium text-white shadow-lg shadow-primary/20 transition hover:shadow-xl"
             >
-              Daftar
+              {isId ? 'Daftar' : 'Sign Up'}
             </button>
           </div>
         </nav>
@@ -672,7 +833,7 @@ function PublicNav({ onStart, onNavigate }) {
           onClick={() => setMobileOpen((value) => !value)}
           className="inline-flex h-10 w-10 items-center justify-center rounded-md text-foreground transition hover:bg-white/5 md:hidden"
           aria-expanded={mobileOpen}
-          aria-label={mobileOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
+          aria-label={mobileOpen ? (isId ? 'Tutup menu navigasi' : 'Close navigation menu') : isId ? 'Buka menu navigasi' : 'Open navigation menu'}
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
@@ -692,10 +853,10 @@ function PublicNav({ onStart, onNavigate }) {
               </button>
             ))}
             <button type="button" onClick={handleStart} className="rounded-xl border border-border bg-white px-4 py-3 text-left text-sm font-medium text-foreground transition hover:border-primary/30 hover:bg-white/5">
-              Masuk
+              {isId ? 'Masuk' : 'Sign In'}
             </button>
             <button type="button" onClick={handleStart} className="gradient-bg rounded-xl px-4 py-3 text-left text-sm font-semibold text-white shadow-lg shadow-primary/20">
-              Daftar
+              {isId ? 'Daftar' : 'Sign Up'}
             </button>
           </div>
         </div>
@@ -704,15 +865,16 @@ function PublicNav({ onStart, onNavigate }) {
   );
 }
 
-function PublicFooter({ onNavigate }) {
+function PublicFooter({ locale = 'id', onNavigate }) {
+  const isId = locale === 'id';
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
   const helpLinks = [
     { label: 'FAQ', icon: HelpCircle, action: () => scrollToId('faq') },
-    { label: 'Kontak', icon: Mail, action: () => navigatePath('/contact', onNavigate) },
-    { label: 'Kebijakan Privasi', icon: ShieldCheck, action: () => navigatePath('/privacy', onNavigate) },
-    { label: 'Syarat & Ketentuan', icon: FileText, action: () => navigatePath('/terms', onNavigate) },
-    { label: 'Tentang Kami', icon: BookOpen, action: () => navigatePath('/about', onNavigate) }
+    { label: isId ? 'Kontak' : 'Contact', icon: Mail, action: () => navigatePath('/contact', onNavigate) },
+    { label: isId ? 'Kebijakan Privasi' : 'Privacy Policy', icon: ShieldCheck, action: () => navigatePath('/privacy', onNavigate) },
+    { label: isId ? 'Syarat & Ketentuan' : 'Terms & Conditions', icon: FileText, action: () => navigatePath('/terms', onNavigate) },
+    { label: isId ? 'Tentang Kami' : 'About Us', icon: BookOpen, action: () => navigatePath('/about', onNavigate) }
   ];
 
   function handleSubscribe(event) {
@@ -735,21 +897,23 @@ function PublicFooter({ onNavigate }) {
           <div className="space-y-4">
             <BrandMark compact />
             <p className="text-sm leading-relaxed text-mutedForeground">
-              Platform redesign logo berbasis AI untuk mengubah logo kaos menjadi desain modern dan profesional hanya dalam hitungan detik.
+              {isId
+                ? 'Platform redesign logo berbasis AI untuk mengubah logo kaos menjadi desain modern dan profesional hanya dalam hitungan detik.'
+                : 'An AI-powered logo redesign platform for turning shirt logo photos into cleaner, more professional artwork in seconds.'}
             </p>
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Layanan</h3>
+            <h3 className="text-sm font-semibold text-foreground">{isId ? 'Layanan' : 'Services'}</h3>
             <ul className="space-y-2 text-sm text-mutedForeground">
               <li><button type="button" onClick={() => scrollToId('pricing')} className="hover:text-primary">AI Redesign</button></li>
-              <li><button type="button" onClick={() => scrollToId('pricing')} className="hover:text-primary">Vector Siap Proses</button></li>
-              <li><button type="button" onClick={() => scrollToId('pricing')} className="hover:text-primary">Harga</button></li>
+              <li><button type="button" onClick={() => scrollToId('pricing')} className="hover:text-primary">{isId ? 'Vector Siap Proses' : 'Production-Ready Vector'}</button></li>
+              <li><button type="button" onClick={() => scrollToId('pricing')} className="hover:text-primary">{isId ? 'Harga' : 'Pricing'}</button></li>
             </ul>
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Bantuan</h3>
+            <h3 className="text-sm font-semibold text-foreground">{isId ? 'Bantuan' : 'Help'}</h3>
             <ul className="space-y-2">
               {helpLinks.map((link) => (
                 <li key={link.label}>
@@ -769,7 +933,7 @@ function PublicFooter({ onNavigate }) {
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Ikuti Kami</h3>
+            <h3 className="text-sm font-semibold text-foreground">{isId ? 'Ikuti Kami' : 'Follow Us'}</h3>
             <div className="flex items-center gap-3">
               {socialLinks.map((social) => (
                 <a
@@ -777,7 +941,7 @@ function PublicFooter({ onNavigate }) {
                   href={social.href}
                   onClick={(event) => event.preventDefault()}
                   aria-label={social.label}
-                  title="Segera hadir"
+                  title={isId ? 'Segera hadir' : 'Coming soon'}
                   className="group/social flex h-10 w-10 items-center justify-center rounded-full border border-border text-mutedForeground transition-all duration-300 hover:-translate-y-1 hover:scale-110 hover:border-primary hover:bg-primary/5 hover:text-primary hover:shadow-md hover:shadow-primary/10"
                 >
                   <social.icon className="h-5 w-5 transition-all duration-300 group-hover/social:scale-110 group-hover/social:text-primary" />
@@ -785,11 +949,11 @@ function PublicFooter({ onNavigate }) {
               ))}
             </div>
             <div className="space-y-2">
-              <p className="text-xs text-mutedForeground">Dapatkan tips desain & update terbaru</p>
+              <p className="text-xs text-mutedForeground">{isId ? 'Dapatkan tips desain & update terbaru' : 'Get design tips and product updates'}</p>
               {subscribed ? (
                 <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
                   <CheckCircle2 className="h-4 w-4" />
-                  Berhasil berlangganan!
+                  {isId ? 'Berhasil berlangganan!' : 'Subscribed successfully!'}
                 </div>
               ) : (
                 <form onSubmit={handleSubscribe} className="flex gap-2">
@@ -799,13 +963,13 @@ function PublicFooter({ onNavigate }) {
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
-                      placeholder="Email Anda"
+                      placeholder={isId ? 'Email Anda' : 'Your email'}
                       className="min-w-0 w-full rounded-xl border border-border bg-white py-2 pl-8 pr-3 text-xs outline-none focus:border-primary"
                     />
                   </div>
                   <button type="submit" className="inline-flex items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-primary to-chart-2 px-3 py-2 text-xs font-semibold text-white hover:opacity-90">
                     <Send className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Kirim</span>
+                    <span className="hidden sm:inline">{isId ? 'Kirim' : 'Send'}</span>
                   </button>
                 </form>
               )}
@@ -816,7 +980,7 @@ function PublicFooter({ onNavigate }) {
         <div className="my-8 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-xs text-mutedForeground">&copy; {new Date().getFullYear()} EasyRedesign Pro. Hak cipta dilindungi.</p>
+          <p className="text-xs text-mutedForeground">&copy; {new Date().getFullYear()} EasyRedesign Pro. {isId ? 'Hak cipta dilindungi.' : 'All rights reserved.'}</p>
           <div className="flex items-center gap-4">
             <p className="flex items-center gap-1 text-xs text-mutedForeground">
               Made with <Heart className="inline h-3 w-3 fill-red-500 text-red-500" /> in Indonesia
@@ -825,7 +989,7 @@ function PublicFooter({ onNavigate }) {
               type="button"
               onClick={scrollToTop}
               className="flex h-8 w-8 items-center justify-center rounded-full border bg-primary/10 text-primary transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary hover:text-white hover:shadow-md hover:shadow-primary/20"
-              aria-label="Kembali ke atas"
+              aria-label={isId ? 'Kembali ke atas' : 'Back to top'}
             >
               <ArrowUp className="h-4 w-4" />
             </button>
@@ -836,11 +1000,13 @@ function PublicFooter({ onNavigate }) {
   );
 }
 
-function HeroSection({ onStart }) {
+function HeroSection({ locale = 'id', onStart }) {
+  const isId = locale === 'id';
+  const stats = isId ? heroStats : heroStatsEn;
   const floatingBadges = [
     { label: 'AI Powered', icon: Sparkles, tone: 'text-primary border-primary/20', position: 'right-[8%] top-[12%] sm:right-[12%] sm:top-[15%]', delay: '0s' },
     { label: formatRupiah(IMAGE_RETOUCH_PRICE_IDR), icon: Zap, tone: 'text-chart-3 border-chart-3/20', position: 'left-[5%] top-[25%] sm:left-[8%] sm:top-[30%]', delay: '1.3s' },
-    { label: '3 Credit Gratis', icon: Star, tone: 'text-chart-2 border-chart-2/20', position: 'right-[15%] bottom-[18%] sm:right-[18%] sm:bottom-[20%]', delay: '2.6s' }
+    { label: isId ? '1 Credit Gratis' : '1 Free Credit', icon: Star, tone: 'text-chart-2 border-chart-2/20', position: 'right-[15%] bottom-[18%] sm:right-[18%] sm:bottom-[20%]', delay: '2.6s' }
   ];
 
   return (
@@ -862,7 +1028,7 @@ function HeroSection({ onStart }) {
         <div className="flex flex-col items-center text-center">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-white/5 px-4 py-2 text-sm font-medium text-primary shadow-sm backdrop-blur animate-pulse-glow">
             <Sparkles className="h-4 w-4" />
-            Didukung Teknologi AI Terbaru
+            {isId ? 'Didukung Teknologi AI Terbaru' : 'Powered by Modern AI Technology'}
           </div>
 
           <div className="pointer-events-none absolute inset-0 hidden sm:block">
@@ -884,11 +1050,13 @@ function HeroSection({ onStart }) {
               </span>
             </span>
             <br />
-            <span className="text-foreground">Redesign AI Logo & Vector Siap Proses</span>
+            <span className="text-foreground">{isId ? 'Redesign AI Logo & Vector Siap Proses' : 'AI Logo Redesign and Production-Ready Vector'}</span>
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg leading-8 text-mutedForeground sm:text-xl">
-            Ubah foto logo kaos biasa menjadi hasil redesign yang lebih bersih, profesional, dan siap diproses untuk sablon atau sticker dalam hitungan detik.
+            {isId
+              ? 'Ubah foto logo kaos biasa menjadi hasil redesign yang lebih bersih, profesional, dan siap diproses untuk sablon atau sticker dalam hitungan detik.'
+              : 'Turn ordinary shirt logo photos into cleaner, more professional artwork ready for screen printing or sticker production in seconds.'}
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
@@ -897,7 +1065,7 @@ function HeroSection({ onStart }) {
               onClick={onStart}
               className="gradient-bg animate-pulse-glow inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-8 text-base font-semibold text-white shadow-lg shadow-primary/20 transition hover:shadow-xl"
             >
-              Mulai Sekarang
+              {isId ? 'Mulai Sekarang' : 'Get Started'}
               <ArrowRight className="h-5 w-5" />
             </button>
             <button
@@ -905,7 +1073,7 @@ function HeroSection({ onStart }) {
               onClick={() => scrollToId('how-it-works')}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-white px-8 text-base font-semibold text-foreground transition hover:border-primary/40 hover:bg-primary/5"
             >
-              Lihat Cara Kerja
+              {isId ? 'Lihat Cara Kerja' : 'See How It Works'}
             </button>
           </div>
 
@@ -916,7 +1084,7 @@ function HeroSection({ onStart }) {
                 <div className="flex h-16 w-16 items-center justify-center rounded-[22px] border border-dashed border-white/20 bg-white/5 text-mutedForeground">
                   <ImageIcon className="h-8 w-8" />
                 </div>
-                <p className="mt-4 text-lg font-semibold text-foreground">Sebelum</p>
+                <p className="mt-4 text-lg font-semibold text-foreground">{isId ? 'Sebelum' : 'Before'}</p>
               </div>
 
               <div className="landing-process-pill flex flex-col items-center gap-2">
@@ -930,17 +1098,17 @@ function HeroSection({ onStart }) {
                 <div className="flex h-24 w-24 items-center justify-center rounded-[28px] border border-primary/35 bg-primary/10 text-primary shadow-[0_0_32px_rgba(124,58,237,0.35)]">
                   <ImageIcon className="h-10 w-10" />
                 </div>
-                <p className="mt-4 text-lg font-semibold text-primary">Sesudah</p>
+                <p className="mt-4 text-lg font-semibold text-primary">{isId ? 'Sesudah' : 'After'}</p>
               </div>
             </div>
             <div className="mt-5 flex items-center justify-between text-xs text-mutedForeground">
               <span className="rounded-full border border-chart-3/20 bg-white/5 px-3 py-1 text-chart-3">{formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}</span>
-              <span className="rounded-full border border-primary/20 bg-white/5 px-3 py-1 text-primary">3 Credit Gratis</span>
+              <span className="rounded-full border border-primary/20 bg-white/5 px-3 py-1 text-primary">{isId ? '1 Credit Gratis' : '1 Free Credit'}</span>
             </div>
           </div>
 
           <div className="mt-10 grid w-full max-w-4xl gap-4 md:grid-cols-3">
-            {heroStats.map((stat) => (
+            {stats.map((stat) => (
               <div key={stat.label} className="landing-stat-card glass-card rounded-2xl px-5 py-4 text-center">
                 <stat.icon className={`mx-auto mb-3 h-5 w-5 ${stat.accent}`} />
                 <div className={`text-3xl font-black tracking-tight ${stat.accent}`}>{stat.value}</div>
@@ -974,7 +1142,9 @@ function StepCard({ step }) {
   );
 }
 
-function HowItWorksSection() {
+function HowItWorksSection({ locale = 'id' }) {
+  const isId = locale === 'id';
+  const steps = isId ? howItWorks : howItWorksEn;
   return (
     <section id="how-it-works" className="relative overflow-hidden py-20 sm:py-28">
       <div className="pointer-events-none absolute inset-0">
@@ -982,22 +1152,25 @@ function HowItWorksSection() {
         <div className="absolute -right-20 bottom-1/3 h-40 w-40 rounded-full bg-chart-2/5 blur-3xl" />
       </div>
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="Mudah dan Cepat" title="Cara Kerja" subtitle="Tiga langkah mudah untuk mendapatkan logo kaos profesional" />
+        <SectionHeader eyebrow={isId ? 'Mudah dan Cepat' : 'Fast and Simple'} title={isId ? 'Cara Kerja' : 'How It Works'} subtitle={isId ? 'Tiga langkah mudah untuk mendapatkan logo kaos profesional' : 'Three easy steps to get a more professional shirt logo'} />
         <div className="relative mt-16">
           <div className="pointer-events-none absolute left-[10%] right-[10%] top-[190px] hidden h-px bg-gradient-to-r from-chart-2/25 via-primary/25 to-chart-3/25 lg:block" />
           <div className="grid gap-8 lg:grid-cols-3">
-          {howItWorks.map((step) => (
+          {steps.map((step) => (
             <StepCard key={step.number} step={step} />
           ))}
           </div>
         </div>
-        <p className="mt-14 text-center text-sm text-mutedForeground">Seluruh proses berjalan otomatis - tidak perlu keahlian desain.</p>
+        <p className="mt-14 text-center text-sm text-mutedForeground">{isId ? 'Seluruh proses berjalan otomatis - tidak perlu keahlian desain.' : 'The entire process runs automatically, so no design expertise is required.'}</p>
       </div>
     </section>
   );
 }
 
-function PricingSection() {
+function PricingSection({ locale = 'id' }) {
+  const isId = locale === 'id';
+  const cards = isId ? pricingCards : pricingCardsEn;
+  const packages = isId ? creditPackages : creditPackagesEn;
   return (
     <section id="pricing" className="relative overflow-hidden py-20 sm:py-28">
       <div className="pointer-events-none absolute inset-0">
@@ -1006,16 +1179,16 @@ function PricingSection() {
         <div className="absolute left-1/3 top-[10%] h-24 w-24 rounded-full bg-chart-3/5 blur-2xl" />
       </div>
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="Harga Transparan" title="Harga Terjangkau" subtitle="Pilih mode yang sesuai dengan kebutuhan Anda" />
+        <SectionHeader eyebrow={isId ? 'Harga Transparan' : 'Transparent Pricing'} title={isId ? 'Harga Terjangkau' : 'Affordable Pricing'} subtitle={isId ? 'Pilih mode yang sesuai dengan kebutuhan Anda' : 'Choose the mode that best matches your workflow'} />
 
         <div className="mt-14 grid gap-6 lg:grid-cols-2 lg:max-w-4xl lg:mx-auto">
-          {pricingCards.map((card) => (
+          {cards.map((card) => (
             <div key={card.title} className={`landing-price-card relative overflow-hidden rounded-3xl ${card.popular ? 'landing-price-primary ring-1 ring-primary/20' : 'landing-price-secondary'}`}>
               {card.popular && (
                 <div className="absolute right-4 top-4 z-10 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-primary/20">
                   <div className="inline-flex items-center gap-1">
                     <Crown className="h-3.5 w-3.5" />
-                    Paling Populer
+                    {isId ? 'Paling Populer' : 'Most Popular'}
                   </div>
                 </div>
               )}
@@ -1032,7 +1205,7 @@ function PricingSection() {
 
                 <div className="mt-6 text-4xl font-black tracking-tight text-foreground">
                   {formatMiniRupiah(card.price)}
-                  <span className="text-base font-semibold text-mutedForeground">/gambar</span>
+                  <span className="text-base font-semibold text-mutedForeground">{isId ? '/gambar' : '/image'}</span>
                 </div>
 
                 <ul className="mt-6 space-y-3">
@@ -1051,22 +1224,22 @@ function PricingSection() {
         <div className="mt-20 text-center">
           <div className="mb-3 flex items-center justify-center gap-2">
             <CreditCard className="h-6 w-6 text-primary" />
-            <h3 className="text-2xl font-bold text-foreground sm:text-3xl">Beli Credit</h3>
+            <h3 className="text-2xl font-bold text-foreground sm:text-3xl">{isId ? 'Beli Credit' : 'Buy Credits'}</h3>
           </div>
-          <p className="text-mutedForeground">Beli credit untuk mulai memproses logo Anda</p>
+          <p className="text-mutedForeground">{isId ? 'Beli credit untuk mulai memproses logo Anda' : 'Buy credits to start processing your logos'}</p>
         </div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-3 lg:max-w-5xl lg:mx-auto">
-          {creditPackages.map((pkg) => (
+          {packages.map((pkg) => (
             <div key={pkg.name} className={`landing-mini-card landing-credit-card rounded-2xl p-5 ${pkg.highlight ? 'landing-credit-card-highlight ring-1 ring-primary/20' : ''}`}>
-              {pkg.highlight && <div className="mb-3 inline-flex rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white">Rekomendasi</div>}
+              {pkg.highlight && <div className="mb-3 inline-flex rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white">{isId ? 'Rekomendasi' : 'Recommended'}</div>}
               <h4 className="text-lg font-bold text-foreground">{pkg.name}</h4>
-              <p className="mt-1 text-sm text-mutedForeground">{pkg.credits} credit untuk proses gambar</p>
+              <p className="mt-1 text-sm text-mutedForeground">{pkg.credits} {isId ? 'credit untuk proses gambar' : 'credits for image processing'}</p>
               <div className="mt-4 text-2xl font-black text-foreground">{formatMiniRupiah(pkg.price)}</div>
               <div className="mt-1 text-sm text-mutedForeground">{formatMiniRupiah(pkg.pricePerCredit)}/credit</div>
               <div className="mt-4 space-y-2 text-sm text-mutedForeground">
                 <p>{pkg.aiRedesign}x AI Redesign</p>
-                <p>{pkg.readyToTrace}x Vector Siap Proses</p>
+                <p>{pkg.readyToTrace}x {isId ? 'Vector Siap Proses' : 'Production-Ready Vector'}</p>
               </div>
               {pkg.callout && <p className="mt-3 text-xs text-mutedForeground">{pkg.callout}</p>}
               <button
@@ -1076,7 +1249,7 @@ function PricingSection() {
                   pkg.highlight ? 'gradient-bg text-white shadow-lg shadow-primary/20' : 'border border-border bg-white text-foreground hover:border-primary/30 hover:bg-white/5'
                 }`}
               >
-                Mulai Paket Ini
+                {isId ? 'Mulai Paket Ini' : 'Choose This Package'}
               </button>
             </div>
           ))}
@@ -1096,7 +1269,9 @@ function StarRow({ rating }) {
   );
 }
 
-function TestimonialsSection() {
+function TestimonialsSection({ locale = 'id' }) {
+  const isId = locale === 'id';
+  const items = isId ? testimonials : testimonialsEn;
   return (
     <section id="testimonials" className="relative overflow-hidden py-20 sm:py-28">
       <div className="pointer-events-none absolute inset-0">
@@ -1104,9 +1279,9 @@ function TestimonialsSection() {
         <div className="absolute -right-20 bottom-1/3 h-64 w-64 rounded-full bg-chart-3/5 blur-3xl" />
       </div>
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="Testimoni Nyata" title="Apa Kata Mereka" subtitle="Ribuan pengguna telah merasakan kemudahan redesign logo dengan AI" />
+        <SectionHeader eyebrow={isId ? 'Testimoni Nyata' : 'Real Testimonials'} title={isId ? 'Apa Kata Mereka' : 'What They Say'} subtitle={isId ? 'Ribuan pengguna telah merasakan kemudahan redesign logo dengan AI' : 'Thousands of users have experienced easier logo redesign with AI'} />
         <div className="mt-14 grid gap-6 md:grid-cols-3">
-          {testimonials.map((testimonial, index) => (
+          {items.map((testimonial, index) => (
             <div key={testimonial.name} className={`rounded-3xl p-6 ${index === 1 ? 'landing-testimonial-featured md:mt-8' : 'glass-card'}`}>
               <div className="mb-4 flex items-start justify-between">
                 <div className="relative">
@@ -1148,7 +1323,7 @@ function TestimonialsSection() {
                 <Star key={index} className="h-3.5 w-3.5 fill-chart-3 text-chart-3" />
               ))}
             </div>
-            <span>Dipercaya 500+ pengguna</span>
+            <span>{isId ? 'Dipercaya 500+ pengguna' : 'Trusted by 500+ users'}</span>
           </div>
         </div>
       </div>
@@ -1156,7 +1331,9 @@ function TestimonialsSection() {
   );
 }
 
-function FaqSection() {
+function FaqSection({ locale = 'id' }) {
+  const isId = locale === 'id';
+  const items = isId ? faqItems : faqItemsEn;
   return (
     <section id="faq" className="relative overflow-hidden py-20 sm:py-28">
       <div className="pointer-events-none absolute inset-0">
@@ -1164,9 +1341,9 @@ function FaqSection() {
         <div className="absolute -left-20 bottom-1/4 h-40 w-40 rounded-full bg-chart-2/5 blur-3xl" />
       </div>
       <div className="relative mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-        <SectionHeader title="Pertanyaan Umum" subtitle="Temukan jawaban untuk pertanyaan yang sering diajukan" />
+        <SectionHeader title={isId ? 'Pertanyaan Umum' : 'Frequently Asked Questions'} subtitle={isId ? 'Temukan jawaban untuk pertanyaan yang sering diajukan' : 'Find answers to the questions people ask most often'} />
         <div className="mt-12 overflow-hidden rounded-3xl border border-border/70 glass-card">
-          {faqItems.map((item, index) => (
+          {items.map((item, index) => (
             <details key={item.question} className="landing-faq-item group overflow-hidden">
               <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 text-left text-sm font-semibold text-foreground sm:text-base">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary/20 text-xs font-semibold text-primary">
@@ -1186,7 +1363,9 @@ function FaqSection() {
   );
 }
 
-function CtaSection({ onStart }) {
+function CtaSection({ locale = 'id', onStart }) {
+  const isId = locale === 'id';
+  const badges = isId ? trustBadges : trustBadgesEn;
   return (
     <section className="relative overflow-hidden py-24 sm:py-32">
       <div className="absolute inset-0">
@@ -1200,12 +1379,12 @@ function CtaSection({ onStart }) {
             <Sparkles className="h-9 w-9 text-white" />
           </div>
           <h2 className="max-w-3xl text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
-            Siap Transformasi <span className="relative inline-block">Logo Anda?
+            {isId ? 'Siap Transformasi ' : 'Ready to Transform '}<span className="relative inline-block">{isId ? 'Logo Anda?' : 'Your Logo?'}
               <span className="absolute -bottom-1 left-0 right-0 h-1 rounded-full bg-chart-3/60" />
             </span>
           </h2>
           <p className="mt-5 max-w-xl text-lg text-white/80 sm:text-xl">
-            Daftar sekarang dan dapatkan 3 credit gratis untuk mencoba layanan kami.
+            {isId ? 'Daftar sekarang dan dapatkan 1 credit gratis jika memenuhi syarat untuk mencoba layanan kami.' : 'Sign up now and get 1 free credit if you are eligible to try the service.'}
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
@@ -1214,7 +1393,7 @@ function CtaSection({ onStart }) {
               onClick={onStart}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-8 text-base font-semibold text-primary shadow-lg transition hover:bg-white/95"
             >
-              Mulai Gratis Sekarang
+              {isId ? 'Mulai Gratis Sekarang' : 'Start Free Now'}
               <ArrowRight className="h-5 w-5" />
             </button>
             <button
@@ -1223,12 +1402,12 @@ function CtaSection({ onStart }) {
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-8 text-base font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
             >
               <Eye className="h-4 w-4" />
-              Lihat Demo
+              {isId ? 'Lihat Demo' : 'See Demo'}
             </button>
           </div>
 
           <div className="mt-14 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
-            {trustBadges.map((badge) => (
+            {badges.map((badge) => (
               <div key={badge.text} className="landing-cta-badge rounded-2xl px-4 py-3">
                 <badge.icon className="mx-auto h-5 w-5 text-white/80" />
                 <div className="mt-2 text-sm font-semibold text-white/90">{badge.text}</div>
@@ -1236,15 +1415,16 @@ function CtaSection({ onStart }) {
               </div>
             ))}
           </div>
-          <p className="mt-8 text-sm text-white/55">Tanpa risiko - Tanpa komitmen - Bisa berhenti kapan saja</p>
+          <p className="mt-8 text-sm text-white/55">{isId ? 'Tanpa risiko - Tanpa komitmen - Bisa berhenti kapan saja' : 'No risk - No commitment - Cancel any time'}</p>
         </div>
       </div>
     </section>
   );
 }
 
-function AuthSection({ authPanel, onStart }) {
+function AuthSection({ locale = 'id', authPanel, onStart }) {
   if (!authPanel) return null;
+  const isId = locale === 'id';
   return (
     <section id="auth" className="relative overflow-hidden py-20 sm:py-28">
       <div className="pointer-events-none absolute inset-0">
@@ -1256,21 +1436,23 @@ function AuthSection({ authPanel, onStart }) {
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary">
               <Sparkles className="h-4 w-4" />
-              Akses akun
+              {isId ? 'Akses akun' : 'Account access'}
             </div>
             <BrandMark className="justify-start" textClassName="text-left" />
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              <span className="gradient-text">Masuk untuk melanjutkan</span>
+              <span className="gradient-text">{isId ? 'Masuk untuk melanjutkan' : 'Sign in to continue'}</span>
             </h2>
             <p className="max-w-2xl text-lg leading-8 text-mutedForeground">
-              Gunakan akun Anda untuk mengakses dashboard, billing, dan riwayat proses EasyRedesign Pro dengan alur yang sama seperti aplikasi utama.
+              {isId
+                ? 'Gunakan akun Anda untuk mengakses dashboard, billing, dan riwayat proses EasyRedesign Pro dengan alur yang sama seperti aplikasi utama.'
+                : 'Use your account to access the dashboard, billing, and processing history with the same flow as the main application.'}
             </p>
             <button
               type="button"
               onClick={onStart}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-white px-6 text-sm font-semibold text-primary transition hover:border-primary hover:bg-primary/5"
             >
-              Scroll ke form login
+              {isId ? 'Scroll ke form login' : 'Scroll to the sign-in form'}
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
@@ -1281,23 +1463,24 @@ function AuthSection({ authPanel, onStart }) {
   );
 }
 
-function PublicLanding({ onStart, authPanel, onNavigate }) {
+function PublicLanding({ locale = 'id', onLocaleChange, onStart, authPanel, onNavigate }) {
   return (
     <div className="landing-shell min-h-screen bg-background text-foreground">
-      <PublicNav onStart={onStart} onNavigate={onNavigate} />
-      <HeroSection onStart={onStart} />
-      <HowItWorksSection />
-      <PricingSection />
-      <TestimonialsSection />
-      <FaqSection />
-      <CtaSection onStart={onStart} />
-      <AuthSection authPanel={authPanel} onStart={onStart} />
-      <PublicFooter onNavigate={onNavigate} />
+      <PublicNav locale={locale} onLocaleChange={onLocaleChange} onStart={onStart} onNavigate={onNavigate} />
+      <HeroSection locale={locale} onStart={onStart} />
+      <HowItWorksSection locale={locale} />
+      <PricingSection locale={locale} />
+      <TestimonialsSection locale={locale} />
+      <FaqSection locale={locale} />
+      <CtaSection locale={locale} onStart={onStart} />
+      <AuthSection locale={locale} authPanel={authPanel} onStart={onStart} />
+      <PublicFooter locale={locale} onNavigate={onNavigate} />
     </div>
   );
 }
 
-function LegalShell({ title, subtitle, icon: Icon, onNavigate, children }) {
+function LegalShell({ locale = 'id', title, subtitle, icon: Icon, onNavigate, children }) {
+  const isId = locale === 'id';
   return (
     <article className="min-h-screen gradient-bg-subtle">
       <div className="gradient-bg py-16 sm:py-20">
@@ -1308,7 +1491,7 @@ function LegalShell({ title, subtitle, icon: Icon, onNavigate, children }) {
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
           >
             <ArrowRight className="h-4 w-4 rotate-180" />
-            Kembali
+            {isId ? 'Kembali' : 'Back'}
           </button>
           <div className="flex items-start gap-4 text-white">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 backdrop-blur-sm">
@@ -1394,28 +1577,30 @@ function LegalSectionList({ sections }) {
   );
 }
 
-function PrivacyPage({ onNavigate }) {
+function PrivacyPage({ locale = 'id', onNavigate }) {
+  const isId = locale === 'id';
   return (
-    <LegalShell title="Kebijakan Privasi" subtitle="Bagaimana kami mengumpulkan, menggunakan, dan melindungi informasi pribadi Anda" icon={ShieldCheck} onNavigate={onNavigate}>
+    <LegalShell locale={locale} title={isId ? 'Kebijakan Privasi' : 'Privacy Policy'} subtitle={isId ? 'Bagaimana kami mengumpulkan, menggunakan, dan melindungi informasi pribadi Anda' : 'How we collect, use, and protect your personal information'} icon={ShieldCheck} onNavigate={onNavigate}>
       <LegalSectionList sections={privacySections} />
       <div className="mt-12 text-center text-sm text-mutedForeground">
-        Pertanyaan tentang kebijakan privasi kami?{' '}
+        {isId ? 'Pertanyaan tentang kebijakan privasi kami?' : 'Questions about our privacy policy?'}{' '}
         <button type="button" onClick={() => navigatePath('/contact', onNavigate)} className="text-primary underline underline-offset-4">
-          Hubungi kami
+          {isId ? 'Hubungi kami' : 'Contact us'}
         </button>
       </div>
     </LegalShell>
   );
 }
 
-function TermsPage({ onNavigate }) {
+function TermsPage({ locale = 'id', onNavigate }) {
+  const isId = locale === 'id';
   return (
-    <LegalShell title="Syarat dan Ketentuan" subtitle="Aturan penggunaan layanan EasyRedesign Pro" icon={FileText} onNavigate={onNavigate}>
+    <LegalShell locale={locale} title={isId ? 'Syarat dan Ketentuan' : 'Terms and Conditions'} subtitle={isId ? 'Aturan penggunaan layanan EasyRedesign Pro' : 'Rules for using EasyRedesign Pro'} icon={FileText} onNavigate={onNavigate}>
       <LegalSectionList sections={termsSections} />
       <div className="mt-12 text-center text-sm text-mutedForeground">
-        Pertanyaan tentang syarat dan ketentuan?{' '}
+        {isId ? 'Pertanyaan tentang syarat dan ketentuan?' : 'Questions about our terms?'}{' '}
         <button type="button" onClick={() => navigatePath('/contact', onNavigate)} className="text-primary underline underline-offset-4">
-          Hubungi kami
+          {isId ? 'Hubungi kami' : 'Contact us'}
         </button>
       </div>
     </LegalShell>
@@ -1441,7 +1626,8 @@ function ContactFaqItem({ question, answer }) {
   );
 }
 
-function ContactPage({ onNavigate }) {
+function ContactPage({ locale = 'id', onNavigate }) {
+  const isId = locale === 'id';
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1473,13 +1659,13 @@ function ContactPage({ onNavigate }) {
 
   function validate() {
     const nextErrors = {};
-    if (!formData.name.trim()) nextErrors.name = 'Nama wajib diisi';
-    if (!formData.email.trim()) nextErrors.email = 'Email wajib diisi';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) nextErrors.email = 'Format email tidak valid';
-    if (!formData.subject) nextErrors.subject = 'Subjek wajib dipilih';
-    if (!formData.message.trim()) nextErrors.message = 'Pesan wajib diisi';
-    else if (formData.message.length < 10) nextErrors.message = 'Pesan minimal 10 karakter';
-    else if (formData.message.length > maxMessageLength) nextErrors.message = `Pesan maksimal ${maxMessageLength.toLocaleString()} karakter`;
+    if (!formData.name.trim()) nextErrors.name = isId ? 'Nama wajib diisi' : 'Name is required';
+    if (!formData.email.trim()) nextErrors.email = isId ? 'Email wajib diisi' : 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) nextErrors.email = isId ? 'Format email tidak valid' : 'Invalid email format';
+    if (!formData.subject) nextErrors.subject = isId ? 'Subjek wajib dipilih' : 'Please choose a subject';
+    if (!formData.message.trim()) nextErrors.message = isId ? 'Pesan wajib diisi' : 'Message is required';
+    else if (formData.message.length < 10) nextErrors.message = isId ? 'Pesan minimal 10 karakter' : 'Message must be at least 10 characters';
+    else if (formData.message.length > maxMessageLength) nextErrors.message = isId ? `Pesan maksimal ${maxMessageLength.toLocaleString()} karakter` : `Message must be at most ${maxMessageLength.toLocaleString()} characters`;
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   }
@@ -1495,7 +1681,7 @@ function ContactPage({ onNavigate }) {
       setFormData({ name: '', email: '', subject: '', message: '' });
       window.setTimeout(() => setSuccess(false), 3500);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Gagal mengirim pesan. Silakan coba lagi nanti.';
+      const message = error instanceof Error ? error.message : isId ? 'Gagal mengirim pesan. Silakan coba lagi nanti.' : 'Failed to send the message. Please try again later.';
       setErrors((current) => ({ ...current, submit: message }));
     } finally {
       setIsSubmitting(false);
@@ -1508,7 +1694,7 @@ function ContactPage({ onNavigate }) {
   }
 
   return (
-    <LegalShell title="Hubungi Kami" subtitle="Punya pertanyaan atau butuh bantuan? Tim kami siap membantu Anda" icon={Mail} onNavigate={onNavigate}>
+    <LegalShell locale={locale} title={isId ? 'Hubungi Kami' : 'Contact Us'} subtitle={isId ? 'Punya pertanyaan atau butuh bantuan? Tim kami siap membantu Anda' : 'Have a question or need help? Our team is ready to assist you.'} icon={Mail} onNavigate={onNavigate}>
       <div className="mb-10 grid gap-3 sm:grid-cols-2">
         {contactFaq.map((item) => (
           <ContactFaqItem key={item.question} {...item} />
@@ -1519,16 +1705,16 @@ function ContactPage({ onNavigate }) {
         <div className="glass-card rounded-3xl p-6">
           <div className="mb-6 flex items-center gap-2">
             <Send className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold text-foreground">Kirim Pesan</h2>
+            <h2 className="text-xl font-semibold text-foreground">{isId ? 'Kirim Pesan' : 'Send a Message'}</h2>
           </div>
 
           {success ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-12 text-center">
               <CheckCircle2 className="h-12 w-12 text-emerald-600" />
-              <h3 className="mt-4 text-xl font-semibold text-foreground">Pesan Terkirim</h3>
-              <p className="mt-2 text-sm text-mutedForeground">Terima kasih telah menghubungi kami. Kami akan merespons pesan Anda dalam 1x24 jam.</p>
+              <h3 className="mt-4 text-xl font-semibold text-foreground">{isId ? 'Pesan Terkirim' : 'Message Sent'}</h3>
+              <p className="mt-2 text-sm text-mutedForeground">{isId ? 'Terima kasih telah menghubungi kami. Kami akan merespons pesan Anda dalam 1x24 jam.' : 'Thanks for contacting us. We will respond within 24 hours.'}</p>
               <button type="button" onClick={() => setSuccess(false)} className="mt-6 rounded-xl border border-emerald-300 px-4 py-2 text-sm font-semibold text-emerald-700">
-                Kirim Pesan Lain
+                {isId ? 'Kirim Pesan Lain' : 'Send Another Message'}
               </button>
             </div>
           ) : (
@@ -1537,13 +1723,13 @@ function ContactPage({ onNavigate }) {
                 <label className="space-y-2">
                   <span className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <User className="h-4 w-4" />
-                    Nama Lengkap
+                    {isId ? 'Nama Lengkap' : 'Full Name'}
                   </span>
                   <input
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    placeholder="Masukkan nama Anda"
+                    placeholder={isId ? 'Masukkan nama Anda' : 'Enter your name'}
                     className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-primary ${errors.name ? 'border-red-400' : 'border-border'}`}
                   />
                   {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
@@ -1569,7 +1755,7 @@ function ContactPage({ onNavigate }) {
               <label className="space-y-2">
                 <span className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <FileText className="h-4 w-4" />
-                  Subjek
+                  {isId ? 'Subjek' : 'Subject'}
                 </span>
                 <div className="grid gap-2 sm:grid-cols-4">
                   {contactSubjects.map((subject) => (
@@ -1592,7 +1778,7 @@ function ContactPage({ onNavigate }) {
                 <span className="flex items-center justify-between text-sm font-medium text-foreground">
                   <span className="flex items-center gap-2">
                     <Mail className="h-4 w-4" />
-                    Pesan
+                    {isId ? 'Pesan' : 'Message'}
                   </span>
                   <span className={`text-xs tabular-nums ${formData.message.length > maxMessageLength * 0.9 ? 'text-amber-600' : 'text-mutedForeground'}`}>
                     {formData.message.length.toLocaleString()} / {maxMessageLength.toLocaleString()}
@@ -1603,7 +1789,7 @@ function ContactPage({ onNavigate }) {
                   value={formData.message}
                   onChange={handleChange}
                   rows={8}
-                  placeholder="Tuliskan pertanyaan atau kebutuhan Anda di sini"
+                  placeholder={isId ? 'Tuliskan pertanyaan atau kebutuhan Anda di sini' : 'Write your question or request here'}
                   className={`w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none focus:border-primary ${errors.message ? 'border-red-400' : 'border-border'}`}
                 />
                 {errors.message && <p className="text-xs text-red-500">{errors.message}</p>}
@@ -1613,7 +1799,7 @@ function ContactPage({ onNavigate }) {
 
               <button type="submit" disabled={isSubmitting} className="gradient-bg inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition disabled:cursor-not-allowed disabled:opacity-60">
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {isSubmitting ? 'Mengirim...' : 'Kirim Pesan'}
+                {isSubmitting ? (isId ? 'Mengirim...' : 'Sending...') : isId ? 'Kirim Pesan' : 'Send Message'}
               </button>
             </form>
           )}
@@ -1621,28 +1807,28 @@ function ContactPage({ onNavigate }) {
 
         <aside className="space-y-6">
           <div className="glass-card rounded-3xl p-6">
-            <h3 className="text-lg font-semibold text-foreground">Info Kontak</h3>
+            <h3 className="text-lg font-semibold text-foreground">{isId ? 'Info Kontak' : 'Contact Info'}</h3>
             <div className="mt-4 space-y-3 text-sm text-mutedForeground">
               <p>Telepon: {SUPPORT_PHONE}</p>
               <p>WhatsApp: {SUPPORT_WHATSAPP}</p>
               <p>Email: {SUPPORT_EMAIL_LABEL}</p>
-              <p>Jam kerja: Senin - Jumat, 09.00 - 17.00 WIB</p>
+              <p>{isId ? 'Jam kerja: Senin - Jumat, 09.00 - 17.00 WIB' : 'Business hours: Monday - Friday, 09:00 - 17:00 WIB'}</p>
             </div>
           </div>
 
           <div className="glass-card rounded-3xl p-6">
-            <h3 className="text-lg font-semibold text-foreground">Arah Cepat</h3>
+            <h3 className="text-lg font-semibold text-foreground">{isId ? 'Arah Cepat' : 'Quick Links'}</h3>
             <div className="mt-4 space-y-2 text-sm">
               <button type="button" onClick={() => goToLandingSection('faq')} className="flex w-full items-center justify-between rounded-xl border border-border bg-white px-4 py-3 text-left text-foreground transition hover:border-primary/40 hover:bg-primary/5">
-                Lihat FAQ
+                {isId ? 'Lihat FAQ' : 'See FAQ'}
                 <ArrowUpRight className="h-4 w-4 text-primary" />
               </button>
               <button type="button" onClick={() => goToLandingSection('pricing')} className="flex w-full items-center justify-between rounded-xl border border-border bg-white px-4 py-3 text-left text-foreground transition hover:border-primary/40 hover:bg-primary/5">
-                Lihat Harga
+                {isId ? 'Lihat Harga' : 'See Pricing'}
                 <ArrowUpRight className="h-4 w-4 text-primary" />
               </button>
               <button type="button" onClick={() => goToLandingSection('beranda')} className="flex w-full items-center justify-between rounded-xl border border-border bg-white px-4 py-3 text-left text-foreground transition hover:border-primary/40 hover:bg-primary/5">
-                Kembali ke Landing
+                {isId ? 'Kembali ke Landing' : 'Back to Landing'}
                 <ArrowUpRight className="h-4 w-4 text-primary" />
               </button>
             </div>
@@ -1653,14 +1839,15 @@ function ContactPage({ onNavigate }) {
   );
 }
 
-function AboutPage({ onNavigate }) {
+function AboutPage({ locale = 'id', onNavigate }) {
+  const isId = locale === 'id';
   const stats = aboutStats.map((stat) => ({ ...stat }));
 
   return (
-    <LegalShell title="Tentang Kami" subtitle="Mengenal lebih dekat EasyRedesign Pro, platform redesign logo berbasis AI" icon={Sparkles} onNavigate={onNavigate}>
+    <LegalShell locale={locale} title={isId ? 'Tentang Kami' : 'About Us'} subtitle={isId ? 'Mengenal lebih dekat EasyRedesign Pro, platform redesign logo berbasis AI' : 'Get to know EasyRedesign Pro, an AI-powered logo redesign platform'} icon={Sparkles} onNavigate={onNavigate}>
       <div className="space-y-6">
         <div className="glass-card rounded-3xl p-6">
-          <h2 className="text-xl font-semibold text-foreground">Tentang Kami</h2>
+          <h2 className="text-xl font-semibold text-foreground">{isId ? 'Tentang Kami' : 'About Us'}</h2>
           <div className="mt-4 space-y-4 text-sm leading-relaxed text-mutedForeground sm:text-base">
             <p>
               EasyRedesign Pro adalah platform inovatif yang menggunakan kecerdasan buatan untuk mentransformasi logo kaos menjadi desain profesional yang siap untuk disablon atau dijadikan sticker.
@@ -1701,7 +1888,7 @@ function AboutPage({ onNavigate }) {
         </div>
 
         <div className="glass-card rounded-3xl p-6">
-          <h3 className="text-xl font-semibold text-foreground">Perjalanan Kami</h3>
+          <h3 className="text-xl font-semibold text-foreground">{isId ? 'Perjalanan Kami' : 'Our Journey'}</h3>
           <div className="relative mt-6 space-y-4">
             <div className="absolute left-5 top-2 bottom-2 w-px bg-gradient-to-b from-primary/40 via-chart-2/40 to-chart-3/40" />
             {aboutTimeline.map((milestone) => (
@@ -1720,7 +1907,7 @@ function AboutPage({ onNavigate }) {
         </div>
 
         <div className="glass-card rounded-3xl p-6">
-          <h3 className="text-xl font-semibold text-foreground">Teknologi yang Digunakan</h3>
+          <h3 className="text-xl font-semibold text-foreground">{isId ? 'Teknologi yang Digunakan' : 'Technology Stack'}</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {aboutTechStack.map((tech) => (
               <div key={tech.name} className="rounded-2xl border border-border bg-white p-4">
@@ -1739,7 +1926,7 @@ function AboutPage({ onNavigate }) {
         </div>
 
         <div className="glass-card rounded-3xl p-6">
-          <h3 className="text-xl font-semibold text-foreground">Tim Kami</h3>
+          <h3 className="text-xl font-semibold text-foreground">{isId ? 'Tim Kami' : 'Our Team'}</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {aboutTeam.map((member) => (
               <div key={member.name} className="rounded-2xl border border-border bg-white p-4 text-center">
@@ -1754,21 +1941,21 @@ function AboutPage({ onNavigate }) {
         </div>
 
         <div className="glass-card rounded-3xl p-6">
-          <h3 className="text-xl font-semibold text-foreground">Mengapa Memilih Kami?</h3>
+          <h3 className="text-xl font-semibold text-foreground">{isId ? 'Mengapa Memilih Kami?' : 'Why Choose Us?'}</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="rounded-2xl border border-border bg-white p-4">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-chart-2/10 text-chart-2">
                 <Zap className="h-5 w-5" />
               </div>
-              <h4 className="text-sm font-semibold text-foreground">Proses Cepat</h4>
-              <p className="mt-1 text-xs leading-relaxed text-mutedForeground">Hasil redesign logo hanya dalam hitungan detik hingga menit.</p>
+              <h4 className="text-sm font-semibold text-foreground">{isId ? 'Proses Cepat' : 'Fast Processing'}</h4>
+              <p className="mt-1 text-xs leading-relaxed text-mutedForeground">{isId ? 'Hasil redesign logo hanya dalam hitungan detik hingga menit.' : 'Logo redesign results are delivered within seconds to minutes.'}</p>
             </div>
             <div className="rounded-2xl border border-border bg-white p-4">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <h4 className="text-sm font-semibold text-foreground">Keamanan Terjamin</h4>
-              <p className="mt-1 text-xs leading-relaxed text-mutedForeground">Gambar Anda diproses secara aman dan dihapus dari server setelah selesai.</p>
+              <h4 className="text-sm font-semibold text-foreground">{isId ? 'Keamanan Terjamin' : 'Secure by Design'}</h4>
+              <p className="mt-1 text-xs leading-relaxed text-mutedForeground">{isId ? 'Gambar Anda diproses secara aman dan dihapus dari server setelah selesai.' : 'Your images are processed securely and removed from the server after completion.'}</p>
             </div>
           </div>
         </div>
@@ -1777,8 +1964,8 @@ function AboutPage({ onNavigate }) {
   );
 }
 
-export default function LandingPage({ onStart, authPanel, onNavigate }) {
-  return <PublicLanding onStart={onStart} authPanel={authPanel} onNavigate={onNavigate} />;
+export default function LandingPage({ locale = 'id', onLocaleChange, onStart, authPanel, onNavigate }) {
+  return <PublicLanding locale={locale} onLocaleChange={onLocaleChange} onStart={onStart} authPanel={authPanel} onNavigate={onNavigate} />;
 }
 
 export { AboutPage, ContactPage, PrivacyPage, TermsPage };

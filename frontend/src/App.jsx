@@ -9,10 +9,11 @@ import LandingPage, { AboutPage, ContactPage, PrivacyPage, TermsPage } from './c
 import ResultPreview from './components/ResultPreview.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
 import UploadBox from './components/UploadBox.jsx';
-import { commitJob, deleteCloudJob, getBalance, listExampleJobs, quoteJob, requestImageRetouch, toUserApiError, uploadExampleArtifacts } from './lib/api.js';
+import { claimSignupBonus, commitJob, deleteCloudJob, getAppConfig, getBalance, listExampleJobs, quoteJob, requestImageRetouch, toUserApiError, uploadExampleArtifacts } from './lib/api.js';
 import { createNormalizedImagePreviewBlob } from './lib/imagePreview.js';
 import { deleteHistoryJob, loadHistoryJobs, releaseHistoryJobs, saveHistoryJob } from './lib/localHistoryStore.js';
 import { parseMidtransReturnParams, stripMidtransReturnParams } from './lib/billingPanelState.js';
+import { ensureBrowserDeviceId, loadStoredLocale, localeTag, resolveInitialLocale, saveStoredLocale } from './lib/locale.js';
 import { processImageLocally } from './lib/localProcessor.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from './lib/modes.js';
 import { IMAGE_RETOUCH_PRICE_IDR, calculateJobPrice, formatRupiah } from './lib/pricing.js';
@@ -37,13 +38,63 @@ function getPublicRouteFromPathname(pathname) {
   return 'landing';
 }
 
-function getDocumentTitle(route, hasSession) {
-  if (route === 'privacy') return 'Kebijakan Privasi - EasyRedesign Pro';
-  if (route === 'terms') return 'Syarat dan Ketentuan - EasyRedesign Pro';
-  if (route === 'contact') return 'Hubungi Kami - EasyRedesign Pro';
-  if (route === 'about') return 'Tentang Kami - EasyRedesign Pro';
-  if (hasSession) return 'EasyRedesign Pro - Dashboard Sablon & Sticker';
-  return 'EasyRedesign Pro - Redesign AI Logo & Vector Siap Proses';
+function getDocumentTitle(route, hasSession, locale = 'id') {
+  const isId = locale === 'id';
+  if (route === 'privacy') return isId ? 'Kebijakan Privasi - EasyRedesign Pro' : 'Privacy Policy - EasyRedesign Pro';
+  if (route === 'terms') return isId ? 'Syarat dan Ketentuan - EasyRedesign Pro' : 'Terms and Conditions - EasyRedesign Pro';
+  if (route === 'contact') return isId ? 'Hubungi Kami - EasyRedesign Pro' : 'Contact Us - EasyRedesign Pro';
+  if (route === 'about') return isId ? 'Tentang Kami - EasyRedesign Pro' : 'About Us - EasyRedesign Pro';
+  if (hasSession) return isId ? 'EasyRedesign Pro - Dashboard Sablon & Sticker' : 'EasyRedesign Pro - Screen Print and Sticker Dashboard';
+  return isId ? 'EasyRedesign Pro - Redesign AI Logo & Vector Siap Proses' : 'EasyRedesign Pro - AI Logo Redesign and Production-Ready Vector';
+}
+
+function getDocumentDescription(route, hasSession, locale = 'id') {
+  const isId = locale === 'id';
+  if (route === 'privacy') {
+    return isId
+      ? 'Pelajari bagaimana EasyRedesign Pro mengumpulkan, menggunakan, dan melindungi informasi pribadi Anda.'
+      : 'Learn how EasyRedesign Pro collects, uses, and protects your personal information.';
+  }
+  if (route === 'terms') {
+    return isId
+      ? 'Baca syarat dan ketentuan penggunaan layanan EasyRedesign Pro.'
+      : 'Read the terms and conditions for using EasyRedesign Pro.';
+  }
+  if (route === 'contact') {
+    return isId
+      ? 'Hubungi tim EasyRedesign Pro untuk bantuan teknis, billing, atau pertanyaan umum.'
+      : 'Contact the EasyRedesign Pro team for technical, billing, or general support.';
+  }
+  if (route === 'about') {
+    return isId
+      ? 'Mengenal lebih dekat EasyRedesign Pro, platform redesign logo berbasis AI.'
+      : 'Get to know EasyRedesign Pro, an AI-powered logo redesign platform.';
+  }
+  if (hasSession) {
+    return isId
+      ? 'Dashboard EasyRedesign Pro untuk upload, billing, dan hasil proses logo.'
+      : 'EasyRedesign Pro dashboard for uploads, billing, and processed logo results.';
+  }
+  return isId
+    ? 'EasyRedesign Pro membantu mengubah foto logo menjadi hasil redesign AI dan vector siap proses untuk sablon atau sticker.'
+    : 'EasyRedesign Pro turns logo photos into cleaner AI redraws and production-ready vectors for screen printing or stickers.';
+}
+
+function updateDocumentMeta({ route, hasSession, locale }) {
+  const title = getDocumentTitle(route, hasSession, locale);
+  const description = getDocumentDescription(route, hasSession, locale);
+  document.title = title;
+  document.documentElement.lang = locale === 'id' ? 'id' : 'en';
+  const localeMeta = document.querySelector('meta[property="og:locale"]');
+  if (localeMeta) localeMeta.setAttribute('content', locale === 'id' ? 'id_ID' : 'en_US');
+  for (const selector of ['meta[name="description"]', 'meta[property="og:description"]', 'meta[name="twitter:description"]']) {
+    const node = document.querySelector(selector);
+    if (node) node.setAttribute('content', description);
+  }
+  for (const selector of ['meta[property="og:title"]', 'meta[name="twitter:title"]']) {
+    const node = document.querySelector(selector);
+    if (node) node.setAttribute('content', title);
+  }
 }
 
 const initialSettings = {
@@ -67,6 +118,78 @@ const initialSettings = {
   paperSize: 'A4',
   paperOrientation: 'portrait'
 };
+
+function getAppCopy(locale = 'id') {
+  const isId = locale === 'id';
+  return {
+    labels: {
+      roleSuperadmin: isId ? 'Superadmin' : 'Admin',
+      roleUser: isId ? 'User' : 'User',
+      viewApp: 'App',
+      viewBilling: isId ? 'Billing' : 'Billing',
+      viewAdmin: 'Admin',
+      topUp: isId ? 'Isi saldo' : 'Top up balance',
+      logout: isId ? 'Logout' : 'Sign out',
+      refreshBalance: isId ? 'Refresh saldo' : 'Refresh balance',
+      processSection: isId ? 'Proses Baru' : 'New Process',
+      historySection: isId ? 'Riwayat Job' : 'Job History',
+      processingButtonIdle: isId ? 'Proses dan debit credit' : 'Process and deduct credit',
+      processingButtonBusy: isId ? 'Sedang memproses' : 'Processing',
+      activeHistoryTitle: isId ? 'Riwayat aktif' : 'Active history',
+      activeHistoryBody: isId
+        ? 'Job yang selesai dipindahkan ke halaman ini supaya area proses tetap fokus untuk upload berikutnya.'
+        : 'Completed jobs move here so the process area stays focused on your next upload.',
+      backToProcess: isId ? 'Kembali ke Proses Baru' : 'Back to New Process',
+      sourcePreview: isId ? 'Preview gambar awal' : 'Original image preview'
+    },
+    messages: {
+      historySaved: isId
+        ? 'Job selesai diproses dan dipindahkan ke riwayat agar halaman proses tetap bersih.'
+        : 'The job finished successfully and moved to history to keep the process page clean.',
+      historyReadError: isId ? 'Riwayat lokal tidak bisa dibaca di browser ini.' : 'Local history cannot be read in this browser.',
+      exampleLoadError: isId ? 'Contoh pekerjaan belum bisa dimuat saat ini.' : 'Example jobs cannot be loaded right now.',
+      loginRequired: isId ? 'Login dulu untuk memakai credit.' : 'Please sign in before using credits.',
+      uploadRequired: isId ? 'Upload gambar wajib diisi.' : 'Please upload an image first.',
+      insufficientBalance: (price, balance) =>
+        isId
+          ? `Saldo kurang. Perkiraan biaya ${price}, saldo ${balance}.`
+          : `Not enough balance. Estimated cost ${price}, current balance ${balance}.`,
+      preparingLocal: isId ? 'Menyiapkan file lokal.' : 'Preparing your local file.',
+      processingRetouch: isId ? 'Menggambar ulang gambar tanpa penyimpanan permanen server.' : 'Redrawing the image without permanent server storage.',
+      processingReadyTrace: isId ? 'Menjalankan Vector Siap Proses langsung di browser.' : 'Running Production-Ready Vector directly in the browser.',
+      usingBackendVector: isId ? 'Memakai vector backend berbasis Potrace smoothing.' : 'Using backend vector output with Potrace smoothing.',
+      usingBrowserVector: isId ? 'Membuat vector, cutline, film, PDF, dan ZIP di browser.' : 'Creating vectors, cutlines, films, PDFs, and ZIP files in the browser.',
+      commitJob: isId ? 'Mencatat metadata job dan mendebit credit.' : 'Saving job metadata and deducting credits.',
+      processFailed: isId ? 'Gagal memproses gambar.' : 'Failed to process the image.',
+      processFailedShort: isId ? 'Gagal memproses gambar.' : 'Image processing failed.',
+      deleteExampleConfirm: isId
+        ? 'Hapus job contoh ini? Publikasi contoh akan dicabut dan artefak bucket akan dibersihkan.'
+        : 'Delete this example job? The public example will be unpublished and its bucket artifacts removed.',
+      deleteHistoryConfirm: isId
+        ? 'Hapus job ini dari riwayat perangkat dan metadata server? Jika ingin menjadikannya contoh, publish dulu sebelum menghapus.'
+        : 'Delete this job from device history and server metadata? Publish it first if you want to keep it as an example.',
+      localWarning: isId
+        ? 'Riwayat lokal dihapus, tetapi metadata server belum berhasil dibersihkan.'
+        : 'Local history was removed, but server metadata could not be fully cleaned up.',
+      deleteExampleError: isId ? 'Gagal menghapus job contoh.' : 'Failed to delete the example job.',
+      deleteHistoryError: isId ? 'Gagal menghapus riwayat job.' : 'Failed to delete the job history.',
+      oauthCallbackError: isId ? 'Login Google gagal diproses.' : 'Google sign-in could not be completed.',
+      sessionReadError: isId ? 'Session login tidak bisa dibaca.' : 'The login session could not be read.',
+      serviceConnectionError: isId
+        ? 'Koneksi ke layanan belum tersambung. Periksa URL API aplikasi.'
+        : 'The service connection is not ready yet. Please check the app API URL.',
+      signupBonusGranted: isId
+        ? 'Bonus pengguna baru berhasil masuk: 1 credit gratis.'
+        : 'New user bonus applied successfully: 1 free credit.',
+      signupBonusLimit: isId
+        ? 'Akun ini berhasil dibuat, tetapi bonus pengguna baru sudah habis untuk device atau IP ini.'
+        : 'Your account was created successfully, but the new-user bonus has already been used up for this device or IP.',
+      signupBonusClaimError: isId
+        ? 'Akun berhasil login, tetapi bonus pengguna baru belum bisa dicek sekarang.'
+        : 'You are signed in, but the new-user bonus could not be checked right now.'
+    }
+  };
+}
 
 function statusJob(status, message, progress = 0) {
   return {
@@ -220,6 +343,7 @@ function clearFallbackSession() {
 }
 
 export default function App() {
+  const browserLanguage = typeof navigator !== 'undefined' ? navigator.language : '';
   const [file, setFile] = useState(null);
   const [settings, setSettings] = useState(initialSettings);
   const [job, setJob] = useState(null);
@@ -244,6 +368,17 @@ export default function App() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [publicRoute, setPublicRoute] = useState(() => getPublicRouteFromPathname(window.location.pathname || '/'));
   const [midtransReturnState, setMidtransReturnState] = useState(() => parseMidtransReturnParams(window.location.search || ''));
+  const [appConfig, setAppConfig] = useState({ settings: {}, features: {}, viewer: {} });
+  const [localeOverride, setLocaleOverride] = useState(() => loadStoredLocale());
+  const [signupBonusNotice, setSignupBonusNotice] = useState('');
+  const signupBonusClaimRef = useRef('');
+  const locale = resolveInitialLocale({
+    storedLocale: localeOverride,
+    viewerDefaultLocale: appConfig?.viewer?.defaultLocale || '',
+    browserLanguage
+  });
+  const copy = getAppCopy(locale);
+  const isId = locale === 'id';
 
   useEffect(() => {
     if (previewRef.current) {
@@ -276,8 +411,24 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.title = getDocumentTitle(publicRoute, Boolean(session));
-  }, [publicRoute, session]);
+    let cancelled = false;
+
+    getAppConfig()
+      .then((data) => {
+        if (!cancelled) setAppConfig(data || { settings: {}, features: {}, viewer: {} });
+      })
+      .catch(() => {
+        if (!cancelled) setAppConfig({ settings: {}, features: {}, viewer: {} });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    updateDocumentMeta({ route: publicRoute, hasSession: Boolean(session), locale });
+  }, [locale, publicRoute, session]);
 
   useEffect(() => {
     if (midtransReturnState.isReturn && session?.access_token) {
@@ -294,6 +445,11 @@ export default function App() {
     }
     setPublicRoute(getPublicRouteFromPathname(normalized));
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function handleLocaleChange(nextLocale) {
+    const normalized = saveStoredLocale(nextLocale);
+    setLocaleOverride(normalized);
   }
 
   useEffect(() => {
@@ -348,7 +504,7 @@ export default function App() {
               setView('app');
               return;
             }
-            setAuthCallbackError(error.message || 'Login Google gagal diproses.');
+            setAuthCallbackError(error.message || copy.messages.oauthCallbackError);
             return;
           }
           setAuthCallbackError('');
@@ -378,7 +534,7 @@ export default function App() {
             setSession(fallbackSession);
             setView('app');
           } else {
-            setAuthCallbackError(error instanceof Error ? error.message : 'Login Google gagal diproses.');
+            setAuthCallbackError(error instanceof Error ? error.message : copy.messages.oauthCallbackError);
           }
         }
       }
@@ -430,7 +586,7 @@ export default function App() {
       setHistoryError('');
       replaceHistoryJobs(await loadHistoryJobs(ownerId));
     } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : 'Riwayat lokal tidak bisa dibaca di browser ini.');
+      setHistoryError(error instanceof Error ? error.message : copy.messages.historyReadError);
       replaceHistoryJobs([]);
     }
   }
@@ -466,6 +622,32 @@ export default function App() {
   }, [session?.access_token, session?.user?.id, view]);
 
   useEffect(() => {
+    const claimKey = `${session?.user?.id || ''}:${session?.access_token ? '1' : '0'}`;
+    if (!session?.access_token || !session?.user?.id || signupBonusClaimRef.current === claimKey) return;
+    signupBonusClaimRef.current = claimKey;
+
+    claimSignupBonus(
+      {
+        deviceId: ensureBrowserDeviceId()
+      },
+      session.access_token
+    )
+      .then(async (data) => {
+        if (data?.granted) {
+          setSignupBonusNotice(copy.messages.signupBonusGranted);
+          await refreshBalance(session);
+          return;
+        }
+        if (data?.reason === 'limit_reached') {
+          setSignupBonusNotice(copy.messages.signupBonusLimit);
+        }
+      })
+      .catch(() => {
+        setSignupBonusNotice(copy.messages.signupBonusClaimError);
+      });
+  }, [copy.messages.signupBonusClaimError, copy.messages.signupBonusGranted, copy.messages.signupBonusLimit, session?.access_token, session?.user?.id]);
+
+  useEffect(() => {
     return () => {
       releaseHistoryJobs(historyJobsRef.current);
       historyJobsRef.current = [];
@@ -475,6 +657,7 @@ export default function App() {
   async function signOut() {
     if (supabase) await supabase.auth.signOut();
     clearFallbackSession();
+    signupBonusClaimRef.current = '';
     setSession(null);
     setBalance(null);
     setJob(null);
@@ -487,6 +670,7 @@ export default function App() {
     setExampleJobs([]);
     setExampleError('');
     setDeletingLibraryJobId('');
+    setSignupBonusNotice('');
   }
 
   function handleMidtransReturnHandled() {
@@ -496,7 +680,7 @@ export default function App() {
   }
 
   async function ensureCanRun(estimatedFilmCount = 0) {
-    if (!session?.access_token) throw new Error('Login dulu untuk memakai credit.');
+    if (!session?.access_token) throw new Error(copy.messages.loginRequired);
     const quote = await quoteJob(
       {
         inputMode: settings.inputMode,
@@ -507,7 +691,7 @@ export default function App() {
       session.access_token
     );
     if (!quote.isUnlimited && quote.balance < quote.priceIdr) {
-      throw new Error(`Saldo kurang. Perkiraan biaya ${formatRupiah(quote.priceIdr)}, saldo ${formatRupiah(quote.balance)}.`);
+      throw new Error(copy.messages.insufficientBalance(formatRupiah(quote.priceIdr), formatRupiah(quote.balance)));
     }
     return quote;
   }
@@ -515,7 +699,7 @@ export default function App() {
   async function handleSubmit(event) {
     event.preventDefault();
     if (!file) {
-      setJobError('Upload gambar wajib diisi.');
+      setJobError(copy.messages.uploadRequired);
       return;
     }
 
@@ -523,7 +707,7 @@ export default function App() {
     setSuggestedInputMode('');
     setHistoryNotice('');
     setIsSubmitting(true);
-    setJob(statusJob('preprocessing', 'Menyiapkan file lokal.', 10));
+    setJob(statusJob('preprocessing', copy.messages.preparingLocal, 10));
 
     try {
       let sourcePreviewBlob = null;
@@ -540,14 +724,14 @@ export default function App() {
       let backendVectorResult = null;
 
       if (settings.inputMode === INPUT_MODE_RETOUCH) {
-        setJob(statusJob('processing_image', 'Menggambar ulang gambar tanpa penyimpanan permanen server.', 25));
+        setJob(statusJob('processing_image', copy.messages.processingRetouch, 25));
         const retouchResult = await requestImageRetouch(file, settings, session.access_token);
         processingFile = retouchResult.file;
         retouchLedgerId = retouchResult.retouchLedgerId;
         aiRedrawMetadata = retouchResult.aiRedrawMetadata || null;
         backendVectorResult = retouchResult.localResult || null;
       } else {
-        setJob(statusJob('processing_image', 'Menjalankan Vector Siap Proses langsung di browser.', 30));
+        setJob(statusJob('processing_image', copy.messages.processingReadyTrace, 30));
         readyTraceMetadata = {
           processor: 'browser_local_trace',
           vectorEngine: 'canvas_boundary_trace',
@@ -558,9 +742,7 @@ export default function App() {
       setJob(
         statusJob(
           'vectorizing',
-          backendVectorResult
-            ? 'Memakai vector backend berbasis Potrace smoothing.'
-            : 'Membuat vector, cutline, film, PDF, dan ZIP di browser.',
+          backendVectorResult ? copy.messages.usingBackendVector : copy.messages.usingBrowserVector,
           60
         )
       );
@@ -576,7 +758,7 @@ export default function App() {
         retouchAlreadyCharged: settings.inputMode === INPUT_MODE_RETOUCH
       });
 
-      setJob(statusJob('exporting', 'Mencatat metadata job dan mendebit credit.', 88));
+      setJob(statusJob('exporting', copy.messages.commitJob, 88));
       const committed = await commitJob(
         {
           inputMode: settings.inputMode,
@@ -612,13 +794,13 @@ export default function App() {
         await refreshHistory();
         setHistorySelectedKey(completedJob.jobId);
         setAppSection('history');
-        setHistoryNotice('Job selesai diproses dan dipindahkan ke riwayat agar halaman proses tetap bersih.');
+        setHistoryNotice(copy.messages.historySaved);
         setFile(null);
         setJob(null);
         setJobError('');
         setSuggestedInputMode('');
       } catch (historySaveError) {
-        setHistoryError(historySaveError instanceof Error ? historySaveError.message : 'Riwayat lokal tidak bisa disimpan di browser ini.');
+        setHistoryError(historySaveError instanceof Error ? historySaveError.message : copy.messages.historyReadError);
       }
 
       if (isSuperuser && committed.job?.id) {
@@ -636,10 +818,10 @@ export default function App() {
 
       await refreshBalance();
     } catch (submitError) {
-      const userError = toUserApiError(submitError, 'Gagal memproses gambar.');
+      const userError = toUserApiError(submitError, copy.messages.processFailed);
       setJobError(userError.message);
       setSuggestedInputMode(submitError?.suggestedInputMode || '');
-      setJob(statusJob('failed', 'Gagal memproses gambar.', 100));
+      setJob(statusJob('failed', copy.messages.processFailedShort, 100));
     } finally {
       setIsSubmitting(false);
     }
@@ -653,13 +835,13 @@ export default function App() {
   const isSuperuser = ['superuser', 'superadmin'].includes(profile?.role) || isWhitelistedSuperadmin;
   const isUnlimited = profile?.is_unlimited ?? isWhitelistedSuperadmin;
   const balanceLabel = isUnlimited ? 'Unlimited' : formatRupiah(balance?.balance || 0);
-  const roleLabel = isSuperuser ? 'Superadmin' : 'User';
+  const roleLabel = isSuperuser ? copy.labels.roleSuperadmin : copy.labels.roleUser;
 
   async function handleDeleteLibraryJob(item) {
     if (!item?.canDelete) return;
     const deleteMessage = item.isExample
-      ? 'Hapus job contoh ini? Publikasi contoh akan dicabut dan artefak bucket akan dibersihkan.'
-      : 'Hapus job ini dari riwayat perangkat dan metadata server? Jika ingin menjadikannya contoh, publish dulu sebelum menghapus.';
+      ? copy.messages.deleteExampleConfirm
+      : copy.messages.deleteHistoryConfirm;
     if (!window.confirm(deleteMessage)) return;
     setDeletingLibraryJobId(item.id || item.jobId || '');
     setHistoryError('');
@@ -672,7 +854,7 @@ export default function App() {
         try {
           await deleteCloudJob(item.jobId, session.access_token);
         } catch (_error) {
-          localWarning = 'Riwayat lokal dihapus, tetapi metadata server belum berhasil dibersihkan.';
+          localWarning = copy.messages.localWarning;
         }
       }
 
@@ -688,7 +870,7 @@ export default function App() {
         setHistoryError(localWarning);
       }
     } catch (error) {
-      const message = toUserApiError(error, item.isExamplePublic ? 'Gagal menghapus job contoh.' : 'Gagal menghapus riwayat job.').message;
+      const message = toUserApiError(error, item.isExamplePublic ? copy.messages.deleteExampleError : copy.messages.deleteHistoryError).message;
       if (item.isExamplePublic) {
         setExampleError(message);
       } else {
@@ -701,10 +883,10 @@ export default function App() {
 
   const currentPathname = normalizePathname(window.location.pathname || '/');
   if (LEGAL_PATHS.has(currentPathname)) {
-    if (publicRoute === 'privacy') return <PrivacyPage onNavigate={navigatePublicPath} />;
-    if (publicRoute === 'terms') return <TermsPage onNavigate={navigatePublicPath} />;
-    if (publicRoute === 'contact') return <ContactPage onNavigate={navigatePublicPath} />;
-    if (publicRoute === 'about') return <AboutPage onNavigate={navigatePublicPath} />;
+    if (publicRoute === 'privacy') return <PrivacyPage locale={locale} onNavigate={navigatePublicPath} />;
+    if (publicRoute === 'terms') return <TermsPage locale={locale} onNavigate={navigatePublicPath} />;
+    if (publicRoute === 'contact') return <ContactPage locale={locale} onNavigate={navigatePublicPath} />;
+    if (publicRoute === 'about') return <AboutPage locale={locale} onNavigate={navigatePublicPath} />;
   }
 
   return (
@@ -725,7 +907,7 @@ export default function App() {
                 type="button"
                 onClick={refreshBalance}
                 className="inline-flex h-9 w-9 items-center justify-center border border-line bg-white text-gray-700 hover:border-spruce hover:text-spruce"
-                title="Refresh saldo"
+                title={copy.labels.refreshBalance}
               >
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -741,24 +923,36 @@ export default function App() {
                       onClick={() => setView(item)}
                       className={`border px-3 py-2 text-sm font-semibold ${view === item ? 'border-spruce bg-spruce text-white' : 'border-line bg-white text-ink'}`}
                     >
-                      {item === 'app' ? 'App' : item === 'billing' ? 'Billing' : 'Admin'}
+                      {item === 'app' ? copy.labels.viewApp : item === 'billing' ? copy.labels.viewBilling : copy.labels.viewAdmin}
                     </button>
                   )
                 )}
               </nav>
+              <div className="inline-flex items-center overflow-hidden rounded-md border border-line bg-white">
+                {['id', 'en'].map((nextLocale) => (
+                  <button
+                    key={nextLocale}
+                    type="button"
+                    onClick={() => handleLocaleChange(nextLocale)}
+                    className={`px-3 py-2 text-xs font-semibold uppercase ${locale === nextLocale ? 'bg-spruce text-white' : 'text-ink hover:bg-panel'}`}
+                  >
+                    {nextLocale}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={() => setView('billing')}
                 className="inline-flex min-h-10 items-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-semibold text-white hover:bg-primary/90"
               >
                 <ShoppingBag className="h-4 w-4" aria-hidden="true" />
-                Isi saldo
+                {copy.labels.topUp}
               </button>
               <button
                 type="button"
                 onClick={signOut}
                 className="inline-flex h-10 w-10 items-center justify-center border border-line bg-white text-gray-700 hover:border-tomato hover:text-tomato"
-                title="Logout"
+                title={copy.labels.logout}
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -769,14 +963,21 @@ export default function App() {
               <p className="border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">{balanceError}</p>
             </div>
           )}
+          {signupBonusNotice && (
+            <div className="mx-auto max-w-6xl px-4 pb-4 sm:px-6">
+              <p className="border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{signupBonusNotice}</p>
+            </div>
+          )}
         </div>
       )}
 
       {!session && (
         <>
           <LandingPage
+            locale={locale}
+            onLocaleChange={handleLocaleChange}
             onStart={() => document.getElementById('auth')?.scrollIntoView({ behavior: 'smooth' })}
-            authPanel={<AuthPanel onSignedIn={setSession} />}
+            authPanel={<AuthPanel locale={locale} onSignedIn={setSession} />}
             onNavigate={navigatePublicPath}
           />
           {authCallbackError && (
@@ -791,7 +992,7 @@ export default function App() {
 
       {session && view === 'billing' && (
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
-          <BillingPanel session={session} returnState={midtransReturnState} onRefreshBalance={refreshBalance} onReturnHandled={handleMidtransReturnHandled} />
+          <BillingPanel locale={locale} session={session} returnState={midtransReturnState} onRefreshBalance={refreshBalance} onReturnHandled={handleMidtransReturnHandled} />
         </div>
       )}
 
@@ -806,9 +1007,9 @@ export default function App() {
           <div className="space-y-4">
             <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
               <div className="flex flex-wrap gap-2">
-                {[
-                  { key: 'process', label: 'Proses Baru' },
-                  { key: 'history', label: 'Riwayat Job' }
+                {[ 
+                  { key: 'process' },
+                  { key: 'history' }
                 ].map((section) => (
                   <button
                     key={section.key}
@@ -823,7 +1024,7 @@ export default function App() {
                       appSection === section.key ? 'border-spruce bg-spruce text-white' : 'border-line bg-white text-ink hover:border-spruce'
                     }`}
                   >
-                    {section.label}
+                    {section.key === 'process' ? copy.labels.processSection : copy.labels.historySection}
                   </button>
                 ))}
               </div>
@@ -832,6 +1033,7 @@ export default function App() {
             {appSection === 'process' ? (
               <>
                 <UploadBox
+                  locale={locale}
                   file={file}
                   previewUrl={previewUrl}
                   inputMode={settings.inputMode}
@@ -853,6 +1055,7 @@ export default function App() {
                   disabled={isBusy}
                 />
                 <JobStatus
+                  locale={locale}
                   job={job}
                   error={jobError}
                   suggestedInputMode={suggestedInputMode}
@@ -863,9 +1066,10 @@ export default function App() {
                   }}
                 />
                 <ResultPreview
+                  locale={locale}
                   job={job}
                   sourcePreviewUrl={previewUrl}
-                  sourcePreviewLabel={file?.name ? `Preview awal: ${file.name}` : 'Preview gambar awal'}
+                  sourcePreviewLabel={file?.name ? `${copy.labels.sourcePreview}: ${file.name}` : copy.labels.sourcePreview}
                   onDelete={() => setJob(null)}
                   isDeleting={false}
                 />
@@ -878,6 +1082,7 @@ export default function App() {
                   </section>
                 )}
                 <JobLibraryPanel
+                  locale={locale}
                   historyJobs={historyJobs}
                   exampleJobs={exampleJobs}
                   historyError={historyError}
@@ -895,21 +1100,21 @@ export default function App() {
           <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
             {appSection === 'process' ? (
               <>
-                <SettingsPanel settings={settings} inputMode={settings.inputMode} onChange={setSettings} disabled={isBusy} />
+                <SettingsPanel locale={locale} settings={settings} inputMode={settings.inputMode} onChange={setSettings} disabled={isBusy} />
                 <button
                   type="submit"
                   disabled={!canSubmit}
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 border border-spruce bg-spruce px-4 py-3 text-sm font-bold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300 disabled:text-gray-600"
                 >
                   <Wand2 className="h-5 w-5" aria-hidden="true" />
-                  <span>{isBusy ? 'Sedang memproses' : 'Proses dan debit credit'}</span>
+                  <span>{isBusy ? copy.labels.processingButtonBusy : copy.labels.processingButtonIdle}</span>
                 </button>
               </>
             ) : (
               <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
-                <h2 className="text-base font-semibold text-ink">Riwayat aktif</h2>
+                <h2 className="text-base font-semibold text-ink">{copy.labels.activeHistoryTitle}</h2>
                 <p className="mt-2 text-sm leading-6 text-gray-600">
-                  Job yang selesai dipindahkan ke halaman ini supaya area proses tetap fokus untuk upload berikutnya.
+                  {copy.labels.activeHistoryBody}
                 </p>
                 <button
                   type="button"
@@ -919,7 +1124,7 @@ export default function App() {
                   }}
                   className="mt-4 inline-flex min-h-10 w-full items-center justify-center border border-spruce bg-white px-3 py-2 text-sm font-semibold text-spruce transition hover:bg-primary/5"
                 >
-                  Kembali ke Proses Baru
+                  {copy.labels.backToProcess}
                 </button>
               </section>
             )}

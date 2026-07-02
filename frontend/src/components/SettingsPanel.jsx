@@ -20,7 +20,8 @@ function Toggle({ checked, onChange, label, disabled }) {
   );
 }
 
-export default function SettingsPanel({ settings, inputMode, onChange, disabled }) {
+export default function SettingsPanel({ locale = 'id', settings, inputMode, onChange, disabled }) {
+  const isId = locale === 'id';
   function update(key, value) {
     onChange({ ...settings, [key]: value });
   }
@@ -54,12 +55,12 @@ export default function SettingsPanel({ settings, inputMode, onChange, disabled 
     <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-4 flex items-center gap-2">
         <SlidersHorizontal className="h-5 w-5 text-spruce" aria-hidden="true" />
-        <h2 className="text-base font-semibold text-ink">Pengaturan produksi</h2>
+        <h2 className="text-base font-semibold text-ink">{isId ? 'Pengaturan produksi' : 'Production settings'}</h2>
       </div>
 
       <div className="space-y-5">
         <div>
-          <span className="mb-2 block text-sm font-medium text-ink">Jenis produksi</span>
+          <span className="mb-2 block text-sm font-medium text-ink">{isId ? 'Jenis produksi' : 'Production type'}</span>
           <div className="grid grid-cols-2 gap-2">
             {['sablon', 'sticker'].map((type) => (
               <button
@@ -81,15 +82,15 @@ export default function SettingsPanel({ settings, inputMode, onChange, disabled 
           <Toggle
             checked={inputMode === INPUT_MODE_READY ? true : settings.makeVector}
             onChange={(value) => update('makeVector', value)}
-            label={inputMode === INPUT_MODE_READY ? 'Vector only (otomatis)' : 'Buat versi vector'}
+            label={inputMode === INPUT_MODE_READY ? (isId ? 'Vector only (otomatis)' : 'Vector only (automatic)') : isId ? 'Buat versi vector' : 'Create vector version'}
             disabled={disabled || settings.separateColors || inputMode === INPUT_MODE_READY}
           />
-          <Toggle checked={settings.separateColors} onChange={setSeparateColors} label="Pecah warna untuk sablon" disabled={disabled} />
+          <Toggle checked={settings.separateColors} onChange={setSeparateColors} label={isId ? 'Pecah warna untuk sablon' : 'Separate colors for screen print'} disabled={disabled} />
         </div>
 
         {inputMode === INPUT_MODE_READY && (
           <div className="border border-spruce bg-primary/5 px-3 py-2 text-xs leading-5 text-ink">
-            Mode siap trace selalu menjalankan vector, pisah warna, dan contour sticker lewat jalur backend lokal.
+            {isId ? 'Mode siap trace selalu menjalankan vector, pisah warna, dan contour sticker lewat jalur backend lokal.' : 'Production-ready trace mode always runs vectoring, color separation, and sticker contour generation through the local backend path.'}
           </div>
         )}
 
@@ -97,28 +98,28 @@ export default function SettingsPanel({ settings, inputMode, onChange, disabled 
           <Toggle
             checked={settings.removeBackground}
             onChange={setRemoveBackground}
-            label="Hilangkan background"
+            label={isId ? 'Hilangkan background' : 'Remove background'}
             disabled={disabled}
           />
           <p className="mt-2 text-xs text-gray-600">
-            Ukuran dan output difokuskan ke objek utama saja. Background yang terdeteksi akan diabaikan.
+            {isId ? 'Ukuran dan output difokuskan ke objek utama saja. Background yang terdeteksi akan diabaikan.' : 'Sizing and output focus on the main subject only. Detected backgrounds will be ignored.'}
           </p>
         </div>
 
         <div>
           <span className="mb-2 flex items-center gap-2 text-sm font-medium text-ink">
             <Palette className="h-4 w-4 text-spruce" aria-hidden="true" />
-            Jumlah warna
+            {isId ? 'Jumlah warna' : 'Color count'}
           </span>
           <div className="grid gap-2">
             <Toggle
               checked={settings.colorLimitMode === 'manual'}
               onChange={(value) => update('colorLimitMode', value ? 'manual' : 'auto')}
-              label="Batasi jumlah warna"
+              label={isId ? 'Batasi jumlah warna' : 'Limit the number of colors'}
               disabled={disabled}
             />
             {settings.colorLimitMode !== 'manual' && (
-              <div className="border border-spruce bg-primary/5 px-3 py-2.5 text-sm font-semibold text-ink">Otomatis</div>
+              <div className="border border-spruce bg-primary/5 px-3 py-2.5 text-sm font-semibold text-ink">{isId ? 'Otomatis' : 'Automatic'}</div>
             )}
           </div>
           <select
@@ -129,7 +130,7 @@ export default function SettingsPanel({ settings, inputMode, onChange, disabled 
           >
             {[2, 3, 4, 5, 6].map((count) => (
               <option key={count} value={count}>
-                {count} warna
+                {count} {isId ? 'warna' : 'colors'}
               </option>
             ))}
           </select>
@@ -137,18 +138,18 @@ export default function SettingsPanel({ settings, inputMode, onChange, disabled 
 
         {settings.productionType === 'sticker' && (
           <div className="border border-line bg-panel p-3">
-            <p className="mb-3 text-sm font-semibold text-ink">Output sticker</p>
+            <p className="mb-3 text-sm font-semibold text-ink">{isId ? 'Output sticker' : 'Sticker output'}</p>
             <Toggle
               checked={settings.stickerCutlineEnabled}
               onChange={(value) => update('stickerCutlineEnabled', value)}
-              label="Buat garis potong sticker"
+              label={isId ? 'Buat garis potong sticker' : 'Create sticker cutline'}
               disabled={disabled}
             />
 
             {settings.stickerCutlineEnabled && (
               <div className="mt-3 grid gap-3">
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Lebar artwork horizontal</span>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">{isId ? 'Lebar artwork horizontal' : 'Artwork width'}</span>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"

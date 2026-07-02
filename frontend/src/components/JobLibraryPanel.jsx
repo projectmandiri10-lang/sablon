@@ -151,7 +151,8 @@ function mergeLibraryItems(localItem, exampleItem) {
   };
 }
 
-function LibraryCard({ item, onOpen, onDelete, isDeleting }) {
+function LibraryCard({ locale = 'id', item, onOpen, onDelete, isDeleting }) {
+  const isId = locale === 'id';
   const productionLabel = productionLabels[item.productionType] || item.productionType;
   const inputLabel = inputModeLabels[item.inputMode] || item.inputMode;
 
@@ -161,15 +162,15 @@ function LibraryCard({ item, onOpen, onDelete, isDeleting }) {
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink">{item.projectName}</p>
           <p className="mt-1 text-xs text-gray-600">
-            {productionLabel} · {inputLabel}
+            {productionLabel} - {inputLabel}
           </p>
-          {item.updatedAt && <p className="mt-1 text-[11px] text-gray-500">{new Date(item.updatedAt).toLocaleString('id-ID')}</p>}
+          {item.updatedAt && <p className="mt-1 text-[11px] text-gray-500">{new Date(item.updatedAt).toLocaleString(isId ? 'id-ID' : 'en-US')}</p>}
         </div>
         <div className="flex items-center gap-2">
           {item.isExample && (
             <span className="inline-flex items-center gap-1 border border-spruce bg-primary/5 px-2 py-1 text-[11px] font-semibold text-spruce">
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              Contoh
+              {isId ? 'Contoh' : 'Example'}
             </span>
           )}
           {item.canDelete && (
@@ -178,7 +179,7 @@ function LibraryCard({ item, onOpen, onDelete, isDeleting }) {
               onClick={() => onDelete(item)}
               disabled={isDeleting}
               className="inline-flex h-9 w-9 items-center justify-center border border-tomato bg-white text-tomato transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
-              title={item.isExample ? 'Hapus job dan cabut publikasi contoh' : 'Hapus job'}
+              title={item.isExample ? (isId ? 'Hapus job dan cabut publikasi contoh' : 'Delete and unpublish this example job') : isId ? 'Hapus job' : 'Delete job'}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -187,8 +188,8 @@ function LibraryCard({ item, onOpen, onDelete, isDeleting }) {
       </div>
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <ExamplePreview label="Sebelum" src={item.sourcePreviewUrl} />
-        <ExamplePreview label="Sesudah" src={item.resultPreviewUrl || item.job?.files?.fullPng} />
+        <ExamplePreview label={isId ? 'Sebelum' : 'Before'} src={item.sourcePreviewUrl} />
+        <ExamplePreview label={isId ? 'Sesudah' : 'After'} src={item.resultPreviewUrl || item.job?.files?.fullPng} />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -198,7 +199,7 @@ function LibraryCard({ item, onOpen, onDelete, isDeleting }) {
           className="inline-flex min-h-9 items-center justify-center gap-2 border border-spruce bg-white px-3 py-2 text-xs font-semibold text-spruce transition hover:bg-primary/5"
         >
           <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-          Lihat hasil
+          {isId ? 'Lihat hasil' : 'View result'}
         </button>
       </div>
     </article>
@@ -206,6 +207,7 @@ function LibraryCard({ item, onOpen, onDelete, isDeleting }) {
 }
 
 export default function JobLibraryPanel({
+  locale = 'id',
   historyJobs,
   exampleJobs,
   historyError = '',
@@ -216,6 +218,7 @@ export default function JobLibraryPanel({
   selectedKey: controlledSelectedKey,
   onSelectedKeyChange
 }) {
+  const isId = locale === 'id';
   const [internalSelectedKey, setInternalSelectedKey] = useState('');
   const selectedKey = controlledSelectedKey ?? internalSelectedKey;
 
@@ -257,8 +260,12 @@ export default function JobLibraryPanel({
       <div className="mb-4 flex items-center gap-2">
         <Archive className="h-5 w-5 text-spruce" aria-hidden="true" />
         <div>
-          <h2 className="text-base font-semibold text-ink">Riwayat job & contoh</h2>
-          <p className="text-xs text-gray-600">Riwayat milik Anda di browser ini digabung dengan contoh job superadmin yang siap dibuka dan didownload.</p>
+          <h2 className="text-base font-semibold text-ink">{isId ? 'Riwayat job & contoh' : 'Job history and examples'}</h2>
+          <p className="text-xs text-gray-600">
+            {isId
+              ? 'Riwayat milik Anda di browser ini digabung dengan contoh job superadmin yang siap dibuka dan didownload.'
+              : 'Your browser history is merged with superadmin example jobs that are ready to open and download.'}
+          </p>
         </div>
       </div>
 
@@ -267,13 +274,14 @@ export default function JobLibraryPanel({
 
       {items.length === 0 ? (
         <div className="border border-dashed border-line bg-panel px-4 py-6 text-sm text-gray-600">
-          Belum ada riwayat job di browser ini dan belum ada contoh pekerjaan yang dipublish.
+          {isId ? 'Belum ada riwayat job di browser ini dan belum ada contoh pekerjaan yang dipublish.' : 'There is no job history in this browser yet and no published example jobs.'}
         </div>
       ) : (
         <div className="grid gap-3">
           {items.map((item) => (
             <LibraryCard
               key={item.id}
+              locale={locale}
               item={item}
               onOpen={(nextItem) => setSelectedKey(nextItem.selectionKey)}
               onDelete={onDeleteJob}
@@ -286,12 +294,17 @@ export default function JobLibraryPanel({
       {selectedItem && (
         <div className="mt-4 border-t border-line pt-4">
           <ResultPreview
+            locale={locale}
             job={selectedItem.job}
             sourcePreviewUrl={selectedItem.sourcePreviewUrl}
-            sourcePreviewLabel={selectedItem.sourceFileName ? `Preview awal: ${selectedItem.sourceFileName}` : 'Preview gambar awal'}
-            heading={selectedItem.isExample ? 'Detail contoh pekerjaan' : 'Detail riwayat job'}
+            sourcePreviewLabel={
+              selectedItem.sourceFileName
+                ? `${isId ? 'Preview awal' : 'Original preview'}: ${selectedItem.sourceFileName}`
+                : isId ? 'Preview gambar awal' : 'Original image preview'
+            }
+            heading={selectedItem.isExample ? (isId ? 'Detail contoh pekerjaan' : 'Example job details') : isId ? 'Detail riwayat job' : 'Job history details'}
             historyView={true}
-            subheading={`${productionLabels[selectedItem.productionType] || selectedItem.productionType} · ${inputModeLabels[selectedItem.inputMode] || selectedItem.inputMode}`}
+            subheading={`${productionLabels[selectedItem.productionType] || selectedItem.productionType} - ${inputModeLabels[selectedItem.inputMode] || selectedItem.inputMode}`}
             showDelete={selectedItem.canDelete}
             onDelete={selectedItem.canDelete ? () => onDeleteJob(selectedItem) : undefined}
             isDeleting={deletingJobId === selectedItem.id || deletingJobId === selectedItem.jobId}

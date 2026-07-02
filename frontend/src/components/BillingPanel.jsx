@@ -4,10 +4,10 @@ import { createMidtransCheckout, getAppConfig, listMidtransPayments, refreshMidt
 import { billingProviderLabel, buildBillingPanelState, buildMidtransReturnMessage } from '../lib/billingPanelState.js';
 import { formatRupiah } from '../lib/pricing.js';
 
-function formatPaymentTime(value) {
+function formatPaymentTime(value, locale = 'id') {
   if (!value) return '-';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('id-ID');
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale === 'id' ? 'id-ID' : 'en-US');
 }
 
 function isRefreshableStatus(payment) {
@@ -19,7 +19,7 @@ function mergePaymentRows(currentRows, nextPayment) {
   return [nextPayment, ...filtered].sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
 }
 
-export default function BillingPanel({ session, returnState = null, onRefreshBalance, onReturnHandled }) {
+export default function BillingPanel({ locale = 'id', session, returnState = null, onRefreshBalance, onReturnHandled }) {
   const [appConfig, setAppConfig] = useState({ settings: {}, features: {} });
   const [payments, setPayments] = useState([]);
   const [amountInput, setAmountInput] = useState('2000');
@@ -29,6 +29,41 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [refreshingOrderId, setRefreshingOrderId] = useState('');
   const handledReturnRef = useRef('');
+  const isId = locale === 'id';
+  const copy = {
+    billingLoadError: isId ? 'Billing belum bisa dimuat saat ini.' : 'Billing cannot be loaded right now.',
+    paymentRefreshError: isId ? 'Status pembayaran belum bisa diperbarui.' : 'Payment status cannot be refreshed yet.',
+    checkingPayment: isId ? 'Memeriksa status pembayaran...' : 'Checking payment status...',
+    minimumAmount: (amount) => (isId ? `Nominal minimal ${amount}.` : `Minimum amount is ${amount}.`),
+    checkoutError: isId ? 'Checkout pembayaran gagal dibuat.' : 'Failed to create the payment checkout.',
+    autoTopup: isId ? 'Top up otomatis' : 'Automatic top-up',
+    gateway: isId ? 'Gateway pembayaran' : 'Payment gateway',
+    refreshBilling: isId ? 'Refresh billing' : 'Refresh billing',
+    autoTopupInfo: isId
+      ? 'Checkout otomatis akan dibuat dan credit ditambahkan ke saldo setelah webhook atau refresh status menyatakan pembayaran sukses.'
+      : 'An automatic checkout will be created and credits will be added after the webhook or status refresh confirms a successful payment.',
+    topupEmailLabel: isId ? 'Email akun Anda yang dipakai untuk top up:' : 'Your account email used for top-up:',
+    amountLabel: isId ? 'Nominal top up' : 'Top-up amount',
+    minimumCreditInfo: (amount) =>
+      isId ? `Minimum ${amount}. Credit akan bertambah 1:1 sesuai nominal settled.` : `Minimum ${amount}. Credits increase 1:1 based on the settled amount.`,
+    openCheckout: isId ? 'Membuka checkout...' : 'Opening checkout...',
+    continuePayment: isId ? 'Lanjutkan Pembayaran' : 'Continue to Payment',
+    gatewayMissing: isId ? 'Gateway pembayaran belum aktif di deploy ini. Isi konfigurasi Worker lebih dulu.' : 'The payment gateway is not enabled on this deployment yet. Configure the Worker first.',
+    accountEmail: isId ? 'Email akun EasyRedesign Pro' : 'EasyRedesign Pro account email',
+    manualShopeeTitle: isId ? 'Pembayaran manual Shopee' : 'Manual Shopee payment',
+    noTransactions: isId ? 'Belum ada transaksi pembayaran otomatis.' : 'There are no automatic payment transactions yet.',
+    credited: isId ? 'Masuk' : 'Credited',
+    notYet: isId ? 'Belum' : 'Not yet',
+    refreshStatus: isId ? 'Refresh status' : 'Refresh status',
+    refreshingStatus: isId ? 'Memeriksa...' : 'Checking...',
+    openShopee: isId ? 'Buka Shopee Marketplace' : 'Open Shopee Marketplace',
+    adminContact: isId ? 'Kontak admin' : 'Admin contact',
+    shopeeStepOne: isId ? 'Setelah checkout di Shopee, kirim email akun di atas melalui chat Shopee.' : 'After checking out on Shopee, send the account email above through Shopee chat.',
+    shopeeStepTwo: isId ? 'Admin akan top up credit manual ke akun tersebut dalam 5-15 menit pada jam kerja.' : 'Admin will manually top up that account within 5-15 minutes during business hours.',
+    table: isId
+      ? ['Waktu', 'Order', 'Nominal', 'Status', 'Channel', 'Credit', 'Aksi']
+      : ['Time', 'Order', 'Amount', 'Status', 'Channel', 'Credit', 'Action']
+  };
 
   const state = buildBillingPanelState(appConfig, session);
 
@@ -42,7 +77,7 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
       setAppConfig(configData || { settings: {}, features: {} });
       setPayments(Array.isArray(paymentsData?.payments) ? paymentsData.payments : []);
     } catch (error) {
-      const userError = toUserApiError(error, 'Billing belum bisa dimuat saat ini.');
+      const userError = toUserApiError(error, copy.billingLoadError);
       setConfigError(userError.message);
       setAppConfig({ settings: {}, features: {} });
       setPayments([]);
@@ -58,7 +93,7 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
     setRefreshingOrderId(orderId);
     setPaymentError('');
     if (!options.keepNotice) {
-      setNotice('Memeriksa status pembayaran Midtrans...');
+      setNotice(copy.checkingPayment);
     }
     try {
       const data = await refreshMidtransPayment(orderId, session?.access_token);
@@ -70,7 +105,7 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
         await onRefreshBalance();
       }
     } catch (error) {
-      setPaymentError(toUserApiError(error, 'Status Midtrans belum bisa diperbarui.').message);
+      setPaymentError(toUserApiError(error, copy.paymentRefreshError).message);
     } finally {
       setRefreshingOrderId('');
       if (!options.skipReload) {
@@ -101,7 +136,7 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
     event.preventDefault();
     const amountIdr = Number.parseInt(amountInput, 10);
     if (!Number.isInteger(amountIdr) || amountIdr < state.midtrans.minimumAmountIdr) {
-      setPaymentError(`Nominal minimal ${formatRupiah(state.midtrans.minimumAmountIdr)}.`);
+      setPaymentError(copy.minimumAmount(formatRupiah(state.midtrans.minimumAmountIdr)));
       return;
     }
 
@@ -111,11 +146,11 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
     try {
       const data = await createMidtransCheckout({ amountIdr }, session?.access_token);
       if (!data?.redirectUrl) {
-        throw new Error('Midtrans tidak mengembalikan redirect URL.');
+        throw new Error('Gateway pembayaran tidak mengembalikan redirect URL.');
       }
       window.location.assign(data.redirectUrl);
     } catch (error) {
-      setPaymentError(toUserApiError(error, 'Checkout Midtrans gagal dibuat.').message);
+      setPaymentError(toUserApiError(error, copy.checkoutError).message);
       setIsCheckingOut(false);
     }
   }
@@ -131,8 +166,8 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
           <div className="flex items-center gap-2">
             <Wallet className="h-5 w-5 text-spruce" aria-hidden="true" />
             <div>
-              <h2 className="text-base font-semibold text-ink">Top up otomatis Midtrans</h2>
-              <p className="text-xs text-gray-600">Snap Redirect {state.midtrans.isProduction ? 'Production' : 'Sandbox'}</p>
+              <h2 className="text-base font-semibold text-ink">{copy.autoTopup}</h2>
+              <p className="text-xs text-gray-600">{copy.gateway} {state.midtrans.isProduction ? 'Production' : 'Sandbox'}</p>
             </div>
           </div>
           <button
@@ -141,20 +176,20 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
             className="inline-flex min-h-10 items-center justify-center gap-2 border border-line bg-white px-3 py-2 text-sm font-semibold text-ink hover:border-spruce"
           >
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            Refresh billing
+            {copy.refreshBilling}
           </button>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
             <div className="border border-line bg-panel p-3 text-sm leading-6 text-gray-700">
-              <p>Midtrans akan membuat checkout otomatis dan credit ditambahkan ke saldo setelah webhook atau refresh status menyatakan pembayaran sukses.</p>
-              <p>Email akun Anda yang dipakai untuk top up: <strong>{state.sessionEmail}</strong></p>
+              <p>{copy.autoTopupInfo}</p>
+              <p>{copy.topupEmailLabel} <strong>{state.sessionEmail}</strong></p>
             </div>
 
             <form className="grid gap-3 border border-line bg-white p-3 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={handleCheckout}>
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">Nominal top up Midtrans</span>
+                <span className="mb-1.5 block text-sm font-medium text-ink">{copy.amountLabel}</span>
                 <input
                   type="number"
                   min={state.midtrans.minimumAmountIdr}
@@ -165,7 +200,7 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
                   placeholder={String(state.midtrans.minimumAmountIdr)}
                   disabled={!state.midtrans.available || isCheckingOut}
                 />
-                <p className="mt-1 text-xs text-gray-600">Minimum {formatRupiah(state.midtrans.minimumAmountIdr)}. Credit akan bertambah 1:1 sesuai nominal settled.</p>
+                <p className="mt-1 text-xs text-gray-600">{copy.minimumCreditInfo(formatRupiah(state.midtrans.minimumAmountIdr))}</p>
               </label>
               <button
                 type="submit"
@@ -173,13 +208,13 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
                 className="inline-flex min-h-11 items-center justify-center gap-2 border border-spruce bg-spruce px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300 disabled:text-gray-600"
               >
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                {isCheckingOut ? 'Membuka checkout...' : 'Checkout Midtrans'}
+                {isCheckingOut ? copy.openCheckout : copy.continuePayment}
               </button>
             </form>
 
             {!state.midtrans.available && (
               <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
-                Midtrans belum aktif di deploy ini. Isi `MIDTRANS_SERVER_KEY`, `MIDTRANS_IS_PRODUCTION`, dan `APP_BASE_URL` di Worker lebih dulu.
+                {copy.gatewayMissing}
               </div>
             )}
 
@@ -190,7 +225,7 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
 
           <div className="space-y-3">
             <div className="border border-line bg-panel p-3">
-              <p className="text-xs font-semibold uppercase text-gray-600">Email akun EasyRedesign Pro</p>
+              <p className="text-xs font-semibold uppercase text-gray-600">{copy.accountEmail}</p>
               <p className="mt-1 break-all text-sm font-semibold text-ink">{state.sessionEmail}</p>
             </div>
             <div
@@ -207,24 +242,20 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-line text-xs uppercase text-gray-600">
-                <th className="py-2 pr-3">Waktu</th>
-                <th className="py-2 pr-3">Order</th>
-                <th className="py-2 pr-3">Nominal</th>
-                <th className="py-2 pr-3">Status</th>
-                <th className="py-2 pr-3">Channel</th>
-                <th className="py-2 pr-3">Credit</th>
-                <th className="py-2 pr-3">Aksi</th>
+                {copy.table.map((heading) => (
+                  <th key={heading} className="py-2 pr-3">{heading}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {payments.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-4 text-sm text-gray-600">Belum ada transaksi Midtrans.</td>
+                  <td colSpan="7" className="py-4 text-sm text-gray-600">{copy.noTransactions}</td>
                 </tr>
               ) : (
                 payments.map((payment) => (
                   <tr key={payment.id} className="border-b border-line">
-                    <td className="py-2 pr-3">{formatPaymentTime(payment.created_at)}</td>
+                    <td className="py-2 pr-3">{formatPaymentTime(payment.created_at, locale)}</td>
                     <td className="py-2 pr-3 font-medium text-ink">{payment.order_id}</td>
                     <td className="py-2 pr-3">{formatRupiah(payment.amount_idr || 0)}</td>
                     <td className="py-2 pr-3">
@@ -233,7 +264,7 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
                       </span>
                     </td>
                     <td className="py-2 pr-3">{payment.payment_type || '-'}</td>
-                    <td className="py-2 pr-3">{payment.credited_ledger_id ? 'Masuk' : 'Belum'}</td>
+                    <td className="py-2 pr-3">{payment.credited_ledger_id ? copy.credited : copy.notYet}</td>
                     <td className="py-2 pr-3">
                       {isRefreshableStatus(payment) ? (
                         <button
@@ -243,7 +274,7 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
                           className="inline-flex min-h-8 items-center justify-center gap-1 border border-spruce bg-white px-2 py-1 text-xs font-semibold text-spruce disabled:opacity-60"
                         >
                           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-                          {refreshingOrderId === payment.order_id ? 'Memeriksa...' : 'Refresh status'}
+                          {refreshingOrderId === payment.order_id ? copy.refreshingStatus : copy.refreshStatus}
                         </button>
                       ) : (
                         '-'
@@ -260,7 +291,7 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
       <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-3 flex items-center gap-2">
           <ShoppingBag className="h-5 w-5 text-spruce" aria-hidden="true" />
-          <h2 className="text-base font-semibold text-ink">{state.shopee.title}</h2>
+          <h2 className="text-base font-semibold text-ink">{copy.manualShopeeTitle}</h2>
         </div>
         <div className="grid gap-3 text-sm leading-6 text-gray-700">
           <p>{state.shopee.note}</p>
@@ -270,18 +301,18 @@ export default function BillingPanel({ session, returnState = null, onRefreshBal
             rel="noreferrer"
             className="inline-flex min-h-10 w-fit items-center justify-center border border-spruce bg-spruce px-3 py-2 text-sm font-bold text-white hover:bg-primary/90"
           >
-            Buka Shopee Marketplace
+            {copy.openShopee}
           </a>
-          {state.shopee.contact && <p>Kontak admin: {state.shopee.contact}</p>}
+          {state.shopee.contact && <p>{copy.adminContact}: {state.shopee.contact}</p>}
         </div>
         <div className="mt-5 grid gap-3">
           <div className="border border-line bg-panel p-3">
-            <p className="text-xs font-semibold uppercase text-gray-600">Email akun EasyRedesign Pro</p>
+            <p className="text-xs font-semibold uppercase text-gray-600">{copy.accountEmail}</p>
             <p className="mt-1 break-all text-sm font-semibold text-ink">{state.sessionEmail}</p>
           </div>
           <div className="border border-line bg-panel p-3 text-sm leading-6 text-gray-700">
-            <p>Setelah checkout di Shopee, kirim email akun di atas melalui chat Shopee.</p>
-            <p>Admin akan top up credit manual ke akun tersebut dalam 5-15 menit pada jam kerja.</p>
+            <p>{copy.shopeeStepOne}</p>
+            <p>{copy.shopeeStepTwo}</p>
           </div>
         </div>
       </section>

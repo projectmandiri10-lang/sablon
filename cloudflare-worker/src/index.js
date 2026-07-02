@@ -25,6 +25,9 @@ const MIDTRANS_PROVIDER = 'midtrans';
 const MIDTRANS_MIN_AMOUNT_IDR = 2000;
 const MIDTRANS_PAYMENT_REASON = 'midtrans_payment';
 const MIDTRANS_FINAL_STATUSES = new Set(['settlement', 'deny', 'cancel', 'expire', 'failure', 'refund', 'chargeback', 'partial_refund', 'partial_chargeback']);
+const SIGNUP_BONUS_REASON = 'signup_free_credit';
+const SIGNUP_BONUS_AMOUNT_IDR = 5000;
+const SIGNUP_BONUS_MAX_MATCHED_CLAIMS = 2;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -400,6 +403,53 @@ function error(message, status = 400) {
 
 async function readJson(request) {
   return request.json().catch(() => ({}));
+}
+
+function normalizeLocale(locale) {
+  return String(locale || '').trim().toLowerCase().startsWith('id') ? 'id' : 'en';
+}
+
+export function getViewerCountryCode(request) {
+  const cfCountry = String(request?.cf?.country || request?.headers?.get('cf-ipcountry') || '').trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(cfCountry) ? cfCountry : '';
+}
+
+export function getViewerDefaultLocale(request) {
+  return getViewerCountryCode(request) === 'ID' ? 'id' : 'en';
+}
+
+function extractRequestIp(request) {
+  const candidates = [
+    request?.headers?.get('cf-connecting-ip'),
+    request?.headers?.get('x-forwarded-for'),
+    request?.headers?.get('x-real-ip')
+  ];
+
+  for (const candidate of candidates) {
+    const value = String(candidate || '')
+      .split(',')[0]
+      .trim();
+    if (value) return value;
+  }
+
+  return '';
+}
+
+async function sha256Hex(value) {
+  const bytes = new TextEncoder().encode(String(value || ''));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export async function hashSignupBonusIdentifier(env, value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  const salt = requireEnvValue(env, 'SIGNUP_BONUS_HASH_SALT');
+  return sha256Hex(`${salt}:${normalized}`);
+}
+
+export function shouldGrantSignupBonus({ deviceGrantedClaims = 0, ipGrantedClaims = 0 } = {}) {
+  return deviceGrantedClaims < SIGNUP_BONUS_MAX_MATCHED_CLAIMS && ipGrantedClaims < SIGNUP_BONUS_MAX_MATCHED_CLAIMS;
 }
 
 function bearerToken(request) {
@@ -847,6 +897,7 @@ function handleHealth(env) {
     },
     endpoints: [
       'GET /api/app-config',
+      'POST /api/auth/signup-bonus',
       'POST /api/payments/midtrans/checkout',
       'GET /api/payments/midtrans',
       'POST /api/payments/midtrans/:orderId/refresh',
@@ -1199,6 +1250,69 @@ async function insertLedger(env, { userId, amountIdr, kind, reason, referenceId,
     }
   });
   return rows?.[0];
+}
+
+async function getSignupBonusClaimByUserId(env, userId) {
+  const rows = await supabaseFetch(
+    env,
+    `/rest/v1/signup_bonus_claims?select=*&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+    {}
+  );
+  return rows?.[0] || null;
+}
+
+async function countGrantedSignupBonusClaims(env, { deviceIdHash = '', ipHash = '' } = {}) {
+  const counts = { device: 0, ip: 0 };
+
+  if (deviceIdHash) {
+    const rows = await supabaseFetch(
+      env,
+      `/rest/v1/signup_bonus_claims?select=id&bonus_granted=eq.true&device_id_hash=eq.${encodeURIComponent(deviceIdHash)}`,
+      {}
+    );
+    counts.device = rows.length;
+  }
+
+  if (ipHash) {
+    const rows = await supabaseFetch(
+      env,
+      `/rest/v1/signup_bonus_claims?select=id&bonus_granted=eq.true&ip_hash=eq.${encodeURIComponent(ipHash)}`,
+      {}
+    );
+    counts.ip = rows.length;
+  }
+
+  return counts;
+}
+
+async function insertSignupBonusClaim(env, payload) {
+  const rows = await supabaseFetch(env, '/rest/v1/signup_bonus_claims?select=*', {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: payload
+  });
+  return rows?.[0] || null;
+}
+
+async function ensureSignupBonusLedger(env, claim) {
+  if (!claim?.id || claim?.bonus_granted !== true) return null;
+  const existing = await findLedgerByReference(env, claim.id, SIGNUP_BONUS_REASON);
+  if (existing?.id) return existing;
+  return insertLedger(env, {
+    userId: claim.user_id,
+    amountIdr: SIGNUP_BONUS_AMOUNT_IDR,
+    kind: 'credit',
+    reason: SIGNUP_BONUS_REASON,
+    referenceId: claim.id,
+    createdBy: claim.user_id,
+    metadata: {
+      source: 'signup_bonus_device_or_ip_guard',
+      freeCredits: 1,
+      unitPriceIdr: SIGNUP_BONUS_AMOUNT_IDR,
+      deviceIdHash: claim.device_id_hash || '',
+      ipHash: claim.ip_hash || ''
+    }
+  });
 }
 
 async function fetchMidtrans(env, path, { method = 'GET', body } = {}) {
@@ -2076,7 +2190,72 @@ async function handleMidtransWebhook(env, request) {
   return json({ received: true, payment: updated });
 }
 
-async function handleAppConfig(env) {
+async function handleSignupBonusClaim(env, request) {
+  const { user } = await requireUser(env, request);
+  const body = await readJson(request);
+  const deviceId = String(body.deviceId || '').trim();
+  if (!deviceId) throw new Error('Device ID wajib dikirim.');
+
+  const existingClaim = await getSignupBonusClaimByUserId(env, user.id);
+  if (existingClaim) {
+    await ensureSignupBonusLedger(env, existingClaim);
+    return json({
+      granted: existingClaim.bonus_granted === true,
+      alreadyProcessed: true,
+      amountIdr: existingClaim.bonus_granted === true ? SIGNUP_BONUS_AMOUNT_IDR : 0,
+      reason: existingClaim.reason || (existingClaim.bonus_granted === true ? 'granted' : 'limit_reached'),
+      remainingEligibleByDeviceOrIp: null
+    });
+  }
+
+  const email = normalizeEmail(user.email || user.user_metadata?.email || '');
+  const countryCode = getViewerCountryCode(request);
+  const deviceIdHash = await hashSignupBonusIdentifier(env, deviceId);
+  const ipHash = await hashSignupBonusIdentifier(env, extractRequestIp(request));
+  const grantedCounts = await countGrantedSignupBonusClaims(env, { deviceIdHash, ipHash });
+  const isGranted = shouldGrantSignupBonus({
+    deviceGrantedClaims: grantedCounts.device,
+    ipGrantedClaims: grantedCounts.ip
+  });
+
+  let claim;
+  try {
+    claim = await insertSignupBonusClaim(env, {
+      user_id: user.id,
+      email,
+      device_id_hash: deviceIdHash || null,
+      ip_hash: ipHash || null,
+      country_code: countryCode || null,
+      bonus_granted: isGranted,
+      reason: isGranted ? 'granted' : 'limit_reached',
+      metadata: {
+        matchedGrantedDeviceClaims: grantedCounts.device,
+        matchedGrantedIpClaims: grantedCounts.ip,
+        maxMatchedClaims: SIGNUP_BONUS_MAX_MATCHED_CLAIMS
+      }
+    });
+  } catch (error) {
+    if (!String(error.message || '').includes('signup_bonus_claims_user_id_key')) throw error;
+    claim = await getSignupBonusClaimByUserId(env, user.id);
+  }
+
+  if (!claim) throw new Error('Claim signup bonus tidak bisa diproses.');
+  if (claim.bonus_granted === true) {
+    await ensureSignupBonusLedger(env, claim);
+  }
+
+  const highestMatchedCount = Math.max(grantedCounts.device, grantedCounts.ip);
+  const remainingEligibleByDeviceOrIp = Math.max(0, SIGNUP_BONUS_MAX_MATCHED_CLAIMS - highestMatchedCount - (isGranted ? 1 : 0));
+  return json({
+    granted: claim.bonus_granted === true,
+    alreadyProcessed: false,
+    amountIdr: claim.bonus_granted === true ? SIGNUP_BONUS_AMOUNT_IDR : 0,
+    reason: claim.reason || (claim.bonus_granted === true ? 'granted' : 'limit_reached'),
+    remainingEligibleByDeviceOrIp
+  });
+}
+
+async function handleAppConfig(env, request) {
   const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=key,value,is_public&is_public=eq.true&order=key.asc', {});
   const aiRedrawModel = await getAiRedrawModelConfig(env);
   const redrawAvailability = buildAiRedrawAvailability(aiRedrawModel, env);
@@ -2091,6 +2270,10 @@ async function handleAppConfig(env) {
       midtransAvailable: isMidtransConfigured(env),
       midtransIsProduction: isMidtransProduction(env),
       midtransMinimumAmountIdr: MIDTRANS_MIN_AMOUNT_IDR
+    },
+    viewer: {
+      countryCode: getViewerCountryCode(request),
+      defaultLocale: getViewerDefaultLocale(request)
     }
   });
 }
@@ -2415,7 +2598,8 @@ export default {
     const url = new URL(request.url);
     try {
       if ((url.pathname === '/' || url.pathname === '/health') && request.method === 'GET') return handleHealth(env);
-      if (url.pathname === '/api/app-config' && request.method === 'GET') return await handleAppConfig(env);
+      if (url.pathname === '/api/app-config' && request.method === 'GET') return await handleAppConfig(env, request);
+      if (url.pathname === '/api/auth/signup-bonus' && request.method === 'POST') return await handleSignupBonusClaim(env, request);
       if (url.pathname === '/api/payments/midtrans/webhook' && request.method === 'POST') return await handleMidtransWebhook(env, request);
       if (url.pathname === '/api/payments/midtrans/checkout' && request.method === 'POST') return await handleCreateMidtransCheckout(env, request);
       if (url.pathname === '/api/payments/midtrans' && request.method === 'GET') return await handleListMidtransPayments(env, request);
