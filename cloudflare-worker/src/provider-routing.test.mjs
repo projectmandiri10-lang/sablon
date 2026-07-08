@@ -36,7 +36,7 @@ test('LiteLLM primary returns image bytes and metadata', async () => {
       assert.equal(form.get('size'), 'auto');
       assert.equal(form.get('quality'), 'high');
       assert.equal(form.get('input_fidelity'), 'high');
-      assert.match(String(form.get('prompt')), /professional logo restoration and vector preparation artist/);
+      assert.match(String(form.get('prompt')), /Bersihkan logo ini dan gambar ulang sangat mirip dengan aslinya/);
       return new Response(
         JSON.stringify({
           data: [{ b64_json: 'AQID' }]
@@ -75,7 +75,7 @@ test('LiteLLM primary returns image bytes and metadata', async () => {
     assert.equal(result.metadata.providerUsed, 'litellm_image');
     assert.equal(result.metadata.model, 'openai/gpt-image-1.5');
     assert.equal(result.metadata.inputFidelity, 'high');
-    assert.match(result.metadata.finalTechnicalPrompt, /screen-print friendly shapes/);
+    assert.match(result.metadata.finalTechnicalPrompt, /Bersihkan logo ini dan gambar ulang sangat mirip dengan aslinya/);
     assert.equal(result.metadata.safetyEnabled, true);
   } finally {
     globalThis.fetch = originalFetch;

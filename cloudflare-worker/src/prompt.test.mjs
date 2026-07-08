@@ -11,7 +11,7 @@ test('AI redraw model presets expose LiteLLM primary with OpenRouter fallback', 
   assert.equal(presets.budget.liteLlmImageModel, 'openai/gpt-image-1.5');
   assert.equal(presets.budget.generationModel, 'black-forest-labs/flux.2-klein-4b');
   assert.equal(presets.budget.fallbackModel, 'sourceful/riverflow-v2-fast');
-  assert.equal(presets.budget.promptProfile, 'photo_logo_cleanup');
+  assert.equal(presets.budget.promptProfile, 'logo_photo_cleanup_short');
   assert.equal(presets.quality.liteLlmImageModel, 'openai/gpt-image-1.5');
   assert.equal(presets.quality.imageSize, '1K');
   assert.equal(presets.quality.safetyModel, 'nvidia/nemotron-3.5-content-safety:free');
@@ -35,7 +35,7 @@ test('legacy Gemini direct values normalize into LiteLLM primary config', () => 
   assert.equal(normalized.analysisModel, '');
   assert.equal(normalized.generationModel, 'black-forest-labs/flux.2-klein-4b');
   assert.equal(normalized.fallbackModel, 'sourceful/riverflow-v2-fast');
-  assert.equal(normalized.promptProfile, 'photo_logo_cleanup');
+  assert.equal(normalized.promptProfile, 'logo_photo_cleanup_short');
   assert.equal(normalized.imageSize, '2K');
   assert.equal(normalized.safetyModel, 'nvidia/nemotron-3.5-content-safety:free');
   assert.equal(normalized.resolutionPolicy, 'high');
@@ -139,31 +139,18 @@ test('sablon redraw prompt preserves original colors automatically and improves 
       maxColors: 4,
       createUnderbaseFilm: true
     },
-    { promptProfile: 'photo_logo_cleanup' }
+    { promptProfile: 'logo_photo_cleanup_short' }
   );
 
-  assert.match(prompt, /professional logo restoration and vector preparation artist/);
-  assert.match(prompt, /Preserve the exact layout and composition/);
-  assert.match(prompt, /Preserve all text exactly as shown/);
-  assert.match(prompt, /Preserve every symbol, swoosh, curve, icon, and decorative element/);
+  assert.match(prompt, /Bersihkan logo ini dan gambar ulang sangat mirip dengan aslinya/);
+  assert.match(prompt, /Pertahankan komposisi, teks, warna, dan bentuk asli/);
+  assert.match(prompt, /Perbaiki blur, cacat, gigi pixel, bagian patah, noise foto, dan tepi bergerigi/);
+  assert.match(prompt, /Buat hasil seperti master logo digital baru yang bersih, tajam, rata, dan siap trace sablon/);
   assert.match(prompt, /Keep the background solid black/);
-  assert.match(prompt, /screen-print friendly shapes/);
-  assert.match(prompt, /Preserve original subject/);
-  assert.match(prompt, /Repair blur, camera distortion, jagged edges, broken strokes, stains, scratches, compression artifacts/);
-  assert.match(prompt, /smooth closed edges/);
-  assert.match(prompt, /dominant colors from the source artwork/);
-  assert.match(prompt, /Detect and preserve the dominant original colors/);
-  assert.match(prompt, /brand or logo colors/);
-  assert.doesNotMatch(prompt, /no more than 4 solid spot colors/);
-  assert.match(prompt, /semi-transparent pixels/);
-  assert.match(prompt, /choked underbase film/);
-  assert.match(prompt, /shadows, gradients, or realistic photo textures/);
-  assert.match(prompt, /Treat this as restoration, not redesign/);
+  assert.match(prompt, /Keep colors flat and solid/);
   assert.match(prompt, /The final image will be used for screen printing and vector tracing/);
   assert.match(prompt, /Avoid anti-aliasing whenever possible/);
-  assert.match(prompt, /faithful cleanup and restoration task for a photographed logo or print/);
-  assert.match(prompt, /same logo after being professionally cleaned, restored, and digitally rebuilt/);
-  assert.match(prompt, /very similar to the source at a glance/);
+  assert.doesNotMatch(prompt, /professional logo restoration and vector preparation artist/);
 });
 
 test('sticker redraw prompt asks for a clean sticker-ready palette even without color separation mode', () => {
@@ -174,7 +161,7 @@ test('sticker redraw prompt asks for a clean sticker-ready palette even without 
       removeBackground: true,
       separateColors: false
     },
-    { promptProfile: 'photo_logo_cleanup' }
+    { promptProfile: 'logo_photo_cleanup_short' }
   );
 
   assert.match(prompt, /sticker-ready solid colors, clear outlines/);
@@ -192,7 +179,7 @@ test('text redraw prompt focuses on letter sharpness and spacing accuracy', () =
       removeBackground: true,
       separateColors: false
     },
-    { promptProfile: 'photo_logo_cleanup' }
+    { promptProfile: 'logo_photo_cleanup_short' }
   );
 
   assert.match(prompt, /letter sharpness, spacing accuracy/);
@@ -208,9 +195,9 @@ test('manual sablon redraw prompt can constrain spot colors', () => {
       colorLimitMode: 'manual',
       maxColors: 4
     },
-    { promptProfile: 'photo_logo_cleanup' }
+    { promptProfile: 'logo_photo_cleanup_short' }
   );
 
-  assert.match(prompt, /no more than 4 solid spot colors/);
-  assert.match(prompt, /Detect and preserve the dominant original colors/);
+  assert.doesNotMatch(prompt, /no more than 4 solid spot colors/);
+  assert.match(prompt, /Jangan ubah tulisan/);
 });

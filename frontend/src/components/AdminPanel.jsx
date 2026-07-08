@@ -968,10 +968,11 @@ export default function AdminPanel({ session, enabled }) {
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Prompt profile</span>
                   <select
-                    value={aiModelDraft.promptProfile || 'photo_logo_cleanup'}
+                    value={aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
                     onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', promptProfile: event.target.value }))}
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
+                    <option value="logo_photo_cleanup_short">Logo cleanup short</option>
                     <option value="photo_logo_cleanup">Photo logo cleanup</option>
                     <option value="stylized_redraw">Stylized redraw</option>
                     <option value="generic_trace_clone">Generic trace clone</option>
@@ -994,7 +995,7 @@ export default function AdminPanel({ session, enabled }) {
                     : 'Tanpa provider fallback tambahan.'}
                 </p>
                 <p>
-                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | prompt {aiModelDraft.promptProfile || 'photo_logo_cleanup'}
+                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | prompt {aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
                 </p>
                 <p>
                   LiteLLM model: {aiModelDraft.liteLlmImageModel || '-'} | OpenRouter model: {aiModelDraft.generationModel || '-'} | OpenRouter fallback model: {aiModelDraft.fallbackModel || '-'}

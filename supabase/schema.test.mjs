@@ -18,6 +18,7 @@ const openAiImageModelMigration = fs.readFileSync(path.join(import.meta.dirname,
 const openAiImageModelOnePointFiveMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708193000_set_litellm_openai_gpt_image_1_5.sql'), 'utf8');
 const stylizedRedrawPromptMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708195000_set_stylized_redraw_prompt_profile.sql'), 'utf8');
 const photoLogoCleanupPromptMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708201000_set_photo_logo_cleanup_prompt_profile.sql'), 'utf8');
+const logoPhotoCleanupShortPromptMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708203000_set_logo_photo_cleanup_short_prompt_profile.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -75,7 +76,7 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   assert.match(bootstrapSql, /"provider":"litellm_image"/);
   assert.match(bootstrapSql, /"fallbackProvider":"openrouter_image"/);
   assert.match(bootstrapSql, /openai\/gpt-image-1\.5/);
-  assert.match(bootstrapSql, /"promptProfile":"photo_logo_cleanup"/);
+  assert.match(bootstrapSql, /"promptProfile":"logo_photo_cleanup_short"/);
   assert.match(bootstrapSql, /black-forest-labs\/flux\.2-klein-4b/);
   assert.match(bootstrapSql, /example-jobs/);
 });
@@ -118,6 +119,11 @@ test('latest prompt profile migration moves redraw defaults to stylized redraw',
 test('latest prompt profile migration moves redraw defaults to photo logo cleanup', () => {
   assert.match(photoLogoCleanupPromptMigration, /'promptProfile', 'photo_logo_cleanup'/);
   assert.match(photoLogoCleanupPromptMigration, /photo logo cleanup/);
+});
+
+test('latest prompt profile migration moves redraw defaults to short logo cleanup', () => {
+  assert.match(logoPhotoCleanupShortPromptMigration, /'promptProfile', 'logo_photo_cleanup_short'/);
+  assert.match(logoPhotoCleanupShortPromptMigration, /short logo cleanup/);
 });
 
 test('bootstrap sql hardens helper functions and policy indexes', () => {

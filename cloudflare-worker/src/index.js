@@ -286,8 +286,33 @@ function inferAiRedrawArtworkType(settings = {}) {
 }
 
 export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
-  const profile = String(aiModelConfig.promptProfile || 'photo_logo_cleanup');
+  const profile = String(aiModelConfig.promptProfile || 'logo_photo_cleanup_short');
   const artworkType = inferAiRedrawArtworkType(settings);
+
+  if (profile === 'logo_photo_cleanup_short' && artworkType === 'logo') {
+    const parts = [
+      'Bersihkan logo ini dan gambar ulang sangat mirip dengan aslinya.',
+      'Pertahankan komposisi, teks, warna, dan bentuk asli.',
+      'Perbaiki blur, cacat, gigi pixel, bagian patah, noise foto, dan tepi bergerigi.',
+      'Buat hasil seperti master logo digital baru yang bersih, tajam, rata, dan siap trace sablon.',
+      'Jangan redesign.',
+      'Jangan tambah elemen baru.',
+      'Jangan ubah tulisan.',
+      'Keep the background solid black.',
+      'Keep colors flat and solid.',
+      'Avoid anti-aliasing whenever possible.',
+      'Avoid semi-transparent pixels.'
+    ];
+
+    if (String(settings.productionType || '').toLowerCase() === 'sablon') {
+      parts.push('The final image will be used for screen printing and vector tracing.');
+      parts.push('Edges must be perfectly clean.');
+      parts.push('Shapes must be easy to trace.');
+    }
+
+    return parts.join(' ');
+  }
+
   const parts = [
     'You are a professional logo restoration and vector preparation artist.',
     'Task: Restore and redraw the uploaded artwork while preserving its original identity.',
