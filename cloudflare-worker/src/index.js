@@ -279,19 +279,11 @@ function guessOpenRouterModalities(model = '') {
 
 export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   const profile = String(aiModelConfig.promptProfile || 'generic_trace_clone');
-  const parts = [];
-  if (profile === 'gemini_trace_clone' || profile === 'generic_trace_clone') {
-    parts.push(
-      'Redraw the exact best version of the source image without any additions or changes. Repair all defects completely. Use only the dominant solid colors from the original. Ensure all edges are perfectly smooth like clean lineart.',
-      'Preserve original typography, readable text, and brand identity exactly as they are.'
-    );
-  } else {
-    parts.push(
-      'Redraw the uploaded artwork as a clean cartoon-like, trace-friendly raster illustration for vectorization and screen printing.',
-      'Preserve original subject, layout, proportions, typography, readable text, and brand identity.',
-      'The final result should look like a polished cartoon/vector redraw, not a photo cleanup, blurry repaint, or realistic repaint.'
-    );
-  }
+  const parts = [
+    'Redraw the uploaded artwork as a clean cartoon-like, trace-friendly raster illustration for vectorization and screen printing.',
+    'Preserve original subject, layout, proportions, typography, readable text, and brand identity.',
+    'The final result should look like a polished cartoon/vector redraw, not a photo cleanup, blurry repaint, or realistic repaint.'
+  ];
 
   if (String(settings.productionType || '').toLowerCase() === 'sablon') {
     parts.push('Prioritize flat color separation, dominant source colors, bold contours, smooth closed edges, and screen-print friendly shapes.');
@@ -333,6 +325,9 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   switch (profile) {
     case 'sourceful_trace_clone':
       parts.push('Stay very close to the source image while cleaning noise, artifacts, rough edges, and damaged areas.');
+      break;
+    case 'gemini_trace_clone':
+      parts.push('Preserve composition and readable text while improving clarity, edge definition, and trace readiness.');
       break;
     default:
       parts.push('Preserve original artwork shape and composition while making the output cleaner and easier to trace.');
