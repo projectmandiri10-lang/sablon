@@ -286,7 +286,7 @@ function inferAiRedrawArtworkType(settings = {}) {
 }
 
 export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
-  const profile = String(aiModelConfig.promptProfile || 'generic_trace_clone');
+  const profile = String(aiModelConfig.promptProfile || 'stylized_redraw');
   const artworkType = inferAiRedrawArtworkType(settings);
   const parts = [
     'You are a professional logo restoration and vector preparation artist.',
@@ -374,6 +374,14 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   parts.push('Make intended geometric or symmetric shapes cleaner and balanced without changing the design identity.');
 
   switch (profile) {
+    case 'stylized_redraw':
+      parts.push('This is a clean redraw task, not a minimal retouch task.');
+      parts.push('Rebuild the artwork as a freshly redrawn digital master with clear vector-style intent.');
+      parts.push('Do not simply preserve the original raster edges; replace jagged, blurry, or broken edges with smooth intentional lineart and solid closed shapes.');
+      parts.push('If a shape, letter, curve, or icon is damaged, redraw it cleanly in the same identity rather than preserving the defect.');
+      parts.push('Make the result visibly cleaner, flatter, bolder, and more production-ready than the source while staying faithful to the original identity.');
+      parts.push('Favor simplified confident contours, balanced geometry, flat spot-color friendly fills, and crisp silhouette separation.');
+      break;
     case 'sourceful_trace_clone':
       parts.push('Stay very close to the source image while cleaning noise, artifacts, rough edges, and damaged areas.');
       break;

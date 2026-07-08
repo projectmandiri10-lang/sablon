@@ -968,10 +968,11 @@ export default function AdminPanel({ session, enabled }) {
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Prompt profile</span>
                   <select
-                    value={aiModelDraft.promptProfile || 'generic_trace_clone'}
+                    value={aiModelDraft.promptProfile || 'stylized_redraw'}
                     onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', promptProfile: event.target.value }))}
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
+                    <option value="stylized_redraw">Stylized redraw</option>
                     <option value="generic_trace_clone">Generic trace clone</option>
                     <option value="sourceful_trace_clone">Sourceful trace clone</option>
                     <option value="gemini_trace_clone">Gemini trace clone</option>
@@ -992,7 +993,7 @@ export default function AdminPanel({ session, enabled }) {
                     : 'Tanpa provider fallback tambahan.'}
                 </p>
                 <p>
-                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | prompt {aiModelDraft.promptProfile || 'generic_trace_clone'}
+                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | prompt {aiModelDraft.promptProfile || 'stylized_redraw'}
                 </p>
                 <p>
                   LiteLLM model: {aiModelDraft.liteLlmImageModel || '-'} | OpenRouter model: {aiModelDraft.generationModel || '-'} | OpenRouter fallback model: {aiModelDraft.fallbackModel || '-'}

@@ -11,7 +11,7 @@ test('AI redraw model presets expose LiteLLM primary with OpenRouter fallback', 
   assert.equal(presets.budget.liteLlmImageModel, 'openai/gpt-image-1.5');
   assert.equal(presets.budget.generationModel, 'black-forest-labs/flux.2-klein-4b');
   assert.equal(presets.budget.fallbackModel, 'sourceful/riverflow-v2-fast');
-  assert.equal(presets.budget.promptProfile, 'generic_trace_clone');
+  assert.equal(presets.budget.promptProfile, 'stylized_redraw');
   assert.equal(presets.quality.liteLlmImageModel, 'openai/gpt-image-1.5');
   assert.equal(presets.quality.imageSize, '1K');
   assert.equal(presets.quality.safetyModel, 'nvidia/nemotron-3.5-content-safety:free');
@@ -35,7 +35,7 @@ test('legacy Gemini direct values normalize into LiteLLM primary config', () => 
   assert.equal(normalized.analysisModel, '');
   assert.equal(normalized.generationModel, 'black-forest-labs/flux.2-klein-4b');
   assert.equal(normalized.fallbackModel, 'sourceful/riverflow-v2-fast');
-  assert.equal(normalized.promptProfile, 'generic_trace_clone');
+  assert.equal(normalized.promptProfile, 'stylized_redraw');
   assert.equal(normalized.imageSize, '2K');
   assert.equal(normalized.safetyModel, 'nvidia/nemotron-3.5-content-safety:free');
   assert.equal(normalized.resolutionPolicy, 'high');
@@ -139,7 +139,7 @@ test('sablon redraw prompt preserves original colors automatically and improves 
       maxColors: 4,
       createUnderbaseFilm: true
     },
-    { promptProfile: 'generic_trace_clone' }
+    { promptProfile: 'stylized_redraw' }
   );
 
   assert.match(prompt, /professional logo restoration and vector preparation artist/);
@@ -161,6 +161,9 @@ test('sablon redraw prompt preserves original colors automatically and improves 
   assert.match(prompt, /Treat this as restoration, not redesign/);
   assert.match(prompt, /The final image will be used for screen printing and vector tracing/);
   assert.match(prompt, /Avoid anti-aliasing whenever possible/);
+  assert.match(prompt, /clean redraw task, not a minimal retouch task/);
+  assert.match(prompt, /freshly redrawn digital master with clear vector-style intent/);
+  assert.match(prompt, /replace jagged, blurry, or broken edges with smooth intentional lineart/);
 });
 
 test('sticker redraw prompt asks for a clean sticker-ready palette even without color separation mode', () => {
@@ -171,7 +174,7 @@ test('sticker redraw prompt asks for a clean sticker-ready palette even without 
       removeBackground: true,
       separateColors: false
     },
-    { promptProfile: 'generic_trace_clone' }
+    { promptProfile: 'stylized_redraw' }
   );
 
   assert.match(prompt, /sticker-ready solid colors, clear outlines/);
@@ -189,7 +192,7 @@ test('text redraw prompt focuses on letter sharpness and spacing accuracy', () =
       removeBackground: true,
       separateColors: false
     },
-    { promptProfile: 'generic_trace_clone' }
+    { promptProfile: 'stylized_redraw' }
   );
 
   assert.match(prompt, /letter sharpness, spacing accuracy/);
@@ -205,7 +208,7 @@ test('manual sablon redraw prompt can constrain spot colors', () => {
       colorLimitMode: 'manual',
       maxColors: 4
     },
-    { promptProfile: 'generic_trace_clone' }
+    { promptProfile: 'stylized_redraw' }
   );
 
   assert.match(prompt, /no more than 4 solid spot colors/);

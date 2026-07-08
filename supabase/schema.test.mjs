@@ -16,6 +16,7 @@ const adminFinanceMigration = fs.readFileSync(path.join(import.meta.dirname, 'mi
 const canonicalLiteLlmModelMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708101500_canonicalize_litellm_gemini_image_model.sql'), 'utf8');
 const openAiImageModelMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708190000_set_litellm_openai_gpt_image_1.sql'), 'utf8');
 const openAiImageModelOnePointFiveMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708193000_set_litellm_openai_gpt_image_1_5.sql'), 'utf8');
+const stylizedRedrawPromptMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708195000_set_stylized_redraw_prompt_profile.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -73,6 +74,7 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   assert.match(bootstrapSql, /"provider":"litellm_image"/);
   assert.match(bootstrapSql, /"fallbackProvider":"openrouter_image"/);
   assert.match(bootstrapSql, /openai\/gpt-image-1\.5/);
+  assert.match(bootstrapSql, /"promptProfile":"stylized_redraw"/);
   assert.match(bootstrapSql, /black-forest-labs\/flux\.2-klein-4b/);
   assert.match(bootstrapSql, /example-jobs/);
 });
@@ -105,6 +107,11 @@ test('latest LiteLLM model migration moves redraw defaults to OpenAI GPT Image 1
 test('latest LiteLLM model migration moves redraw defaults to OpenAI GPT Image 1.5', () => {
   assert.match(openAiImageModelOnePointFiveMigration, /'liteLlmImageModel', 'openai\/gpt-image-1\.5'/);
   assert.match(openAiImageModelOnePointFiveMigration, /Default LiteLLM GPT Image 1\.5 trace-clone/);
+});
+
+test('latest prompt profile migration moves redraw defaults to stylized redraw', () => {
+  assert.match(stylizedRedrawPromptMigration, /'promptProfile', 'stylized_redraw'/);
+  assert.match(stylizedRedrawPromptMigration, /stylized redraw/);
 });
 
 test('bootstrap sql hardens helper functions and policy indexes', () => {
