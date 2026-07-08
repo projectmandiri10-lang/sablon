@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { enforcePrintableColorLimit, requestedSpotColorLimit, shouldUseHardSpotColors } from './localProcessor.js';
+import {
+  enforcePrintableColorLimit,
+  refineAssignmentsForTraceForTest,
+  requestedSpotColorLimit,
+  shouldUseHardSpotColors,
+  traceBinaryPathForTest
+} from './localProcessor.js';
 
 function testColors(count) {
   return Array.from({ length: count }, (_, index) => ({
@@ -13,6 +19,30 @@ function testColors(count) {
     pixelCount: count - index,
     bounds: { x: 0, y: 0, maxX: 0, maxY: 0, width: 1, height: 1 }
   }));
+}
+
+function countPathCommands(path) {
+  return (path.match(/[LQ]/g) || []).length;
+}
+
+function jaggedBlob(width, height) {
+  const binary = new Uint8Array(width * height);
+  for (let y = 8; y < height - 8; y += 1) {
+    const left = 7 + Math.floor(y / 3) + (y % 2);
+    const right = width - 8 - Math.floor(y / 4);
+    for (let x = left; x < right; x += 1) {
+      binary[width * y + x] = 1;
+    }
+  }
+  return binary;
+}
+
+function countAssigned(assignments, colorIndex = 0) {
+  let count = 0;
+  for (let index = 0; index < assignments.length; index += 1) {
+    if (assignments[index] === colorIndex) count += 1;
+  }
+  return count;
 }
 
 test('auto color mode keeps a wider detected spot color limit', () => {
@@ -78,4 +108,61 @@ test('manual printable color limit still cuts palette to selected amount', () =>
 test('spot color handling stays active for sablon separation', () => {
   assert.equal(shouldUseHardSpotColors({ productionType: 'sablon', separateColors: false }), true);
   assert.equal(shouldUseHardSpotColors({ productionType: 'sticker', separateColors: false }), false);
+});
+
+test('lineart trace smooths jagged AI redraw boundaries into fewer curve commands', () => {
+  const width = 64;
+  const height = 64;
+  const binary = jaggedBlob(width, height);
+  const pixelPath = traceBinaryPathForTest(binary, width, height, { inputMode: 'ready_trace', edgeRefinement: true });
+  const lineartPath = traceBinaryPathForTest(binary, width, height, { inputMode: 'ai_redraw', edgeRefinement: true });
+
+  assert.match(lineartPath, /Q/);
+  assert.ok(countPathCommands(lineartPath) < countPathCommands(pixelPath));
+});
+
+test('lineart polish keeps small readable components instead of dropping them', () => {
+  const width = 10;
+  const height = 10;
+  const assignments = new Int16Array(width * height);
+  assignments.fill(-1);
+  for (const [x, y] of [
+    [4, 4],
+    [5, 4],
+    [4, 5],
+    [5, 5]
+  ]) {
+    assignments[width * y + x] = 0;
+  }
+
+  const result = refineAssignmentsForTraceForTest(assignments, testColors(1), width, height, {
+    inputMode: 'ai_redraw',
+    edgeRefinement: true
+  });
+
+  assert.equal(result.lineartPolish, true);
+  assert.equal(countAssigned(result.assignments, 0), 4);
+});
+
+test('lineart polish does not create extra spot colors from the dominant palette', () => {
+  const width = 6;
+  const height = 2;
+  const assignments = new Int16Array([0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1]);
+  const result = refineAssignmentsForTraceForTest(assignments, testColors(2), width, height, {
+    inputMode: 'ai_redraw',
+    edgeRefinement: true
+  });
+
+  assert.ok(result.colors.length <= 2);
+});
+
+test('edgeRefinement false preserves the previous assignments without lineart polish', () => {
+  const assignments = new Int16Array([0, 0, -1, 0]);
+  const result = refineAssignmentsForTraceForTest(assignments, testColors(1), 2, 2, {
+    inputMode: 'ai_redraw',
+    edgeRefinement: false
+  });
+
+  assert.equal(result.lineartPolish, false);
+  assert.deepEqual([...result.assignments], [...assignments]);
 });

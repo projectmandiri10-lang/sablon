@@ -5,6 +5,7 @@ import { calculateJobPrice } from './pricing.js';
 const MAX_CANVAS_EDGE = 2048;
 const BIN_SIZE = 24;
 const AUTO_SPOT_COLOR_LIMIT = 8;
+const LINEART_POLISH_MIN_RETAIN_RATIO = 0.62;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -58,6 +59,18 @@ function escapeXml(value) {
 function normalizeNumber(value, fallback) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function countActivePixels(binary) {
+  let count = 0;
+  for (let index = 0; index < binary.length; index += 1) {
+    if (binary[index]) count += 1;
+  }
+  return count;
+}
+
+function shouldUseLineartPolish(settings = {}) {
+  return settings.inputMode === INPUT_MODE_RETOUCH && settings.edgeRefinement !== false;
 }
 
 function normalizeSpotName(value) {
@@ -689,19 +702,38 @@ function findBinaryComponents(binary, width, height) {
   return components;
 }
 
-function refineBinaryForTrace(binary, width, height) {
+function lineartRadiusForComponent(component, totalPixels, lineartPolish) {
+  if (!lineartPolish) return 1;
+  const coverage = component.count / totalPixels;
+  const boundsCoverage = component.boundsArea / totalPixels;
+  const thinStroke = component.width <= 5 || component.height <= 5 || Math.min(component.width, component.height) <= 3;
+  if (thinStroke) return 1;
+  if (coverage >= 0.055 || boundsCoverage >= 0.12) return 2;
+  return 1;
+}
+
+function refineBinaryForTrace(binary, width, height, settings = {}) {
   const totalPixels = Math.max(1, width * height);
   const output = new Uint8Array(binary.length);
   const components = findBinaryComponents(binary, width, height);
+  const lineartPolish = shouldUseLineartPolish(settings);
 
   for (const component of components) {
-    if (component.count <= 10 || (component.count <= 48 && (component.width <= 3 || component.height <= 3))) continue;
+    const minComponentPixels = lineartPolish ? 7 : 10;
+    if (component.count <= minComponentPixels || (component.count <= 48 && (component.width <= 3 || component.height <= 3))) {
+      if (lineartPolish && component.count >= 3 && component.width > 1 && component.height > 1) {
+        component.pixels.forEach((pixel) => {
+          output[pixel] = 1;
+        });
+      }
+      continue;
+    }
 
     const coverage = component.count / totalPixels;
     const boundsCoverage = component.boundsArea / totalPixels;
     const isLarge = coverage >= 0.025 || boundsCoverage >= 0.055;
     const isMedium = coverage >= 0.004 || boundsCoverage >= 0.01;
-    const radius = isLarge || isMedium ? 1 : 1;
+    const radius = lineartRadiusForComponent(component, totalPixels, lineartPolish);
     let mask = new Uint8Array(binary.length);
     component.pixels.forEach((pixel) => {
       mask[pixel] = 1;
@@ -710,6 +742,17 @@ function refineBinaryForTrace(binary, width, height) {
     mask = erode(dilate(mask, width, height, radius), width, height, radius);
     if (isLarge || isMedium) {
       mask = dilate(erode(mask, width, height, radius), width, height, radius);
+    }
+    if (lineartPolish && isLarge && radius > 1) {
+      mask = erode(dilate(mask, width, height, 1), width, height, 1);
+    }
+
+    if (lineartPolish && countActivePixels(mask) < component.count * LINEART_POLISH_MIN_RETAIN_RATIO) {
+      mask = new Uint8Array(binary.length);
+      component.pixels.forEach((pixel) => {
+        mask[pixel] = 1;
+      });
+      mask = erode(dilate(mask, width, height, 1), width, height, 1);
     }
 
     for (let index = 0; index < mask.length; index += 1) {
@@ -724,13 +767,15 @@ function refineAssignmentsForTrace(assignments, colors, width, height, settings 
   if (settings.edgeRefinement === false) {
     return {
       assignments,
-      colors: recomputeColors(assignments, colors, width, height)
+      colors: recomputeColors(assignments, colors, width, height),
+      lineartPolish: false
     };
   }
 
   const output = new Int16Array(assignments.length);
   output.fill(-1);
   const colorsBySize = [...colors].sort((left, right) => right.count - left.count);
+  const lineartPolish = shouldUseLineartPolish(settings);
 
   for (const color of colorsBySize) {
     const colorIndex = color.index - 1;
@@ -738,7 +783,7 @@ function refineAssignmentsForTrace(assignments, colors, width, height, settings 
     for (let index = 0; index < assignments.length; index += 1) {
       if (assignments[index] === colorIndex) binary[index] = 1;
     }
-    const refined = refineBinaryForTrace(binary, width, height);
+    const refined = refineBinaryForTrace(binary, width, height, settings);
     for (let index = 0; index < refined.length; index += 1) {
       if (refined[index]) output[index] = colorIndex;
     }
@@ -746,8 +791,8 @@ function refineAssignmentsForTrace(assignments, colors, width, height, settings 
 
   const refinedColors = recomputeColors(output, colors, width, height);
   return refinedColors.length > 0
-    ? { assignments: output, colors: refinedColors }
-    : { assignments, colors: recomputeColors(assignments, colors, width, height) };
+    ? { assignments: output, colors: refinedColors, lineartPolish }
+    : { assignments, colors: recomputeColors(assignments, colors, width, height), lineartPolish: false };
 }
 
 function estimateOutputDpi(bounds, settings = {}) {
@@ -792,7 +837,147 @@ function buildPrepressQualityAssessment({ sourceWidth, sourceHeight, width, heig
   };
 }
 
-function boundaryPaths(binary, width, height) {
+function pathOptionsForSettings(settings = {}, width = 0, height = 0) {
+  const enabled = shouldUseLineartPolish(settings);
+  const tolerance = enabled ? clamp(Math.max(width, height) / 420, 1.1, 4) : 0;
+  return {
+    smooth: enabled,
+    tolerance: Number(tolerance.toFixed(2)),
+    cornerCos: 0.25
+  };
+}
+
+function parsePoint(value) {
+  const [x, y] = String(value).split(',').map(Number);
+  return { x, y };
+}
+
+function samePoint(left, right) {
+  return left && right && left.x === right.x && left.y === right.y;
+}
+
+function formatNumber(value) {
+  return Number.isInteger(value) ? String(value) : Number(value.toFixed(3)).toString();
+}
+
+function perpendicularDistance(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  return Math.abs(dy * point.x - dx * point.y + end.x * start.y - end.y * start.x) / Math.hypot(dx, dy);
+}
+
+function simplifyPolyline(points, tolerance) {
+  if (points.length <= 2 || tolerance <= 0) return points;
+  let maxDistance = 0;
+  let maxIndex = 0;
+  const start = points[0];
+  const end = points[points.length - 1];
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const distance = perpendicularDistance(points[index], start, end);
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      maxIndex = index;
+    }
+  }
+
+  if (maxDistance <= tolerance) return [start, end];
+  const left = simplifyPolyline(points.slice(0, maxIndex + 1), tolerance);
+  const right = simplifyPolyline(points.slice(maxIndex), tolerance);
+  return left.slice(0, -1).concat(right);
+}
+
+function simplifyBoundaryPoints(pointKeys, options = {}) {
+  const points = pointKeys.map(parsePoint);
+  if (points.length <= 3) return points;
+  const closed = samePoint(points[0], points[points.length - 1]);
+  const source = closed ? points.slice(0, -1) : points;
+  let simplified = simplifyCollinearPoints(source);
+
+  if (options.smooth && options.tolerance > 0 && simplified.length > 4) {
+    const closedPolyline = [...simplified, simplified[0]];
+    simplified = simplifyPolyline(closedPolyline, options.tolerance);
+    if (samePoint(simplified[0], simplified[simplified.length - 1])) simplified.pop();
+    if (simplified.length < 3) simplified = source;
+  }
+
+  if (closed && simplified.length > 0) simplified.push(simplified[0]);
+  return simplified.length > 2 ? simplified : points;
+}
+
+function simplifyCollinearPoints(points) {
+  if (points.length <= 3) return points;
+  const simplified = [];
+
+  for (let index = 0; index < points.length; index += 1) {
+    const previous = points[(index - 1 + points.length) % points.length];
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    const sameVertical = previous.x === current.x && current.x === next.x;
+    const sameHorizontal = previous.y === current.y && current.y === next.y;
+    if (!sameVertical && !sameHorizontal) simplified.push(current);
+  }
+
+  return simplified.length > 2 ? simplified : points;
+}
+
+function isSharpCorner(previous, current, next, cornerCos) {
+  const leftX = current.x - previous.x;
+  const leftY = current.y - previous.y;
+  const rightX = next.x - current.x;
+  const rightY = next.y - current.y;
+  const leftLength = Math.hypot(leftX, leftY);
+  const rightLength = Math.hypot(rightX, rightY);
+  if (leftLength < 5 || rightLength < 5) return false;
+  const cos = (leftX * rightX + leftY * rightY) / (leftLength * rightLength);
+  return cos < cornerCos;
+}
+
+function linePathFromPoints(points) {
+  const closed = samePoint(points[0], points[points.length - 1]);
+  const source = closed ? points.slice(0, -1) : points;
+  if (source.length < 3) return '';
+  const [first, ...rest] = source;
+  return `M${formatNumber(first.x)} ${formatNumber(first.y)}${rest.map((point) => `L${formatNumber(point.x)} ${formatNumber(point.y)}`).join('')}Z`;
+}
+
+function smoothPathFromPoints(points, options = {}) {
+  const closed = samePoint(points[0], points[points.length - 1]);
+  const source = closed ? points.slice(0, -1) : points;
+  if (source.length < 5) return linePathFromPoints(points);
+
+  const midpoint = (left, right) => ({
+    x: (left.x + right.x) / 2,
+    y: (left.y + right.y) / 2
+  });
+  const start = midpoint(source[source.length - 1], source[0]);
+  const commands = [`M${formatNumber(start.x)} ${formatNumber(start.y)}`];
+
+  for (let index = 0; index < source.length; index += 1) {
+    const previous = source[(index - 1 + source.length) % source.length];
+    const current = source[index];
+    const next = source[(index + 1) % source.length];
+    const nextMidpoint = midpoint(current, next);
+    if (isSharpCorner(previous, current, next, options.cornerCos ?? 0.25)) {
+      commands.push(`L${formatNumber(current.x)} ${formatNumber(current.y)}`);
+      commands.push(`L${formatNumber(nextMidpoint.x)} ${formatNumber(nextMidpoint.y)}`);
+    } else {
+      commands.push(`Q${formatNumber(current.x)} ${formatNumber(current.y)} ${formatNumber(nextMidpoint.x)} ${formatNumber(nextMidpoint.y)}`);
+    }
+  }
+
+  commands.push('Z');
+  return commands.join('');
+}
+
+function pathFromBoundaryPoints(pointKeys, options = {}) {
+  const simplifiedPoints = simplifyBoundaryPoints(pointKeys, options);
+  if (simplifiedPoints.length <= 2) return '';
+  return options.smooth ? smoothPathFromPoints(simplifiedPoints, options) : linePathFromPoints(simplifiedPoints);
+}
+
+function boundaryPaths(binary, width, height, options = {}) {
   const segments = new Map();
   const add = (x1, y1, x2, y2) => {
     const key = `${x1},${y1}`;
@@ -827,49 +1012,31 @@ function boundaryPaths(binary, width, height) {
       current = next;
       if (current === start) break;
     }
-    const simplifiedPoints = simplifyCollinearPoints(points);
-    if (simplifiedPoints.length > 2) {
-      const [firstX, firstY] = simplifiedPoints[0].split(',').map(Number);
-      const lines = simplifiedPoints.slice(1).map((point) => {
-        const [x, y] = point.split(',').map(Number);
-        return `L${x} ${y}`;
-      });
-      paths.push(`M${firstX} ${firstY}${lines.join('')}Z`);
-    }
+    const path = pathFromBoundaryPoints(points, options);
+    if (path) paths.push(path);
   }
   return paths.join('');
 }
 
-function simplifyCollinearPoints(points) {
-  if (points.length <= 3) return points;
-  const closed = points[0] === points[points.length - 1];
-  const source = closed ? points.slice(0, -1) : points;
-  const simplified = [];
-
-  for (let index = 0; index < source.length; index += 1) {
-    const previous = source[(index - 1 + source.length) % source.length].split(',').map(Number);
-    const current = source[index].split(',').map(Number);
-    const next = source[(index + 1) % source.length].split(',').map(Number);
-    const sameVertical = previous[0] === current[0] && current[0] === next[0];
-    const sameHorizontal = previous[1] === current[1] && current[1] === next[1];
-    if (!sameVertical && !sameHorizontal) simplified.push(source[index]);
-  }
-
-  if (closed && simplified.length > 0) simplified.push(simplified[0]);
-  return simplified.length > 2 ? simplified : points;
-}
-
-function pathFromAssignments(assignments, width, height, activeIndexes) {
+function pathFromAssignments(assignments, width, height, activeIndexes, settings = {}) {
   const active = activeIndexes instanceof Set ? activeIndexes : new Set([activeIndexes]);
   const binary = new Uint8Array(width * height);
   for (let index = 0; index < assignments.length; index += 1) {
     if (active.has(assignments[index])) binary[index] = 1;
   }
-  return boundaryPaths(binary, width, height) || rowRunPath(assignments, width, height, active);
+  return boundaryPaths(binary, width, height, pathOptionsForSettings(settings, width, height)) || rowRunPath(assignments, width, height, active);
 }
 
-function pathFromBinary(binary, width, height, fallbackPath = '') {
-  return boundaryPaths(binary, width, height) || fallbackPath;
+function pathFromBinary(binary, width, height, fallbackPath = '', settings = {}) {
+  return boundaryPaths(binary, width, height, pathOptionsForSettings(settings, width, height)) || fallbackPath;
+}
+
+export function traceBinaryPathForTest(binary, width, height, settings = {}) {
+  return pathFromBinary(binary, width, height, '', settings);
+}
+
+export function refineAssignmentsForTraceForTest(assignments, colors, width, height, settings = {}) {
+  return refineAssignmentsForTrace(assignments, colors, width, height, settings);
 }
 
 function svgDocument({ width, height, body, label = 'Vector output', physicalWidthCm }) {
@@ -884,7 +1051,7 @@ ${body}
 function buildFullSvg({ colors, assignments, width, height, settings }) {
   const groups = colors
     .map((color, index) => {
-      const path = pathFromAssignments(assignments, width, height, color.index - 1);
+      const path = pathFromAssignments(assignments, width, height, color.index - 1, settings);
       const spotName = spotNameForColor(color, index + 1);
       return `<g id="color-${String(color.index).padStart(2, '0')}" data-color="${color.hex}" data-spot-color="${spotName}">
 <path d="${path}" fill="${color.hex}" fill-rule="evenodd"/>
@@ -896,7 +1063,7 @@ function buildFullSvg({ colors, assignments, width, height, settings }) {
 
 function buildFilmSvg({ assignments, width, height, settings, activeIndexes, label, bounds, pathOverride = '', spotName = 'BLACK_100', inkHex = '#000000' }) {
   const artworkBounds = bounds || fullCanvasBounds(width, height);
-  const path = pathOverride || pathFromAssignments(assignments, width, height, activeIndexes);
+  const path = pathOverride || pathFromAssignments(assignments, width, height, activeIndexes, settings);
   const layout = buildPrintLayout({
     sourceWidth: artworkBounds.width,
     sourceHeight: artworkBounds.height,
@@ -933,9 +1100,9 @@ function buildCutlineSvg({ assignments, colors, width, height, settings, bounds 
   const mmPerPixel = (actualWidthCm * 10) / Math.max(1, bounds.width);
   const radiusPx = clamp(Math.round(offsetMm / mmPerPixel), 1, 128);
   const binary = binaryFromAssignments(assignments, width, height, colors);
-  const outline = boundaryPaths(dilate(binary, width, height, radiusPx), width, height);
+  const outline = boundaryPaths(dilate(binary, width, height, radiusPx), width, height, pathOptionsForSettings(settings, width, height));
   const fullColor = colors
-    .map((color) => `<path d="${pathFromAssignments(assignments, width, height, color.index - 1)}" fill="${color.hex}" fill-rule="evenodd"/>`)
+    .map((color) => `<path d="${pathFromAssignments(assignments, width, height, color.index - 1, settings)}" fill="${color.hex}" fill-rule="evenodd"/>`)
     .join('\n');
   const body = `${fullColor}
 <g id="CutContour" data-spot-color="CutContour">
@@ -1116,6 +1283,7 @@ export async function processImageLocally(file, settings) {
   const refined = refineAssignmentsForTrace(limited.assignments, limited.colors, width, height, effectiveSettings);
   const assignments = refined.assignments;
   const outputColors = refined.colors;
+  const tracePathOptions = pathOptionsForSettings(effectiveSettings, width, height);
   const filmPlan = createFilmPlan(outputColors, width, height, effectiveSettings);
   const printable = filmPlan.colors;
   const exportColors = settings.removeBackground === true && settings.includeBackgroundInFilmSize !== true ? printable : outputColors;
@@ -1146,7 +1314,8 @@ export async function processImageLocally(file, settings) {
         chokeBinary(underbaseBinary, width, height, 1),
         width,
         height,
-        pathFromAssignments(assignments, width, height, underbaseActiveIndexes)
+        pathFromAssignments(assignments, width, height, underbaseActiveIndexes, effectiveSettings),
+        effectiveSettings
       );
       const film = buildFilmSvg({
         assignments,
@@ -1221,7 +1390,7 @@ export async function processImageLocally(file, settings) {
   const priceIdr = calculateJobPrice({
     inputMode: settings.inputMode,
     separationFilmCount,
-      retouchAlreadyCharged: effectiveSettings.inputMode === INPUT_MODE_RETOUCH
+    retouchAlreadyCharged: effectiveSettings.inputMode === INPUT_MODE_RETOUCH
   });
 
   return {
@@ -1275,6 +1444,13 @@ export async function processImageLocally(file, settings) {
       separationFilmCount,
       hasStickerCutline: Boolean(stickerCutline),
       edgeRefinement: settings.edgeRefinement !== false,
+      edgePolish: Boolean(refined.lineartPolish),
+      lineartTrace: Boolean(tracePathOptions.smooth),
+      traceSmoothing: {
+        enabled: Boolean(tracePathOptions.smooth),
+        tolerancePx: tracePathOptions.tolerance,
+        curveMode: tracePathOptions.smooth ? 'quadratic_midpoint' : 'pixel_boundary'
+      },
       generatedFiles: [
         'preview-full-color.png',
         'full-vector.svg',
