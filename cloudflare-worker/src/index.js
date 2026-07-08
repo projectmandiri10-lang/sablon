@@ -274,16 +274,67 @@ async function fileToDataUrl(file) {
 }
 
 function guessOpenRouterModalities(model = '') {
-  return /gemini|image-preview|gpt-5-image|recraft|mai-image|nano-banana/i.test(model) ? ['image', 'text'] : ['image'];
+  return /gemini|image-preview|gpt-5-image|gpt-image-1|recraft|mai-image|nano-banana/i.test(model) ? ['image', 'text'] : ['image'];
+}
+
+function inferAiRedrawArtworkType(settings = {}) {
+  const hint = `${settings.projectName || ''} ${settings.productionType || ''}`.toLowerCase();
+  if (/(maskot|mascot|karakter|character|illustration|ilustrasi)/i.test(hint)) return 'mascot';
+  if (/(tulisan|text|wordmark|letter|huruf|typography|font)/i.test(hint)) return 'text';
+  if (/(sticker|stiker|label|decal)/i.test(hint)) return 'sticker';
+  return 'logo';
 }
 
 export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   const profile = String(aiModelConfig.promptProfile || 'generic_trace_clone');
+  const artworkType = inferAiRedrawArtworkType(settings);
   const parts = [
-    'Redraw the uploaded artwork as a clean cartoon-like, trace-friendly raster illustration for vectorization and screen printing.',
-    'Preserve original subject, layout, proportions, typography, readable text, and brand identity.',
-    'The final result should look like a polished cartoon/vector redraw, not a photo cleanup, blurry repaint, or realistic repaint.'
+    'You are a professional logo restoration and vector preparation artist.',
+    'Task: Restore and redraw the uploaded artwork while preserving its original identity.',
+    'Preserve the exact layout and composition.',
+    'Preserve original subject, proportions, typography, readable text, and brand identity.',
+    'Remove blur completely.',
+    'Remove JPEG artifacts.',
+    'Remove sensor noise.',
+    'Remove motion blur.',
+    'Remove uneven lighting.',
+    'Remove shadows.',
+    'Restore missing edges.',
+    'Restore damaged shapes.',
+    'Produce perfectly smooth curves.',
+    'Produce crisp geometric edges.',
+    'Keep colors flat and solid.',
+    'Do not add gradients.',
+    'Do not add textures.',
+    'Do not add reflections.',
+    'Do not add 3D effects.',
+    'Do not redesign the artwork.',
+    'Do not invent new elements.',
+    'Maintain the original proportions.',
+    'Make the result suitable for professional vector tracing.',
+    'Output should look like a clean digital master artwork.',
+    'Extremely sharp.',
+    'High contrast.',
+    'Professional print quality.'
   ];
+
+  if (artworkType === 'logo') {
+    parts.push('Preserve all text exactly as shown.');
+    parts.push('Preserve typography style as closely as possible.');
+    parts.push('Preserve every symbol, swoosh, curve, icon, and decorative element.');
+    parts.push('Do not reinterpret the logo.');
+    parts.push('Treat this as restoration, not redesign.');
+    parts.push('Every letter, spacing, angle, curve, and proportion should remain faithful to the original reference.');
+    parts.push('Keep the background solid black.');
+    parts.push('The final result should look like a polished cartoon/vector redraw, not a photo cleanup, blurry repaint, or realistic repaint.');
+  } else if (artworkType === 'mascot') {
+    parts.push('Focus on restoring illustration details, expression, silhouette, and clean character outlines without changing the character identity.');
+    parts.push('Keep linework bold, smooth, and easy to trace.');
+  } else if (artworkType === 'sticker') {
+    parts.push('Focus on sticker-ready solid colors, clear outlines, smooth contour flow, and a strong readable silhouette.');
+  } else if (artworkType === 'text') {
+    parts.push('Focus on letter sharpness, spacing accuracy, clean counters, straight baselines, and smooth readable typographic edges.');
+  }
 
   if (String(settings.productionType || '').toLowerCase() === 'sablon') {
     parts.push('Prioritize flat color separation, dominant source colors, bold contours, smooth closed edges, and screen-print friendly shapes.');
@@ -332,6 +383,15 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
     default:
       parts.push('Preserve original artwork shape and composition while making the output cleaner and easier to trace.');
       break;
+  }
+
+  if (String(settings.productionType || '').toLowerCase() === 'sablon') {
+    parts.push('The final image will be used for screen printing and vector tracing.');
+    parts.push('Edges must be perfectly clean.');
+    parts.push('Shapes must be easy to trace.');
+    parts.push('Colors must remain solid.');
+    parts.push('Avoid anti-aliasing whenever possible.');
+    parts.push('Avoid semi-transparent pixels.');
   }
 
   parts.push('Do not add extra text, watermarks, mockups, decorative effects, shadows, gradients, or realistic photo textures.');

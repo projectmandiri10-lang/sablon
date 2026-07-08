@@ -3,7 +3,7 @@
 Design Mudah uses a LiteLLM-first redraw architecture with OpenRouter fallback:
 
 - `LiteLLM image redraw = primary sketch/trace redraw`
-- `gemini/gemini-3.1-flash-image-preview = default LiteLLM model`
+- `openai/gpt-image-1 = default LiteLLM model`
 - `OpenRouter = secondary provider and automatic fallback`
 - `Riverflow V2 Fast = optional fallback image model inside the OpenRouter path when its primary model is unavailable`
 - deterministic browser trace, vector, cutline, film, PDF, and ZIP stay outside AI

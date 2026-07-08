@@ -5,7 +5,7 @@ export const OPENROUTER_RIVERFLOW_REDRAW_PROVIDER = 'openrouter_riverflow_image'
 export const LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER = 'gemini_direct_image';
 export const HYBRID_REDRAW_PROVIDER = LITELLM_IMAGE_REDRAW_PROVIDER;
 
-export const DEFAULT_LITELLM_IMAGE_MODEL = 'gemini/gemini-3.1-flash-image-preview';
+export const DEFAULT_LITELLM_IMAGE_MODEL = 'openai/gpt-image-1';
 export const DEFAULT_OPENROUTER_IMAGE_MODEL = 'black-forest-labs/flux.2-klein-4b';
 export const DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK = 'sourceful/riverflow-v2-fast';
 export const DEFAULT_OPENROUTER_SAFETY_MODEL = 'nvidia/nemotron-3.5-content-safety:free';
@@ -88,7 +88,7 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.05,
-    note: 'Default LiteLLM Gemini image preview 1K trace-clone dengan OpenRouter fallback untuk upstream error yang layak dialihkan.'
+    note: 'Default LiteLLM GPT Image 1 1K trace-clone dengan OpenRouter fallback untuk upstream error yang layak dialihkan.'
   },
   premium: {
     mode: 'premium',
@@ -142,12 +142,20 @@ function normalizeLiteLlmImageModel(value, fallback = DEFAULT_LITELLM_IMAGE_MODE
   const normalized = normalizeText(value, fallback);
   const lowered = normalized.toLowerCase();
 
-  if (lowered === 'gemini-3.1-flash-image' || lowered === 'gemini/gemini-3.1-flash-image') {
+  if (lowered === 'gpt-image-1') {
     return DEFAULT_LITELLM_IMAGE_MODEL;
   }
 
-  if (lowered === 'gemini-3.1-flash-image-preview') {
+  if (lowered === 'openai/gpt-image-1') {
     return DEFAULT_LITELLM_IMAGE_MODEL;
+  }
+
+  if (lowered === 'gemini-3.1-flash-image' || lowered === 'gemini/gemini-3.1-flash-image') {
+    return 'gemini/gemini-3.1-flash-image-preview';
+  }
+
+  if (lowered === 'gemini-3.1-flash-image-preview') {
+    return 'gemini/gemini-3.1-flash-image-preview';
   }
 
   if (/^gemini\//i.test(normalized)) {
