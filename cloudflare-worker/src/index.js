@@ -1863,6 +1863,7 @@ function buildAiRedrawMetadata(aiModelConfig, image, extra = {}) {
     promptProfile: aiModelConfig.promptProfile,
     imageSize: aiModelConfig.imageSize,
     generationQuality: aiModelConfig.generationQuality,
+    inputFidelity: extra.inputFidelity || '',
     reasoningEffort: aiModelConfig.reasoningEffort || '',
     backgroundMode: aiModelConfig.backgroundMode || '',
     preset: aiModelConfig.preset || aiModelConfig.mode || '',
@@ -1925,6 +1926,7 @@ async function requestProviderRetouchedImage(env, image, settings, aiModelConfig
 
 async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig, routing) {
   const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
+  const inputFidelity = resolveLiteLlmInputFidelity(settings, aiModelConfig);
   let response;
   try {
     if (isLiteLlmOpenAiGptImageModel(aiModelConfig.liteLlmImageModel)) {
@@ -1934,6 +1936,7 @@ async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig,
       form.append('prompt', prompt);
       if (aiModelConfig.imageSize) form.append('size', normalizeLiteLlmImageSize(aiModelConfig.imageSize));
       if (aiModelConfig.generationQuality) form.append('quality', normalizeLiteLlmImageQuality(aiModelConfig.generationQuality));
+      if (inputFidelity) form.append('input_fidelity', inputFidelity);
       const headers = buildLiteLlmHeaders(env);
       delete headers['Content-Type'];
       response = await fetch(`${liteLlmBaseUrl(env)}/images/edits`, {
@@ -2010,6 +2013,7 @@ async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig,
     metadata: buildAiRedrawMetadata(aiModelConfig, image, {
       providerUsed: LITELLM_IMAGE_REDRAW_PROVIDER,
       model: aiModelConfig.liteLlmImageModel,
+      inputFidelity,
       fallbackAttempted: routing.fallbackAttempted,
       fallbackReason: routing.fallbackReason,
       finalTechnicalPrompt: prompt
@@ -2028,6 +2032,11 @@ function normalizeLiteLlmImageQuality(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'low' || normalized === 'high') return normalized;
   return 'medium';
+}
+
+function resolveLiteLlmInputFidelity(settings = {}, aiModelConfig = {}) {
+  if (!isLiteLlmOpenAiGptImageModel(aiModelConfig.liteLlmImageModel)) return '';
+  return 'low';
 }
 
 async function requestOpenRouterRetouchedImage(env, image, settings, aiModelConfig, routing) {

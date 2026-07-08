@@ -28,9 +28,15 @@ test('LiteLLM fallback policy accepts quota, model unavailable, and upstream una
 
 test('LiteLLM primary returns image bytes and metadata', async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (input) => {
+  globalThis.fetch = async (input, init = {}) => {
     const url = String(input);
     if (url === 'https://litellm.example.com/v1/images/edits') {
+      const form = init.body;
+      assert.equal(form.get('model'), 'openai/gpt-image-1.5');
+      assert.equal(form.get('size'), '1024x1024');
+      assert.equal(form.get('quality'), 'high');
+      assert.equal(form.get('input_fidelity'), 'low');
+      assert.match(String(form.get('prompt')), /professional logo restoration and vector preparation artist/);
       return new Response(
         JSON.stringify({
           data: [{ b64_json: 'AQID' }]
@@ -68,6 +74,7 @@ test('LiteLLM primary returns image bytes and metadata', async () => {
     assert.equal(result.headers.get('Content-Type'), 'image/png');
     assert.equal(result.metadata.providerUsed, 'litellm_image');
     assert.equal(result.metadata.model, 'openai/gpt-image-1.5');
+    assert.equal(result.metadata.inputFidelity, 'low');
     assert.match(result.metadata.finalTechnicalPrompt, /screen-print friendly shapes/);
     assert.equal(result.metadata.safetyEnabled, true);
   } finally {
