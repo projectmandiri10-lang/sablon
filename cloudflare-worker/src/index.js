@@ -327,7 +327,7 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
       parts.push('Stay very close to the source image while cleaning noise, artifacts, rough edges, and damaged areas.');
       break;
     case 'gemini_trace_clone':
-      parts.push('Preserve composition and readable text while improving clarity, edge definition, and trace readiness.');
+      parts.push('Redraw the exact best version of the source image without any additions or changes. Repair all defects completely. Use only the dominant solid colors from the original. Ensure all edges are perfectly smooth like clean lineart.');
       break;
     default:
       parts.push('Preserve original artwork shape and composition while making the output cleaner and easier to trace.');
