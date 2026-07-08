@@ -30,23 +30,10 @@ test('LiteLLM primary returns image bytes and metadata', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
     const url = String(input);
-    if (url === 'https://litellm.example.com/v1/chat/completions') {
+    if (url === 'https://litellm.example.com/v1/images/edits') {
       return new Response(
         JSON.stringify({
-          choices: [
-            {
-              message: {
-                content: [
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: 'https://cdn.example/litellm-output.png'
-                    }
-                  }
-                ]
-              }
-            }
-          ]
+          data: [{ b64_json: 'AQID' }]
         }),
         {
           status: 200,
@@ -92,16 +79,10 @@ test('LiteLLM still accepts the legacy API key env name', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
     const url = String(input);
-    if (url === 'https://litellm.example.com/v1/chat/completions') {
+    if (url === 'https://litellm.example.com/v1/images/edits') {
       return new Response(
         JSON.stringify({
-          choices: [
-            {
-              message: {
-                images: [{ image_url: { url: 'data:image/png;base64,AQID' } }]
-              }
-            }
-          ]
+          data: [{ b64_json: 'AQID' }]
         }),
         {
           status: 200,
@@ -139,7 +120,7 @@ test('LiteLLM falls back to OpenRouter when primary model is unavailable', async
   globalThis.fetch = async (input) => {
     const url = String(input);
     calls.push(url);
-    if (url === 'https://litellm.example.com/v1/chat/completions') {
+    if (url === 'https://litellm.example.com/v1/images/edits') {
       return new Response(JSON.stringify({ error: { message: 'unsupported model' } }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
@@ -191,7 +172,7 @@ test('LiteLLM falls back to OpenRouter when primary model is unavailable', async
     assert.equal(result.metadata.providerUsed, 'openrouter_image');
     assert.equal(result.metadata.fallbackAttempted, true);
     assert.equal(result.metadata.fallbackReason, 'model_unavailable');
-    assert.equal(calls[0], 'https://litellm.example.com/v1/chat/completions');
+    assert.equal(calls[0], 'https://litellm.example.com/v1/images/edits');
     assert.equal(calls[1], 'https://openrouter.ai/api/v1/chat/completions');
     assert.equal(calls[2], 'https://cdn.example/openrouter-output.png');
   } finally {
@@ -205,7 +186,7 @@ test('LiteLLM falls back to OpenRouter on upstream network failure', async () =>
   globalThis.fetch = async (input) => {
     const url = String(input);
     calls.push(url);
-    if (url === 'https://litellm.example.com/v1/chat/completions') {
+    if (url === 'https://litellm.example.com/v1/images/edits') {
       throw new Error('connect timeout');
     }
     if (url === 'https://openrouter.ai/api/v1/chat/completions') {
@@ -248,7 +229,56 @@ test('LiteLLM falls back to OpenRouter on upstream network failure', async () =>
     assert.equal(result.metadata.providerUsed, 'openrouter_image');
     assert.equal(result.metadata.fallbackAttempted, true);
     assert.equal(result.metadata.fallbackReason, 'upstream_unavailable');
-    assert.deepEqual(calls, ['https://litellm.example.com/v1/chat/completions', 'https://openrouter.ai/api/v1/chat/completions']);
+    assert.deepEqual(calls, ['https://litellm.example.com/v1/images/edits', 'https://openrouter.ai/api/v1/chat/completions']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('LiteLLM Gemini image models still use chat completions', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    calls.push(url);
+    if (url === 'https://litellm.example.com/v1/chat/completions') {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                images: [{ image_url: { url: 'data:image/png;base64,AQID' } }]
+              }
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  try {
+    const image = new File([new Uint8Array([9, 9, 9])], 'trace.png', { type: 'image/png' });
+    const env = {
+      LITELLM_SECRET_KEY: 'litellm_test',
+      LITELLM_BASE_URL: 'https://litellm.example.com/v1'
+    };
+    const config = normalizeAiRedrawModelConfig(
+      {
+        primaryProvider: 'litellm_image',
+        fallbackProvider: 'openrouter_image',
+        liteLlmImageModel: 'gemini/gemini-3.1-flash-image-preview'
+      },
+      env
+    );
+
+    const result = await requestAiRetouchedImage(env, image, { productionType: 'sablon' }, config);
+    assert.equal(result.metadata.providerUsed, 'litellm_image');
+    assert.deepEqual(calls, ['https://litellm.example.com/v1/chat/completions']);
   } finally {
     globalThis.fetch = originalFetch;
   }

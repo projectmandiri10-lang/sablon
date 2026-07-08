@@ -429,6 +429,10 @@ function dataUrlFromBase64(data, mimeType = 'image/png') {
   return `data:${mimeType};base64,${String(data || '').trim()}`;
 }
 
+function isLiteLlmOpenAiGptImageModel(model = '') {
+  return /^openai\/gpt-image-/i.test(String(model || '').trim());
+}
+
 function extractLiteLlmImageUrl(data) {
   const directImageEntry = data?.choices?.[0]?.message?.images?.[0];
   if (directImageEntry?.image_url?.url || directImageEntry?.imageUrl?.url) {
@@ -1920,44 +1924,60 @@ async function requestProviderRetouchedImage(env, image, settings, aiModelConfig
 }
 
 async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig, routing) {
-  const imageDataUrl = await fileToDataUrl(image);
   const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
-  const payload = {
-    model: aiModelConfig.liteLlmImageModel,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: prompt
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              url: imageDataUrl
-            }
-          }
-        ]
-      }
-    ],
-    modalities: guessOpenRouterModalities(aiModelConfig.liteLlmImageModel),
-    stream: false
-  };
-
-  if (aiModelConfig.imageSize) {
-    payload.image_config = {
-      image_size: aiModelConfig.imageSize
-    };
-  }
-
   let response;
   try {
-    response = await fetch(`${liteLlmBaseUrl(env)}/chat/completions`, {
-      method: 'POST',
-      headers: buildLiteLlmHeaders(env),
-      body: JSON.stringify(payload)
-    });
+    if (isLiteLlmOpenAiGptImageModel(aiModelConfig.liteLlmImageModel)) {
+      const form = new FormData();
+      form.append('model', aiModelConfig.liteLlmImageModel);
+      form.append('image', image, image.name || 'source-image.png');
+      form.append('prompt', prompt);
+      if (aiModelConfig.imageSize) form.append('size', normalizeLiteLlmImageSize(aiModelConfig.imageSize));
+      if (aiModelConfig.generationQuality) form.append('quality', normalizeLiteLlmImageQuality(aiModelConfig.generationQuality));
+      const headers = buildLiteLlmHeaders(env);
+      delete headers['Content-Type'];
+      response = await fetch(`${liteLlmBaseUrl(env)}/images/edits`, {
+        method: 'POST',
+        headers,
+        body: form
+      });
+    } else {
+      const imageDataUrl = await fileToDataUrl(image);
+      const payload = {
+        model: aiModelConfig.liteLlmImageModel,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: prompt
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: imageDataUrl
+                }
+              }
+            ]
+          }
+        ],
+        modalities: guessOpenRouterModalities(aiModelConfig.liteLlmImageModel),
+        stream: false
+      };
+
+      if (aiModelConfig.imageSize) {
+        payload.image_config = {
+          image_size: aiModelConfig.imageSize
+        };
+      }
+
+      response = await fetch(`${liteLlmBaseUrl(env)}/chat/completions`, {
+        method: 'POST',
+        headers: buildLiteLlmHeaders(env),
+        body: JSON.stringify(payload)
+      });
+    }
   } catch (error) {
     throw createProviderError(LITELLM_IMAGE_REDRAW_PROVIDER, 'LiteLLM tidak dapat dihubungi.', {
       statusCode: 502,
@@ -1995,6 +2015,19 @@ async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig,
       finalTechnicalPrompt: prompt
     })
   };
+}
+
+function normalizeLiteLlmImageSize(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (normalized === '2K') return '1536x1024';
+  if (normalized === '4K') return '1536x1024';
+  return '1024x1024';
+}
+
+function normalizeLiteLlmImageQuality(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'low' || normalized === 'high') return normalized;
+  return 'medium';
 }
 
 async function requestOpenRouterRetouchedImage(env, image, settings, aiModelConfig, routing) {
