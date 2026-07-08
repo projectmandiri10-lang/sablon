@@ -5,7 +5,7 @@ export const OPENROUTER_RIVERFLOW_REDRAW_PROVIDER = 'openrouter_riverflow_image'
 export const LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER = 'gemini_direct_image';
 export const HYBRID_REDRAW_PROVIDER = LITELLM_IMAGE_REDRAW_PROVIDER;
 
-export const DEFAULT_LITELLM_IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
+export const DEFAULT_LITELLM_IMAGE_MODEL = 'gemini/gemini-3.1-flash-image-preview';
 export const DEFAULT_OPENROUTER_IMAGE_MODEL = 'black-forest-labs/flux.2-klein-4b';
 export const DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK = 'sourceful/riverflow-v2-fast';
 export const DEFAULT_OPENROUTER_SAFETY_MODEL = 'nvidia/nemotron-3.5-content-safety:free';
@@ -138,6 +138,29 @@ function normalizeOptionalText(value, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
 }
 
+function normalizeLiteLlmImageModel(value, fallback = DEFAULT_LITELLM_IMAGE_MODEL) {
+  const normalized = normalizeText(value, fallback);
+  const lowered = normalized.toLowerCase();
+
+  if (lowered === 'gemini-3.1-flash-image' || lowered === 'gemini/gemini-3.1-flash-image') {
+    return DEFAULT_LITELLM_IMAGE_MODEL;
+  }
+
+  if (lowered === 'gemini-3.1-flash-image-preview') {
+    return DEFAULT_LITELLM_IMAGE_MODEL;
+  }
+
+  if (/^gemini\//i.test(normalized)) {
+    return normalized;
+  }
+
+  if (/^gemini-/i.test(normalized)) {
+    return `gemini/${normalized}`;
+  }
+
+  return normalized;
+}
+
 function normalizeGenerationQuality(value, fallback) {
   const normalized = normalizeText(value, fallback).toLowerCase();
   return normalized === 'low' || normalized === 'standard' || normalized === 'high' ? normalized : fallback;
@@ -220,9 +243,9 @@ export function normalizeHybridRedrawConfig(value = {}, env = {}) {
     provider: primaryProvider,
     primaryProvider,
     fallbackProvider,
-    liteLlmImageModel: normalizeText(
+    liteLlmImageModel: normalizeLiteLlmImageModel(
       input.liteLlmImageModel || input.geminiGenerationModel || input.geminiModel,
-      normalizeText(env.LITELLM_IMAGE_MODEL, preset.liteLlmImageModel)
+      normalizeLiteLlmImageModel(env.LITELLM_IMAGE_MODEL, preset.liteLlmImageModel)
     ),
     analysisModel: normalizeOptionalText(
       input.analysisModel,

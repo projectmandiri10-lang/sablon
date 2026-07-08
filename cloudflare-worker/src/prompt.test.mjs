@@ -8,11 +8,11 @@ test('AI redraw model presets expose LiteLLM primary with OpenRouter fallback', 
   assert.equal(presets.budget.provider, 'litellm_image');
   assert.equal(presets.budget.primaryProvider, 'litellm_image');
   assert.equal(presets.budget.fallbackProvider, 'openrouter_image');
-  assert.equal(presets.budget.liteLlmImageModel, 'gemini-3.1-flash-image-preview');
+  assert.equal(presets.budget.liteLlmImageModel, 'gemini/gemini-3.1-flash-image-preview');
   assert.equal(presets.budget.generationModel, 'black-forest-labs/flux.2-klein-4b');
   assert.equal(presets.budget.fallbackModel, 'sourceful/riverflow-v2-fast');
   assert.equal(presets.budget.promptProfile, 'generic_trace_clone');
-  assert.equal(presets.quality.liteLlmImageModel, 'gemini-3.1-flash-image-preview');
+  assert.equal(presets.quality.liteLlmImageModel, 'gemini/gemini-3.1-flash-image-preview');
   assert.equal(presets.quality.imageSize, '1K');
   assert.equal(presets.quality.safetyModel, 'nvidia/nemotron-3.5-content-safety:free');
   assert.equal(presets.premium.retryOnLowConfidence, true);
@@ -54,7 +54,7 @@ test('legacy openrouter rows preserve openrouter fallback model values', () => {
   assert.equal(normalized.provider, 'openrouter_image');
   assert.equal(normalized.primaryProvider, 'openrouter_image');
   assert.equal(normalized.fallbackProvider, '');
-  assert.equal(normalized.liteLlmImageModel, 'gemini-3.1-flash-image-preview');
+  assert.equal(normalized.liteLlmImageModel, 'gemini/gemini-3.1-flash-image-preview');
   assert.equal(normalized.generationModel, 'old-image-model');
   assert.equal(normalized.fallbackModel, 'sourceful/riverflow-v2-fast');
 });
@@ -75,8 +75,18 @@ test('env defaults can activate LiteLLM primary config', () => {
 
   assert.equal(normalized.primaryProvider, 'litellm_image');
   assert.equal(normalized.fallbackProvider, 'openrouter_image');
-  assert.equal(normalized.liteLlmImageModel, 'gemini-custom-image-preview');
+  assert.equal(normalized.liteLlmImageModel, 'gemini/gemini-custom-image-preview');
   assert.equal(normalized.generationModel, 'owner/custom-openrouter-model');
+});
+
+test('legacy Gemini image identifiers normalize to the canonical LiteLLM Gemini preview model', () => {
+  const normalized = normalizeAiRedrawModelConfig({
+    primaryProvider: 'litellm_image',
+    fallbackProvider: 'openrouter_image',
+    geminiGenerationModel: 'gemini-3.1-flash-image'
+  });
+
+  assert.equal(normalized.liteLlmImageModel, 'gemini/gemini-3.1-flash-image-preview');
 });
 
 test('explicit fallback provider still works when project defaults are LiteLLM-first', () => {

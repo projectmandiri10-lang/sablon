@@ -13,6 +13,7 @@ const liteLlmPrimaryMigration = fs.readFileSync(path.join(import.meta.dirname, '
 const pricingRefreshMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627123000_set_ai_redraw_5000_ready_trace_2000.sql'), 'utf8');
 const midtransPaymentsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260701103000_add_midtrans_payment_transactions.sql'), 'utf8');
 const adminFinanceMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260702143000_add_admin_finance_tax_reporting.sql'), 'utf8');
+const canonicalLiteLlmModelMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708101500_canonicalize_litellm_gemini_image_model.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -69,7 +70,7 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   }
   assert.match(bootstrapSql, /"provider":"litellm_image"/);
   assert.match(bootstrapSql, /"fallbackProvider":"openrouter_image"/);
-  assert.match(bootstrapSql, /gemini-3\.1-flash-image-preview/);
+  assert.match(bootstrapSql, /gemini\/gemini-3\.1-flash-image-preview/);
   assert.match(bootstrapSql, /black-forest-labs\/flux\.2-klein-4b/);
   assert.match(bootstrapSql, /example-jobs/);
 });
@@ -86,6 +87,12 @@ test('latest pricing migration sets ready trace to 2000 and ai redraw to 5000', 
   assert.match(pricingRefreshMigration, /select 'ready_trace', 2000/);
   assert.match(pricingRefreshMigration, /amount_idr = 5000/);
   assert.match(pricingRefreshMigration, /select 'ai_redraw', 5000/);
+});
+
+test('canonical LiteLLM model migration upgrades legacy Gemini image identifiers', () => {
+  assert.match(canonicalLiteLlmModelMigration, /jsonb_build_object\('liteLlmImageModel', 'gemini\/gemini-3\.1-flash-image-preview'\)/);
+  assert.match(canonicalLiteLlmModelMigration, /'gemini-3\.1-flash-image'/);
+  assert.match(canonicalLiteLlmModelMigration, /'gemini-3\.1-flash-image-preview'/);
 });
 
 test('bootstrap sql hardens helper functions and policy indexes', () => {
