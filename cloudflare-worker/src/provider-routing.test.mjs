@@ -80,7 +80,7 @@ test('LiteLLM primary returns image bytes and metadata', async () => {
     const result = await requestAiRetouchedImage(env, image, { productionType: 'sablon' }, config);
     assert.equal(result.headers.get('Content-Type'), 'image/png');
     assert.equal(result.metadata.providerUsed, 'litellm_image');
-    assert.equal(result.metadata.model, 'openai/gpt-image-1');
+    assert.equal(result.metadata.model, 'openai/gpt-image-1.5');
     assert.match(result.metadata.finalTechnicalPrompt, /screen-print friendly shapes/);
     assert.equal(result.metadata.safetyEnabled, true);
   } finally {

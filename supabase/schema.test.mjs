@@ -15,6 +15,7 @@ const midtransPaymentsMigration = fs.readFileSync(path.join(import.meta.dirname,
 const adminFinanceMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260702143000_add_admin_finance_tax_reporting.sql'), 'utf8');
 const canonicalLiteLlmModelMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708101500_canonicalize_litellm_gemini_image_model.sql'), 'utf8');
 const openAiImageModelMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708190000_set_litellm_openai_gpt_image_1.sql'), 'utf8');
+const openAiImageModelOnePointFiveMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708193000_set_litellm_openai_gpt_image_1_5.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -71,7 +72,7 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   }
   assert.match(bootstrapSql, /"provider":"litellm_image"/);
   assert.match(bootstrapSql, /"fallbackProvider":"openrouter_image"/);
-  assert.match(bootstrapSql, /openai\/gpt-image-1/);
+  assert.match(bootstrapSql, /openai\/gpt-image-1\.5/);
   assert.match(bootstrapSql, /black-forest-labs\/flux\.2-klein-4b/);
   assert.match(bootstrapSql, /example-jobs/);
 });
@@ -99,6 +100,11 @@ test('canonical LiteLLM model migration upgrades legacy Gemini image identifiers
 test('latest LiteLLM model migration moves redraw defaults to OpenAI GPT Image 1', () => {
   assert.match(openAiImageModelMigration, /jsonb_build_object\('liteLlmImageModel', 'openai\/gpt-image-1'\)/);
   assert.match(openAiImageModelMigration, /jsonb_build_object\('geminiGenerationModel', ''\)/);
+});
+
+test('latest LiteLLM model migration moves redraw defaults to OpenAI GPT Image 1.5', () => {
+  assert.match(openAiImageModelOnePointFiveMigration, /'liteLlmImageModel', 'openai\/gpt-image-1\.5'/);
+  assert.match(openAiImageModelOnePointFiveMigration, /Default LiteLLM GPT Image 1\.5 trace-clone/);
 });
 
 test('bootstrap sql hardens helper functions and policy indexes', () => {
