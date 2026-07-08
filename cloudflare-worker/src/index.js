@@ -286,7 +286,7 @@ function inferAiRedrawArtworkType(settings = {}) {
 }
 
 export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
-  const profile = String(aiModelConfig.promptProfile || 'stylized_redraw');
+  const profile = String(aiModelConfig.promptProfile || 'photo_logo_cleanup');
   const artworkType = inferAiRedrawArtworkType(settings);
   const parts = [
     'You are a professional logo restoration and vector preparation artist.',
@@ -342,9 +342,9 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
     parts.push('Prioritize crisp sticker-ready edges, smooth clean curves, dominant original colors, and a clear subject silhouette.');
   }
 
-  if (settings.removeBackground !== false) {
+  if (artworkType !== 'logo' && settings.removeBackground !== false) {
     parts.push('Remove the background and isolate the main subject; remove shadows, glare, fabric texture, mockup texture, and photo noise.');
-  } else {
+  } else if (artworkType !== 'logo') {
     parts.push('Preserve the important background only if it supports the composition.');
   }
 
@@ -374,6 +374,13 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   parts.push('Make intended geometric or symmetric shapes cleaner and balanced without changing the design identity.');
 
   switch (profile) {
+    case 'photo_logo_cleanup':
+      parts.push('This is a faithful cleanup and restoration task for a photographed logo or print, not a redesign task.');
+      parts.push('Make the output look like the same logo after being professionally cleaned, restored, and digitally rebuilt.');
+      parts.push('Keep the composition, spacing, letterforms, symbol shapes, and dominant colors extremely close to the source.');
+      parts.push('Fix blur, camera softness, jagged pixel edges, dents, chips, broken strokes, and dirty fills while keeping the original design identity intact.');
+      parts.push('The output should feel very similar to the source at a glance, but noticeably cleaner, sharper, and more production-ready for vector tracing and screen printing.');
+      break;
     case 'stylized_redraw':
       parts.push('This is a clean redraw task, not a minimal retouch task.');
       parts.push('Rebuild the artwork as a freshly redrawn digital master with clear vector-style intent.');
@@ -2031,9 +2038,8 @@ async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig,
 
 function normalizeLiteLlmImageSize(value) {
   const normalized = String(value || '').trim().toUpperCase();
-  if (normalized === '2K') return '1536x1024';
-  if (normalized === '4K') return '1536x1024';
-  return '1024x1024';
+  if (normalized === '2K' || normalized === '4K') return '1536x1024';
+  return 'auto';
 }
 
 function normalizeLiteLlmImageQuality(value) {
@@ -2044,7 +2050,8 @@ function normalizeLiteLlmImageQuality(value) {
 
 function resolveLiteLlmInputFidelity(settings = {}, aiModelConfig = {}) {
   if (!isLiteLlmOpenAiGptImageModel(aiModelConfig.liteLlmImageModel)) return '';
-  return 'low';
+  if (String(aiModelConfig.promptProfile || '').trim().toLowerCase() === 'stylized_redraw') return 'low';
+  return 'high';
 }
 
 async function requestOpenRouterRetouchedImage(env, image, settings, aiModelConfig, routing) {

@@ -9,7 +9,7 @@ export const DEFAULT_LITELLM_IMAGE_MODEL = 'openai/gpt-image-1.5';
 export const DEFAULT_OPENROUTER_IMAGE_MODEL = 'black-forest-labs/flux.2-klein-4b';
 export const DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK = 'sourceful/riverflow-v2-fast';
 export const DEFAULT_OPENROUTER_SAFETY_MODEL = 'nvidia/nemotron-3.5-content-safety:free';
-export const DEFAULT_OPENROUTER_PROMPT_PROFILE = 'stylized_redraw';
+export const DEFAULT_OPENROUTER_PROMPT_PROFILE = 'photo_logo_cleanup';
 
 export const HYBRID_REDRAW_PRESETS = {
   budget: {
@@ -88,7 +88,7 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.05,
-    note: 'Default LiteLLM GPT Image 1 1K trace-clone dengan OpenRouter fallback untuk upstream error yang layak dialihkan.'
+    note: 'Default LiteLLM GPT Image 1.5 photo logo cleanup dengan OpenRouter fallback untuk upstream error yang layak dialihkan.'
   },
   premium: {
     mode: 'premium',
@@ -119,7 +119,7 @@ export const HYBRID_REDRAW_PRESETS = {
 };
 
 const SUPPORTED_PROVIDERS = [LITELLM_IMAGE_REDRAW_PROVIDER, OPENROUTER_IMAGE_REDRAW_PROVIDER];
-const SUPPORTED_PROMPT_PROFILES = ['stylized_redraw', 'generic_trace_clone', 'sourceful_trace_clone', 'gemini_trace_clone'];
+const SUPPORTED_PROMPT_PROFILES = ['photo_logo_cleanup', 'stylized_redraw', 'generic_trace_clone', 'sourceful_trace_clone', 'gemini_trace_clone'];
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);

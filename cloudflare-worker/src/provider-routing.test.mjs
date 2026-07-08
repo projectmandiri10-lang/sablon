@@ -33,9 +33,9 @@ test('LiteLLM primary returns image bytes and metadata', async () => {
     if (url === 'https://litellm.example.com/v1/images/edits') {
       const form = init.body;
       assert.equal(form.get('model'), 'openai/gpt-image-1.5');
-      assert.equal(form.get('size'), '1024x1024');
+      assert.equal(form.get('size'), 'auto');
       assert.equal(form.get('quality'), 'high');
-      assert.equal(form.get('input_fidelity'), 'low');
+      assert.equal(form.get('input_fidelity'), 'high');
       assert.match(String(form.get('prompt')), /professional logo restoration and vector preparation artist/);
       return new Response(
         JSON.stringify({
@@ -74,7 +74,7 @@ test('LiteLLM primary returns image bytes and metadata', async () => {
     assert.equal(result.headers.get('Content-Type'), 'image/png');
     assert.equal(result.metadata.providerUsed, 'litellm_image');
     assert.equal(result.metadata.model, 'openai/gpt-image-1.5');
-    assert.equal(result.metadata.inputFidelity, 'low');
+    assert.equal(result.metadata.inputFidelity, 'high');
     assert.match(result.metadata.finalTechnicalPrompt, /screen-print friendly shapes/);
     assert.equal(result.metadata.safetyEnabled, true);
   } finally {
