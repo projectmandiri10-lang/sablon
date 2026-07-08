@@ -280,14 +280,15 @@ function guessOpenRouterModalities(model = '') {
 export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   const profile = String(aiModelConfig.promptProfile || 'generic_trace_clone');
   const parts = [
-    'Redraw the uploaded artwork as the best clean trace-friendly raster image for vectorization and screen printing.',
-    'Preserve original subject, layout, proportions, typography, readable text, and brand identity.'
+    'Redraw the uploaded artwork as a clean cartoon-like, trace-friendly raster illustration for vectorization and screen printing.',
+    'Preserve original subject, layout, proportions, typography, readable text, and brand identity.',
+    'The final result should look like a polished cartoon/vector redraw, not a photo cleanup, blurry repaint, or realistic repaint.'
   ];
 
   if (String(settings.productionType || '').toLowerCase() === 'sablon') {
-    parts.push('Prioritize flat color separation, bold contours, clean edges, and screen-print friendly shapes.');
+    parts.push('Prioritize flat color separation, dominant source colors, bold contours, smooth closed edges, and screen-print friendly shapes.');
   } else {
-    parts.push('Prioritize crisp sticker-ready edges, clean curves, and a clear subject silhouette.');
+    parts.push('Prioritize crisp sticker-ready edges, smooth clean curves, dominant original colors, and a clear subject silhouette.');
   }
 
   if (settings.removeBackground !== false) {
@@ -296,8 +297,11 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
     parts.push('Preserve the important background only if it supports the composition.');
   }
 
+  parts.push('Use the dominant colors from the source artwork as the main palette; keep important accent or brand colors only when they are necessary for recognition, readable text, or design identity.');
+  parts.push('Simplify away dirty tints, tiny noisy shades, glare contamination, and accidental color variation so the output looks clean, flat, and intentional.');
+
   if (settings.separateColors) {
-    parts.push('Detect and preserve the important original colors from the source artwork, including distinct brand or logo colors.');
+    parts.push('Detect and preserve the dominant original colors from the source artwork, including distinct brand or logo colors.');
     parts.push('Keep colors flat, solid, and clearly separated for tracing and screen printing.');
     parts.push('Merge only noise, compression artifacts, shadows, and near-duplicate shades; do not invent new colors unless needed to repair damaged areas.');
     if (settings.colorLimitMode === 'manual') {
@@ -314,6 +318,7 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   }
 
   parts.push('Repair blur, camera distortion, jagged edges, broken strokes, stains, scratches, compression artifacts, and uneven fills.');
+  parts.push('Repair chipped outlines, missing details, warped geometry, dents, cracks, and dirty edges so the artwork feels freshly redrawn.');
   parts.push('Smooth and sharpen edges for tracing while keeping corners, curves, and intentional design details accurate.');
   parts.push('Make intended geometric or symmetric shapes cleaner and balanced without changing the design identity.');
 
@@ -329,7 +334,7 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
       break;
   }
 
-  parts.push('Do not add extra text, watermarks, mockups, decorative effects, shadows, or gradients.');
+  parts.push('Do not add extra text, watermarks, mockups, decorative effects, shadows, gradients, or realistic photo textures.');
   return parts.join(' ');
 }
 

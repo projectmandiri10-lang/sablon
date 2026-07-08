@@ -115,16 +115,35 @@ test('sablon redraw prompt preserves original colors automatically and improves 
   );
 
   assert.match(prompt, /trace-friendly/);
+  assert.match(prompt, /cartoon-like/);
   assert.match(prompt, /screen-print friendly shapes/);
   assert.match(prompt, /Preserve original subject/);
   assert.match(prompt, /Repair blur, camera distortion, jagged edges, broken strokes, stains, scratches, compression artifacts/);
-  assert.match(prompt, /clean edges/);
-  assert.match(prompt, /Detect and preserve the important original colors/);
+  assert.match(prompt, /smooth closed edges/);
+  assert.match(prompt, /dominant colors from the source artwork/);
+  assert.match(prompt, /Detect and preserve the dominant original colors/);
   assert.match(prompt, /brand or logo colors/);
   assert.doesNotMatch(prompt, /no more than 4 solid spot colors/);
   assert.match(prompt, /semi-transparent pixels/);
   assert.match(prompt, /choked underbase film/);
-  assert.match(prompt, /shadows, or gradients/);
+  assert.match(prompt, /shadows, gradients, or realistic photo textures/);
+});
+
+test('default redraw prompt asks for a clean cartoon palette even without color separation mode', () => {
+  const prompt = buildAiRedrawPrompt(
+    {
+      productionType: 'sticker',
+      removeBackground: true,
+      separateColors: false
+    },
+    { promptProfile: 'generic_trace_clone' }
+  );
+
+  assert.match(prompt, /polished cartoon\/vector redraw/);
+  assert.match(prompt, /dominant colors from the source artwork/);
+  assert.match(prompt, /smooth clean curves/);
+  assert.match(prompt, /dirty tints, tiny noisy shades/);
+  assert.match(prompt, /realistic photo textures/);
 });
 
 test('manual sablon redraw prompt can constrain spot colors', () => {
@@ -139,5 +158,5 @@ test('manual sablon redraw prompt can constrain spot colors', () => {
   );
 
   assert.match(prompt, /no more than 4 solid spot colors/);
-  assert.match(prompt, /Detect and preserve the important original colors/);
+  assert.match(prompt, /Detect and preserve the dominant original colors/);
 });
