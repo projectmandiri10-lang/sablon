@@ -28,7 +28,7 @@ import {
 } from './admin-finance.js';
 import {
   HYBRID_REDRAW_PRESETS,
-  LITELLM_IMAGE_REDRAW_PROVIDER,
+  OPENAI_IMAGE_REDRAW_PROVIDER,
   OPENROUTER_IMAGE_REDRAW_PROVIDER,
   normalizeHybridRedrawConfig
 } from '../../shared/hybridRedrawConfig.js';
@@ -74,22 +74,16 @@ function isOpenRouterConfigured(env) {
   return hasEnvValue(env, 'OPENROUTER_API_KEY');
 }
 
-function isLiteLlmConfigured(env) {
-  return hasEnvValue(env, 'LITELLM_SECRET_KEY') || hasEnvValue(env, 'LITELLM_API_KEY');
+function isOpenAiConfigured(env) {
+  return hasEnvValue(env, 'OPENAI_API_KEY');
 }
 
-function liteLlmBaseUrl(env) {
-  return String(env.LITELLM_BASE_URL || 'https://litellm.example.com/v1').replace(/\/+$/, '');
+function openAiBaseUrl(env) {
+  return String(env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
 }
 
-function liteLlmMaxImageInputBytes(env) {
-  const fallback = 3200000;
-  const parsed = Number.parseInt(env.LITELLM_MAX_IMAGE_INPUT_BYTES, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function liteLlmAppName(env) {
-  return String(env.LITELLM_APP_NAME || 'EasyRedesign Pro').trim();
+function openAiMaxImageInputBytes() {
+  return 20 * 1024 * 1024;
 }
 
 function openRouterBaseUrl(env) {
@@ -112,8 +106,8 @@ function openRouterSiteUrl(env) {
 
 function providerDisplayName(provider) {
   switch (provider) {
-    case LITELLM_IMAGE_REDRAW_PROVIDER:
-      return 'LiteLLM';
+    case OPENAI_IMAGE_REDRAW_PROVIDER:
+      return 'OpenAI';
     case OPENROUTER_IMAGE_REDRAW_PROVIDER:
       return 'OpenRouter';
     default:
@@ -135,37 +129,32 @@ function normalizeProviderMessage(message, fallback) {
   return typeof message === 'string' && message.trim() ? message.trim() : fallback;
 }
 
-function buildLiteLlmHeaders(env) {
-  const secret = env.LITELLM_SECRET_KEY || env.LITELLM_API_KEY;
-  const headers = {
-    Authorization: `Bearer ${secret || requireEnvValue(env, 'LITELLM_SECRET_KEY')}`,
-    'Content-Type': 'application/json'
+function buildOpenAiHeaders(env) {
+  return {
+    Authorization: `Bearer ${requireEnvValue(env, 'OPENAI_API_KEY')}`
   };
-  const appName = liteLlmAppName(env);
-  if (appName) headers['X-Title'] = appName;
-  return headers;
 }
 
-function mapLiteLlmError(response, data) {
+function mapOpenAiError(response, data) {
   const rawStatus = String(data?.error?.code || data?.error?.type || data?.status || '').trim();
   const message = normalizeProviderMessage(
     data?.error?.message || data?.message || data?.raw,
-    `LiteLLM image request failed: ${response.status}`
+    `OpenAI image request failed: ${response.status}`
   );
   const lowered = message.toLowerCase();
   let fallbackReason = '';
 
   if (response.status === 429 || /quota|rate limit|resource exhausted|exhausted|too many requests/.test(lowered)) {
     fallbackReason = 'quota_exhausted';
-  } else if (response.status === 402 || /billing|payment|insufficient|credit/.test(lowered)) {
+  } else if (response.status === 402 || /billing|payment|insufficient|credit|budget/.test(lowered)) {
     fallbackReason = 'billing_required';
-  } else if (response.status === 404 || /not found|model.*unavailable|model.*not available|unsupported model|unknown model|not supported/.test(lowered)) {
+  } else if (response.status === 404 || /model.*unavailable|model.*not available|unknown model/.test(lowered)) {
     fallbackReason = 'model_unavailable';
   } else if (response.status >= 500 || /timeout|timed out|connection|connect|overloaded|service unavailable|gateway|upstream/.test(lowered)) {
     fallbackReason = 'upstream_unavailable';
   }
 
-  return createProviderError(LITELLM_IMAGE_REDRAW_PROVIDER, message, {
+  return createProviderError(OPENAI_IMAGE_REDRAW_PROVIDER, message, {
     statusCode: response.status,
     providerCode: rawStatus,
     responseData: data,
@@ -197,15 +186,15 @@ function mapOpenRouterError(response, data) {
   });
 }
 
-export function shouldFallbackFromLiteLlmError(error) {
-  if (!error || error.provider !== LITELLM_IMAGE_REDRAW_PROVIDER) return false;
+export function shouldFallbackFromOpenAiError(error) {
+  if (!error || error.provider !== OPENAI_IMAGE_REDRAW_PROVIDER) return false;
   return ['quota_exhausted', 'billing_required', 'model_unavailable', 'upstream_unavailable'].includes(error.fallbackReason);
 }
 
-function shouldFallbackToSecondaryProvider(error, aiModelConfig) {
+function shouldFallbackToSecondaryProvider(error) {
   if (!error) return false;
-  if (error.provider === LITELLM_IMAGE_REDRAW_PROVIDER) {
-    return shouldFallbackFromLiteLlmError(error);
+  if (error.provider === OPENAI_IMAGE_REDRAW_PROVIDER) {
+    return shouldFallbackFromOpenAiError(error);
   }
   if (error.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) {
     return ['quota_exhausted', 'billing_required', 'model_unavailable', 'upstream_unavailable'].includes(error.fallbackReason);
@@ -214,14 +203,14 @@ function shouldFallbackToSecondaryProvider(error, aiModelConfig) {
 }
 
 function isProviderConfigured(provider, env) {
-  if (provider === LITELLM_IMAGE_REDRAW_PROVIDER) return isLiteLlmConfigured(env);
+  if (provider === OPENAI_IMAGE_REDRAW_PROVIDER) return isOpenAiConfigured(env);
   if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return isOpenRouterConfigured(env);
   return false;
 }
 
 function buildAiRedrawAvailability(config, env) {
   return {
-    liteLlmConfigured: isLiteLlmConfigured(env),
+    openAiConfigured: isOpenAiConfigured(env),
     openRouterConfigured: isOpenRouterConfigured(env),
     aiRedrawAvailable:
       isProviderConfigured(config.primaryProvider, env) ||
@@ -230,9 +219,9 @@ function buildAiRedrawAvailability(config, env) {
 }
 
 function aiRedrawMaxImageInputBytes(config, env) {
-  if (config?.primaryProvider === LITELLM_IMAGE_REDRAW_PROVIDER) return liteLlmMaxImageInputBytes(env);
+  if (config?.primaryProvider === OPENAI_IMAGE_REDRAW_PROVIDER) return openAiMaxImageInputBytes();
   if (config?.primaryProvider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return openRouterMaxImageInputBytes(env);
-  return Math.max(liteLlmMaxImageInputBytes(env), openRouterMaxImageInputBytes(env));
+  return Math.max(openAiMaxImageInputBytes(), openRouterMaxImageInputBytes(env));
 }
 
 function bytesToBase64(bytes) {
@@ -469,35 +458,13 @@ function dataUrlFromBase64(data, mimeType = 'image/png') {
   return `data:${mimeType};base64,${String(data || '').trim()}`;
 }
 
-function isLiteLlmOpenAiGptImageModel(model = '') {
-  return /^openai\/gpt-image-/i.test(String(model || '').trim());
-}
-
-function extractLiteLlmImageUrl(data) {
-  const directImageEntry = data?.choices?.[0]?.message?.images?.[0];
-  if (directImageEntry?.image_url?.url || directImageEntry?.imageUrl?.url) {
-    return directImageEntry.image_url?.url || directImageEntry.imageUrl?.url || '';
-  }
-
-  const messageContent = data?.choices?.[0]?.message?.content;
-  if (Array.isArray(messageContent)) {
-    for (const part of messageContent) {
-      if (part?.type === 'image_url') {
-        const imageUrl = part.image_url?.url || part.image_url;
-        if (imageUrl) return imageUrl;
-      }
-      if ((part?.type === 'output_image' || part?.type === 'image') && part?.data) {
-        return dataUrlFromBase64(part.data, part.mime_type || part.mimeType || 'image/png');
-      }
-    }
-  }
-
+function extractOpenAiImageUrl(data) {
   const imageData = data?.data?.[0]?.b64_json;
   if (imageData) {
     return dataUrlFromBase64(imageData, data?.data?.[0]?.mime_type || 'image/png');
   }
 
-  return '';
+  return data?.data?.[0]?.url || '';
 }
 
 async function downloadGeneratedImage(imageUrl) {
@@ -1014,13 +981,13 @@ function handleHealth(env) {
     config: {
       supabaseUrl: hasEnvValue(env, 'SUPABASE_URL'),
       supabaseServiceRoleKey: hasEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY'),
-      liteLlmConfigured: redrawAvailability.liteLlmConfigured,
+      openAiConfigured: redrawAvailability.openAiConfigured,
       openRouterConfigured: redrawAvailability.openRouterConfigured,
       midtransConfigured: isMidtransConfigured(env),
       midtransIsProduction: isMidtransProduction(env),
       aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
       defaultAiRedrawModel,
-      redrawPipeline: 'worker_auth_credit_to_litellm_primary_with_openrouter_fallback'
+      redrawPipeline: 'worker_auth_credit_to_openai_primary_with_openrouter_fallback'
     },
     endpoints: [
       'GET /api/app-config',
@@ -1829,7 +1796,7 @@ async function handleAiRedraw(env, request) {
   const aiModelConfig = await getAiRedrawModelConfig(env);
   const availability = buildAiRedrawAvailability(aiModelConfig, env);
   if (!availability.aiRedrawAvailable) {
-    throw new Error('AI redraw belum diaktifkan di deploy ini. Isi secret LiteLLM atau OpenRouter di Worker.');
+    throw new Error('AI redraw belum diaktifkan di deploy ini. Isi secret OpenAI atau OpenRouter di Worker.');
   }
   const pricing = await getPricing(env);
   await ensureCredit(env, profile, pricing.ai_redraw);
@@ -1897,7 +1864,7 @@ function buildAiRedrawMetadata(aiModelConfig, image, extra = {}) {
     fallbackAttempted: extra.fallbackAttempted === true,
     fallbackReason: extra.fallbackReason || '',
     model: extra.model || '',
-    liteLlmImageModel: aiModelConfig.liteLlmImageModel || '',
+    openAiImageModel: aiModelConfig.openAiImageModel || '',
     openRouterGenerationModel: aiModelConfig.generationModel || '',
     openRouterFallbackModel: aiModelConfig.fallbackModel || '',
     promptProfile: aiModelConfig.promptProfile,
@@ -1932,7 +1899,7 @@ export async function requestAiRetouchedImage(env, image, settings, aiModelConfi
         fallbackReason: ''
       });
     } catch (error) {
-      if (fallbackConfigured && fallbackProvider !== primaryProvider && shouldFallbackToSecondaryProvider(error, aiModelConfig)) {
+      if (fallbackConfigured && fallbackProvider !== primaryProvider && shouldFallbackToSecondaryProvider(error)) {
         return requestProviderRetouchedImage(env, image, settings, aiModelConfig, {
           provider: fallbackProvider,
           fallbackAttempted: true,
@@ -1955,8 +1922,8 @@ export async function requestAiRetouchedImage(env, image, settings, aiModelConfi
 }
 
 async function requestProviderRetouchedImage(env, image, settings, aiModelConfig, routing) {
-  if (routing.provider === LITELLM_IMAGE_REDRAW_PROVIDER) {
-    return requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig, routing);
+  if (routing.provider === OPENAI_IMAGE_REDRAW_PROVIDER) {
+    return requestOpenAiRetouchedImage(env, image, settings, aiModelConfig, routing);
   }
   if (routing.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) {
     return requestOpenRouterRetouchedImage(env, image, settings, aiModelConfig, routing);
@@ -1964,65 +1931,28 @@ async function requestProviderRetouchedImage(env, image, settings, aiModelConfig
   throw new Error(`Provider AI redraw tidak didukung: ${routing.provider}`);
 }
 
-async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig, routing) {
+async function requestOpenAiRetouchedImage(env, image, settings, aiModelConfig, routing) {
   const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
-  const inputFidelity = resolveLiteLlmInputFidelity(settings, aiModelConfig);
+  const inputFidelity = resolveOpenAiInputFidelity();
+  const imageQuality = resolveOpenAiImageQuality();
+  const imageSize = resolveOpenAiImageSize();
   let response;
   try {
-    if (isLiteLlmOpenAiGptImageModel(aiModelConfig.liteLlmImageModel)) {
-      const form = new FormData();
-      form.append('model', aiModelConfig.liteLlmImageModel);
-      form.append('image', image, image.name || 'source-image.png');
-      form.append('prompt', prompt);
-      if (aiModelConfig.imageSize) form.append('size', normalizeLiteLlmImageSize(aiModelConfig.imageSize));
-      if (aiModelConfig.generationQuality) form.append('quality', normalizeLiteLlmImageQuality(aiModelConfig.generationQuality));
-      if (inputFidelity) form.append('input_fidelity', inputFidelity);
-      const headers = buildLiteLlmHeaders(env);
-      delete headers['Content-Type'];
-      response = await fetch(`${liteLlmBaseUrl(env)}/images/edits`, {
-        method: 'POST',
-        headers,
-        body: form
-      });
-    } else {
-      const imageDataUrl = await fileToDataUrl(image);
-      const payload = {
-        model: aiModelConfig.liteLlmImageModel,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: prompt
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageDataUrl
-                }
-              }
-            ]
-          }
-        ],
-        modalities: guessOpenRouterModalities(aiModelConfig.liteLlmImageModel),
-        stream: false
-      };
-
-      if (aiModelConfig.imageSize) {
-        payload.image_config = {
-          image_size: aiModelConfig.imageSize
-        };
-      }
-
-      response = await fetch(`${liteLlmBaseUrl(env)}/chat/completions`, {
-        method: 'POST',
-        headers: buildLiteLlmHeaders(env),
-        body: JSON.stringify(payload)
-      });
-    }
+    const form = new FormData();
+    form.append('model', aiModelConfig.openAiImageModel || 'gpt-image-1.5');
+    form.append('image[]', image, image.name || 'source-image.png');
+    form.append('prompt', prompt);
+    form.append('quality', imageQuality);
+    form.append('size', imageSize);
+    form.append('input_fidelity', inputFidelity);
+    form.append('output_format', 'png');
+    response = await fetch(`${openAiBaseUrl(env)}/images/edits`, {
+      method: 'POST',
+      headers: buildOpenAiHeaders(env),
+      body: form
+    });
   } catch (error) {
-    throw createProviderError(LITELLM_IMAGE_REDRAW_PROVIDER, 'LiteLLM tidak dapat dihubungi.', {
+    throw createProviderError(OPENAI_IMAGE_REDRAW_PROVIDER, 'OpenAI tidak dapat dihubungi.', {
       statusCode: 502,
       responseData: { cause: error instanceof Error ? error.message : String(error || '') },
       fallbackReason: 'upstream_unavailable'
@@ -2032,12 +1962,12 @@ async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig,
   const data = await parseJsonResponse(response);
 
   if (!response.ok) {
-    throw mapLiteLlmError(response, data);
+    throw mapOpenAiError(response, data);
   }
 
-  const imageUrl = extractLiteLlmImageUrl(data);
+  const imageUrl = extractOpenAiImageUrl(data);
   if (!imageUrl) {
-    throw createProviderError(LITELLM_IMAGE_REDRAW_PROVIDER, 'LiteLLM tidak mengembalikan gambar.', {
+    throw createProviderError(OPENAI_IMAGE_REDRAW_PROVIDER, 'OpenAI tidak mengembalikan gambar.', {
       statusCode: 502,
       responseData: data
     });
@@ -2051,9 +1981,13 @@ async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig,
     statusText: imageResponse.statusText,
     headers: imageResponse.headers,
     metadata: buildAiRedrawMetadata(aiModelConfig, image, {
-      providerUsed: LITELLM_IMAGE_REDRAW_PROVIDER,
-      model: aiModelConfig.liteLlmImageModel,
+      providerUsed: OPENAI_IMAGE_REDRAW_PROVIDER,
+      model: aiModelConfig.openAiImageModel || 'gpt-image-1.5',
       inputFidelity,
+      generationQuality: imageQuality,
+      imageSize,
+      outputFormat: 'png',
+      revisedPrompt: data?.data?.[0]?.revised_prompt || '',
       fallbackAttempted: routing.fallbackAttempted,
       fallbackReason: routing.fallbackReason,
       finalTechnicalPrompt: prompt
@@ -2061,21 +1995,15 @@ async function requestLiteLlmRetouchedImage(env, image, settings, aiModelConfig,
   };
 }
 
-function normalizeLiteLlmImageSize(value) {
-  const normalized = String(value || '').trim().toUpperCase();
-  if (normalized === '2K' || normalized === '4K') return '1536x1024';
+function resolveOpenAiImageSize() {
   return 'auto';
 }
 
-function normalizeLiteLlmImageQuality(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'low' || normalized === 'high') return normalized;
-  return 'medium';
+function resolveOpenAiImageQuality() {
+  return 'high';
 }
 
-function resolveLiteLlmInputFidelity(settings = {}, aiModelConfig = {}) {
-  if (!isLiteLlmOpenAiGptImageModel(aiModelConfig.liteLlmImageModel)) return '';
-  if (String(aiModelConfig.promptProfile || '').trim().toLowerCase() === 'stylized_redraw') return 'low';
+function resolveOpenAiInputFidelity() {
   return 'high';
 }
 
@@ -2751,7 +2679,7 @@ async function handleAppConfig(env, request) {
       aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
       aiRedrawPrimaryProvider: aiRedrawModel.primaryProvider,
       aiRedrawFallbackProvider: aiRedrawModel.fallbackProvider || '',
-      liteLlmConfigured: redrawAvailability.liteLlmConfigured,
+      openAiConfigured: redrawAvailability.openAiConfigured,
       openRouterConfigured: redrawAvailability.openRouterConfigured,
       midtransAvailable: isMidtransConfigured(env),
       midtransIsProduction: isMidtransProduction(env),

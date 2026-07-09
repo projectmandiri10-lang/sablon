@@ -2,24 +2,24 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildAiRedrawPrompt, getAiRedrawModelPresets, normalizeAiRedrawModelConfig } from './index.js';
 
-test('AI redraw model presets expose LiteLLM primary with OpenRouter fallback', () => {
+test('AI redraw model presets expose OpenAI primary with OpenRouter fallback', () => {
   const presets = getAiRedrawModelPresets();
 
-  assert.equal(presets.budget.provider, 'litellm_image');
-  assert.equal(presets.budget.primaryProvider, 'litellm_image');
+  assert.equal(presets.budget.provider, 'openai_image');
+  assert.equal(presets.budget.primaryProvider, 'openai_image');
   assert.equal(presets.budget.fallbackProvider, 'openrouter_image');
-  assert.equal(presets.budget.liteLlmImageModel, 'openai/gpt-image-1.5');
+  assert.equal(presets.budget.openAiImageModel, 'gpt-image-1.5');
   assert.equal(presets.budget.generationModel, 'black-forest-labs/flux.2-klein-4b');
   assert.equal(presets.budget.fallbackModel, 'sourceful/riverflow-v2-fast');
   assert.equal(presets.budget.promptProfile, 'logo_photo_cleanup_short');
-  assert.equal(presets.quality.liteLlmImageModel, 'openai/gpt-image-1.5');
+  assert.equal(presets.quality.openAiImageModel, 'gpt-image-1.5');
   assert.equal(presets.quality.imageSize, '1K');
   assert.equal(presets.quality.safetyModel, 'nvidia/nemotron-3.5-content-safety:free');
   assert.equal(presets.premium.retryOnLowConfidence, true);
   assert.equal(Object.keys(presets).length, 4);
 });
 
-test('legacy Gemini direct values normalize into LiteLLM primary config', () => {
+test('legacy Gemini direct values normalize into OpenAI primary config', () => {
   const normalized = normalizeAiRedrawModelConfig({
     mode: 'quality',
     provider: 'gemini_direct_image',
@@ -28,10 +28,10 @@ test('legacy Gemini direct values normalize into LiteLLM primary config', () => 
     estimatedUsdPerImage: 0.101
   });
 
-  assert.equal(normalized.provider, 'litellm_image');
-  assert.equal(normalized.primaryProvider, 'litellm_image');
+  assert.equal(normalized.provider, 'openai_image');
+  assert.equal(normalized.primaryProvider, 'openai_image');
   assert.equal(normalized.fallbackProvider, 'openrouter_image');
-  assert.equal(normalized.liteLlmImageModel, 'legacy-gemini-model');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
   assert.equal(normalized.analysisModel, '');
   assert.equal(normalized.generationModel, 'black-forest-labs/flux.2-klein-4b');
   assert.equal(normalized.fallbackModel, 'sourceful/riverflow-v2-fast');
@@ -40,6 +40,21 @@ test('legacy Gemini direct values normalize into LiteLLM primary config', () => 
   assert.equal(normalized.safetyModel, 'nvidia/nemotron-3.5-content-safety:free');
   assert.equal(normalized.resolutionPolicy, 'high');
   assert.equal(normalized.persistPrompt, true);
+});
+
+test('legacy LiteLLM rows normalize into OpenAI direct shape', () => {
+  const normalized = normalizeAiRedrawModelConfig({
+    mode: 'quality',
+    provider: 'litellm_image',
+    primaryProvider: 'litellm_image',
+    fallbackProvider: 'openrouter_image',
+    liteLlmImageModel: 'openai/gpt-image-1.5'
+  });
+
+  assert.equal(normalized.provider, 'openai_image');
+  assert.equal(normalized.primaryProvider, 'openai_image');
+  assert.equal(normalized.fallbackProvider, 'openrouter_image');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
 });
 
 test('legacy openrouter rows preserve openrouter fallback model values', () => {
@@ -54,78 +69,68 @@ test('legacy openrouter rows preserve openrouter fallback model values', () => {
   assert.equal(normalized.provider, 'openrouter_image');
   assert.equal(normalized.primaryProvider, 'openrouter_image');
   assert.equal(normalized.fallbackProvider, '');
-  assert.equal(normalized.liteLlmImageModel, 'openai/gpt-image-1.5');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
   assert.equal(normalized.generationModel, 'old-image-model');
   assert.equal(normalized.fallbackModel, 'sourceful/riverflow-v2-fast');
 });
 
-test('env defaults can activate LiteLLM primary config', () => {
+test('env defaults can activate OpenAI primary config', () => {
   const normalized = normalizeAiRedrawModelConfig(
     {
-      primaryProvider: 'litellm_image',
+      primaryProvider: 'openai_image',
       fallbackProvider: 'openrouter_image'
     },
     {
-      LITELLM_IMAGE_MODEL: 'gemini-custom-image-preview',
+      OPENAI_IMAGE_MODEL: 'gpt-image-1.5',
       OPENROUTER_IMAGE_MODEL: 'owner/custom-openrouter-model',
-      AI_REDRAW_PRIMARY_PROVIDER: 'litellm_image',
+      AI_REDRAW_PRIMARY_PROVIDER: 'openai_image',
       AI_REDRAW_FALLBACK_PROVIDER: 'openrouter_image'
     }
   );
 
-  assert.equal(normalized.primaryProvider, 'litellm_image');
+  assert.equal(normalized.primaryProvider, 'openai_image');
   assert.equal(normalized.fallbackProvider, 'openrouter_image');
-  assert.equal(normalized.liteLlmImageModel, 'gemini/gemini-custom-image-preview');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
   assert.equal(normalized.generationModel, 'owner/custom-openrouter-model');
 });
 
-test('legacy Gemini image identifiers normalize to the canonical LiteLLM Gemini preview model', () => {
-  const normalized = normalizeAiRedrawModelConfig({
-    primaryProvider: 'litellm_image',
-    fallbackProvider: 'openrouter_image',
-    geminiGenerationModel: 'gemini-3.1-flash-image'
-  });
-
-  assert.equal(normalized.liteLlmImageModel, 'gemini/gemini-3.1-flash-image-preview');
-});
-
-test('OpenAI GPT Image 1.5 is the canonical LiteLLM default model', () => {
+test('OpenAI GPT Image 1.5 is the canonical direct default model', () => {
   const normalized = normalizeAiRedrawModelConfig(
     {
-      primaryProvider: 'litellm_image',
+      primaryProvider: 'openai_image',
       fallbackProvider: 'openrouter_image'
     },
     {
-      LITELLM_IMAGE_MODEL: 'gpt-image-1.5'
+      OPENAI_IMAGE_MODEL: 'openai/gpt-image-1.5'
     }
   );
 
-  assert.equal(normalized.liteLlmImageModel, 'openai/gpt-image-1.5');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
 });
 
 test('explicit OpenAI GPT Image 1 legacy value stays pinned when requested', () => {
   const normalized = normalizeAiRedrawModelConfig(
     {
-      primaryProvider: 'litellm_image',
+      primaryProvider: 'openai_image',
       fallbackProvider: 'openrouter_image',
-      liteLlmImageModel: 'openai/gpt-image-1'
+      openAiImageModel: 'gpt-image-1'
     },
     {}
   );
 
-  assert.equal(normalized.liteLlmImageModel, 'openai/gpt-image-1');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-1');
 });
 
-test('explicit fallback provider still works when project defaults are LiteLLM-first', () => {
+test('explicit fallback provider still works when project defaults are OpenAI-first', () => {
   const normalized = normalizeAiRedrawModelConfig(
     {
-      primaryProvider: 'litellm_image',
+      primaryProvider: 'openai_image',
       fallbackProvider: 'openrouter_image'
     },
     {}
   );
 
-  assert.equal(normalized.primaryProvider, 'litellm_image');
+  assert.equal(normalized.primaryProvider, 'openai_image');
   assert.equal(normalized.fallbackProvider, 'openrouter_image');
 });
 

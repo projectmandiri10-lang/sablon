@@ -19,6 +19,7 @@ const openAiImageModelOnePointFiveMigration = fs.readFileSync(path.join(import.m
 const stylizedRedrawPromptMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708195000_set_stylized_redraw_prompt_profile.sql'), 'utf8');
 const photoLogoCleanupPromptMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708201000_set_photo_logo_cleanup_prompt_profile.sql'), 'utf8');
 const logoPhotoCleanupShortPromptMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708203000_set_logo_photo_cleanup_short_prompt_profile.sql'), 'utf8');
+const openAiDirectMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260709100000_migrate_ai_redraw_to_openai_direct.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -73,9 +74,9 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'payment_transactions', 'pricing_rules', 'signup_bonus_claims', 'business_finance_entries', 'tax_rules', 'app_settings', 'contact_messages']) {
     assert.match(bootstrapSql, new RegExp(`create table if not exists public\\.${table}`));
   }
-  assert.match(bootstrapSql, /"provider":"litellm_image"/);
+  assert.match(bootstrapSql, /"provider":"openai_image"/);
   assert.match(bootstrapSql, /"fallbackProvider":"openrouter_image"/);
-  assert.match(bootstrapSql, /openai\/gpt-image-1\.5/);
+  assert.match(bootstrapSql, /"openAiImageModel":"gpt-image-1\.5"/);
   assert.match(bootstrapSql, /"promptProfile":"logo_photo_cleanup_short"/);
   assert.match(bootstrapSql, /black-forest-labs\/flux\.2-klein-4b/);
   assert.match(bootstrapSql, /example-jobs/);
@@ -124,6 +125,15 @@ test('latest prompt profile migration moves redraw defaults to photo logo cleanu
 test('latest prompt profile migration moves redraw defaults to short logo cleanup', () => {
   assert.match(logoPhotoCleanupShortPromptMigration, /'promptProfile', 'logo_photo_cleanup_short'/);
   assert.match(logoPhotoCleanupShortPromptMigration, /short logo cleanup/);
+});
+
+test('latest direct OpenAI migration upgrades legacy LiteLLM redraw rows', () => {
+  assert.match(openAiDirectMigration, /'provider',\s*case[\s\S]*'openai_image'/);
+  assert.match(openAiDirectMigration, /'primaryProvider',\s*case[\s\S]*'openai_image'/);
+  assert.match(openAiDirectMigration, /'openAiImageModel'/);
+  assert.match(openAiDirectMigration, /- 'liteLlmImageModel'/);
+  assert.match(openAiDirectMigration, /Pipeline OpenAI primary \+ OpenRouter fallback untuk AI redraw/);
+  assert.match(openAiDirectMigration, /logo_photo_cleanup_short/);
 });
 
 test('bootstrap sql hardens helper functions and policy indexes', () => {

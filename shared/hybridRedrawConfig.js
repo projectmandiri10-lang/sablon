@@ -1,11 +1,11 @@
-export const LITELLM_IMAGE_REDRAW_PROVIDER = 'litellm_image';
+export const OPENAI_IMAGE_REDRAW_PROVIDER = 'openai_image';
 export const OPENROUTER_IMAGE_REDRAW_PROVIDER = 'openrouter_image';
 export const OPENROUTER_GEMINI_REDRAW_PROVIDER = 'openrouter_gemini_image';
 export const OPENROUTER_RIVERFLOW_REDRAW_PROVIDER = 'openrouter_riverflow_image';
 export const LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER = 'gemini_direct_image';
-export const HYBRID_REDRAW_PROVIDER = LITELLM_IMAGE_REDRAW_PROVIDER;
+export const HYBRID_REDRAW_PROVIDER = OPENAI_IMAGE_REDRAW_PROVIDER;
 
-export const DEFAULT_LITELLM_IMAGE_MODEL = 'openai/gpt-image-1.5';
+export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-1.5';
 export const DEFAULT_OPENROUTER_IMAGE_MODEL = 'black-forest-labs/flux.2-klein-4b';
 export const DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK = 'sourceful/riverflow-v2-fast';
 export const DEFAULT_OPENROUTER_SAFETY_MODEL = 'nvidia/nemotron-3.5-content-safety:free';
@@ -16,10 +16,10 @@ export const HYBRID_REDRAW_PRESETS = {
     mode: 'budget',
     preset: 'budget',
     label: 'Hemat',
-    provider: LITELLM_IMAGE_REDRAW_PROVIDER,
-    primaryProvider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    provider: OPENAI_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
     fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
-    liteLlmImageModel: DEFAULT_LITELLM_IMAGE_MODEL,
+    openAiImageModel: DEFAULT_OPENAI_IMAGE_MODEL,
     analysisModel: '',
     generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
@@ -36,16 +36,16 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.03,
-    note: 'LiteLLM jadi jalur hemat default untuk redraw sketch/trace dengan OpenRouter sebagai fallback otomatis.'
+    note: 'OpenAI direct menjadi jalur hemat default untuk redraw dengan OpenRouter sebagai fallback otomatis.'
   },
   standard: {
     mode: 'standard',
     preset: 'standard',
     label: 'Standar',
-    provider: LITELLM_IMAGE_REDRAW_PROVIDER,
-    primaryProvider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    provider: OPENAI_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
     fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
-    liteLlmImageModel: DEFAULT_LITELLM_IMAGE_MODEL,
+    openAiImageModel: DEFAULT_OPENAI_IMAGE_MODEL,
     analysisModel: '',
     generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
@@ -62,16 +62,16 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.04,
-    note: 'LiteLLM sebagai jalur utama default, OpenRouter tetap siap sebagai cadangan saat diperlukan.'
+    note: 'OpenAI direct menjadi jalur utama default, OpenRouter tetap siap sebagai cadangan saat diperlukan.'
   },
   quality: {
     mode: 'quality',
     preset: 'quality',
     label: 'Kualitas',
-    provider: LITELLM_IMAGE_REDRAW_PROVIDER,
-    primaryProvider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    provider: OPENAI_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
     fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
-    liteLlmImageModel: DEFAULT_LITELLM_IMAGE_MODEL,
+    openAiImageModel: DEFAULT_OPENAI_IMAGE_MODEL,
     analysisModel: '',
     generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
@@ -88,16 +88,16 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.05,
-    note: 'Default LiteLLM GPT Image 1.5 photo logo cleanup dengan OpenRouter fallback untuk upstream error yang layak dialihkan.'
+    note: 'Default OpenAI GPT Image 1.5 short logo cleanup dengan OpenRouter fallback untuk upstream error yang layak dialihkan.'
   },
   premium: {
     mode: 'premium',
     preset: 'premium',
     label: 'Premium',
-    provider: LITELLM_IMAGE_REDRAW_PROVIDER,
-    primaryProvider: LITELLM_IMAGE_REDRAW_PROVIDER,
+    provider: OPENAI_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
     fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
-    liteLlmImageModel: DEFAULT_LITELLM_IMAGE_MODEL,
+    openAiImageModel: DEFAULT_OPENAI_IMAGE_MODEL,
     analysisModel: '',
     generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
@@ -114,11 +114,11 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: true,
     estimatedUsdPerImage: 0.08,
-    note: 'LiteLLM kualitas tinggi dengan OpenRouter sebagai fallback untuk menjaga kontinuitas redraw.'
+    note: 'OpenAI direct kualitas tinggi dengan OpenRouter sebagai fallback untuk menjaga kontinuitas redraw.'
   }
 };
 
-const SUPPORTED_PROVIDERS = [LITELLM_IMAGE_REDRAW_PROVIDER, OPENROUTER_IMAGE_REDRAW_PROVIDER];
+const SUPPORTED_PROVIDERS = [OPENAI_IMAGE_REDRAW_PROVIDER, OPENROUTER_IMAGE_REDRAW_PROVIDER];
 const SUPPORTED_PROMPT_PROFILES = ['logo_photo_cleanup_short', 'photo_logo_cleanup', 'stylized_redraw', 'generic_trace_clone', 'sourceful_trace_clone', 'gemini_trace_clone'];
 
 function isObject(value) {
@@ -138,43 +138,15 @@ function normalizeOptionalText(value, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
 }
 
-function normalizeLiteLlmImageModel(value, fallback = DEFAULT_LITELLM_IMAGE_MODEL) {
+function normalizeOpenAiImageModel(value, fallback = DEFAULT_OPENAI_IMAGE_MODEL) {
   const normalized = normalizeText(value, fallback);
   const lowered = normalized.toLowerCase();
 
-  if (lowered === 'gpt-image-1.5') {
-    return DEFAULT_LITELLM_IMAGE_MODEL;
-  }
-
-  if (lowered === 'openai/gpt-image-1.5') {
-    return DEFAULT_LITELLM_IMAGE_MODEL;
-  }
-
-  if (lowered === 'gpt-image-1') {
-    return 'openai/gpt-image-1';
-  }
-
-  if (lowered === 'openai/gpt-image-1') {
-    return 'openai/gpt-image-1';
-  }
-
-  if (lowered === 'gemini-3.1-flash-image' || lowered === 'gemini/gemini-3.1-flash-image') {
-    return 'gemini/gemini-3.1-flash-image-preview';
-  }
-
-  if (lowered === 'gemini-3.1-flash-image-preview') {
-    return 'gemini/gemini-3.1-flash-image-preview';
-  }
-
-  if (/^gemini\//i.test(normalized)) {
-    return normalized;
-  }
-
-  if (/^gemini-/i.test(normalized)) {
-    return `gemini/${normalized}`;
-  }
-
-  return normalized;
+  if (!lowered) return fallback;
+  if (lowered.startsWith('openai/')) return normalized.slice('openai/'.length);
+  if (lowered === 'chatgpt-image-latest') return 'chatgpt-image-latest';
+  if (/^gpt-image-/i.test(normalized)) return normalized;
+  return fallback;
 }
 
 function normalizeGenerationQuality(value, fallback) {
@@ -221,7 +193,7 @@ function inferPreset(input, env) {
 }
 
 function normalizeProvider(value, fallback) {
-  if (value === LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER) return LITELLM_IMAGE_REDRAW_PROVIDER;
+  if (value === LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER || value === 'litellm_image') return OPENAI_IMAGE_REDRAW_PROVIDER;
   if (value === OPENROUTER_GEMINI_REDRAW_PROVIDER || value === OPENROUTER_RIVERFLOW_REDRAW_PROVIDER) return OPENROUTER_IMAGE_REDRAW_PROVIDER;
   return SUPPORTED_PROVIDERS.includes(value) ? value : fallback;
 }
@@ -259,9 +231,9 @@ export function normalizeHybridRedrawConfig(value = {}, env = {}) {
     provider: primaryProvider,
     primaryProvider,
     fallbackProvider,
-    liteLlmImageModel: normalizeLiteLlmImageModel(
-      input.liteLlmImageModel || input.geminiGenerationModel || input.geminiModel,
-      normalizeLiteLlmImageModel(env.LITELLM_IMAGE_MODEL, preset.liteLlmImageModel)
+    openAiImageModel: normalizeOpenAiImageModel(
+      input.openAiImageModel || input.liteLlmImageModel || input.geminiGenerationModel || input.geminiModel,
+      normalizeOpenAiImageModel(env.OPENAI_IMAGE_MODEL, preset.openAiImageModel)
     ),
     analysisModel: normalizeOptionalText(
       input.analysisModel,

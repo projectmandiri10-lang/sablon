@@ -4,7 +4,7 @@ export const DEFAULT_SHOPEE_NOTE =
 export const DEFAULT_MIDTRANS_MINIMUM_AMOUNT_IDR = 2000;
 
 export function billingProviderLabel(provider) {
-  if (provider === 'litellm_image') return 'LiteLLM';
+  if (provider === 'openai_image') return 'OpenAI';
   if (provider === 'openrouter_image') return 'OpenRouter';
   return provider || '';
 }

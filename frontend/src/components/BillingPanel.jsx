@@ -156,8 +156,8 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
   }
 
   const aiRedrawProviderText = state.aiRedraw.available
-    ? `AI Redraw aktif di deploy ini. Jalur utama: ${billingProviderLabel(state.aiRedraw.primaryProvider) || 'LiteLLM'}${state.aiRedraw.fallbackProvider ? `, fallback: ${billingProviderLabel(state.aiRedraw.fallbackProvider)}.` : '.'}`
-    : 'AI Redraw belum aktif di deploy ini. Mode Ready Trace tetap tersedia sampai secret LiteLLM atau OpenRouter diisi di Worker.';
+    ? `AI Redraw aktif di deploy ini. Jalur utama: ${billingProviderLabel(state.aiRedraw.primaryProvider) || 'OpenAI'}${state.aiRedraw.fallbackProvider ? `, fallback: ${billingProviderLabel(state.aiRedraw.fallbackProvider)}.` : '.'}`
+    : 'AI Redraw belum aktif di deploy ini. Mode Ready Trace tetap tersedia sampai secret OpenAI atau OpenRouter diisi di Worker.';
 
   return (
     <div id="billing" className="space-y-5">

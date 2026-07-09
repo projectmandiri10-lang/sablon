@@ -17,9 +17,9 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 - Jalur deploy dipisah dari backend Node/Express lama.
 - `VITE_API_BASE_URL` mengarah ke Worker baru.
 - `VITE_GOOGLE_OAUTH_REDIRECT_TO` mengarah ke domain Pages baru.
-- AI redraw sekarang berjalan lewat `LiteLLM` sebagai jalur utama dengan `OpenRouter` sebagai fallback otomatis.
-- Default copy ini disetel ke `LiteLLM-first` agar local, Worker, dan seed database konsisten.
-- Jika secret `LITELLM_SECRET_KEY` dan `OPENROUTER_API_KEY` belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai lewat proses lokal browser.
+- AI redraw sekarang berjalan lewat `OpenAI` direct sebagai jalur utama dengan `OpenRouter` sebagai fallback otomatis.
+- Default copy ini disetel ke `OpenAI-first` agar local, Worker, dan seed database konsisten.
+- Jika secret `OPENAI_API_KEY` dan `OPENROUTER_API_KEY` belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai lewat proses lokal browser.
 
 ## Mulai Cepat
 

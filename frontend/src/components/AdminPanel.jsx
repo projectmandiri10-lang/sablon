@@ -22,7 +22,7 @@ import {
 } from '../lib/api.js';
 import AdminFinancePanel from './AdminFinancePanel.jsx';
 import {
-  LITELLM_IMAGE_REDRAW_PROVIDER,
+  OPENAI_IMAGE_REDRAW_PROVIDER,
   OPENROUTER_IMAGE_REDRAW_PROVIDER,
   listHybridRedrawPresets,
   normalizeHybridRedrawConfig
@@ -52,13 +52,13 @@ function estimatedIdr(usd) {
 }
 
 function providerLabel(provider) {
-  if (provider === LITELLM_IMAGE_REDRAW_PROVIDER) return 'LiteLLM';
+  if (provider === OPENAI_IMAGE_REDRAW_PROVIDER) return 'OpenAI';
   if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return 'OpenRouter';
   return provider || '-';
 }
 
 function providerModelLabel(provider, config = {}) {
-  if (provider === LITELLM_IMAGE_REDRAW_PROVIDER) return config.liteLlmImageModel || '-';
+  if (provider === OPENAI_IMAGE_REDRAW_PROVIDER) return config.openAiImageModel || '-';
   if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return config.generationModel || '-';
   return '-';
 }
@@ -792,8 +792,7 @@ export default function AdminPanel({ session, enabled }) {
                     }
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
-                    <option value={LITELLM_IMAGE_REDRAW_PROVIDER}>LiteLLM</option>
-                    <option value={OPENROUTER_IMAGE_REDRAW_PROVIDER}>OpenRouter</option>
+                    <option value={OPENAI_IMAGE_REDRAW_PROVIDER}>OpenAI</option>
                   </select>
                 </label>
                 <label className="block">
@@ -812,7 +811,6 @@ export default function AdminPanel({ session, enabled }) {
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
                     <option value="">Tanpa fallback</option>
-                    <option value={LITELLM_IMAGE_REDRAW_PROVIDER}>LiteLLM</option>
                     <option value={OPENROUTER_IMAGE_REDRAW_PROVIDER}>OpenRouter</option>
                   </select>
                 </label>
@@ -827,10 +825,10 @@ export default function AdminPanel({ session, enabled }) {
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar LiteLLM</span>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar OpenAI</span>
                   <input
-                    value={aiModelDraft.liteLlmImageModel || ''}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', liteLlmImageModel: event.target.value }))}
+                    value={aiModelDraft.openAiImageModel || ''}
+                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', openAiImageModel: event.target.value }))}
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   />
                 </label>
@@ -843,8 +841,8 @@ export default function AdminPanel({ session, enabled }) {
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Kontrak LiteLLM</span>
-                  <input value="OpenAI-compatible v1" readOnly className="w-full border border-line bg-panel px-3 py-2.5 text-sm text-gray-700" />
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Kontrak OpenAI</span>
+                  <input value="Direct /images/edits" readOnly className="w-full border border-line bg-panel px-3 py-2.5 text-sm text-gray-700" />
                 </label>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
@@ -998,7 +996,7 @@ export default function AdminPanel({ session, enabled }) {
                   Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | prompt {aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
                 </p>
                 <p>
-                  LiteLLM model: {aiModelDraft.liteLlmImageModel || '-'} | OpenRouter model: {aiModelDraft.generationModel || '-'} | OpenRouter fallback model: {aiModelDraft.fallbackModel || '-'}
+                  OpenAI model: {aiModelDraft.openAiImageModel || '-'} | OpenRouter model: {aiModelDraft.generationModel || '-'} | OpenRouter fallback model: {aiModelDraft.fallbackModel || '-'}
                 </p>
                 <p>
                   Reasoning effort: {aiModelDraft.reasoningEffort || 'low'} | safety {aiModelDraft.safetyEnabled === false ? 'mati' : 'aktif'} | background {aiModelDraft.backgroundMode || 'transparent'}
