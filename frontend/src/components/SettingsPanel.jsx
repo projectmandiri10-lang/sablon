@@ -28,6 +28,9 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
     readyModeNote: isId
       ? 'Mode siap trace selalu menjalankan vector, pisah warna, dan contour sticker lewat jalur backend lokal.'
       : 'Production-ready trace mode always runs vectoring, color separation, and sticker cutline generation through the local backend path.',
+    aiRedrawNote: isId
+      ? 'AI Redraw dikenakan Rp10.000 per gambar dan sudah termasuk pecah warna untuk sablon.'
+      : 'AI Redraw costs Rp10,000 per image and already includes screen-print color separation.',
     filmSizeTitle: isId ? 'Ukuran film sablon' : 'Screen print film size',
     horizontalWidth: isId ? 'Lebar gambar horizontal' : 'Horizontal artwork width',
     widthHint: isId ? 'Yang diisi adalah lebar gambar dari sisi kiri ke kanan.' : 'Enter the artwork width from left to right, not the height.',
@@ -112,6 +115,12 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
         {inputMode === INPUT_MODE_READY && (
           <div className="border border-spruce bg-primary/5 px-3 py-2 text-xs leading-5 text-ink">
             {copy.readyModeNote}
+          </div>
+        )}
+
+        {inputMode !== INPUT_MODE_READY && (
+          <div className="border border-spruce bg-primary/5 px-3 py-2 text-xs leading-5 text-ink">
+            {copy.aiRedrawNote}
           </div>
         )}
 

@@ -2482,67 +2482,14 @@ async function handleMidtransWebhook(env, request) {
 }
 
 async function handleSignupBonusClaim(env, request) {
-  const { user } = await requireUser(env, request);
-  const body = await readJson(request);
-  const deviceId = String(body.deviceId || '').trim();
-  if (!deviceId) throw new Error('Device ID wajib dikirim.');
-
-  const existingClaim = await getSignupBonusClaimByUserId(env, user.id);
-  if (existingClaim) {
-    await ensureSignupBonusLedger(env, existingClaim);
-    return json({
-      granted: existingClaim.bonus_granted === true,
-      alreadyProcessed: true,
-      amountIdr: existingClaim.bonus_granted === true ? SIGNUP_BONUS_AMOUNT_IDR : 0,
-      reason: existingClaim.reason || (existingClaim.bonus_granted === true ? 'granted' : 'limit_reached'),
-      remainingEligibleByDeviceOrIp: null
-    });
-  }
-
-  const email = normalizeEmail(user.email || user.user_metadata?.email || '');
-  const countryCode = getViewerCountryCode(request);
-  const deviceIdHash = await hashSignupBonusIdentifier(env, deviceId);
-  const ipHash = await hashSignupBonusIdentifier(env, extractRequestIp(request));
-  const grantedCounts = await countGrantedSignupBonusClaims(env, { deviceIdHash, ipHash });
-  const isGranted = shouldGrantSignupBonus({
-    deviceGrantedClaims: grantedCounts.device,
-    ipGrantedClaims: grantedCounts.ip
-  });
-
-  let claim;
-  try {
-    claim = await insertSignupBonusClaim(env, {
-      user_id: user.id,
-      email,
-      device_id_hash: deviceIdHash || null,
-      ip_hash: ipHash || null,
-      country_code: countryCode || null,
-      bonus_granted: isGranted,
-      reason: isGranted ? 'granted' : 'limit_reached',
-      metadata: {
-        matchedGrantedDeviceClaims: grantedCounts.device,
-        matchedGrantedIpClaims: grantedCounts.ip,
-        maxMatchedClaims: SIGNUP_BONUS_MAX_MATCHED_CLAIMS
-      }
-    });
-  } catch (error) {
-    if (!String(error.message || '').includes('signup_bonus_claims_user_id_key')) throw error;
-    claim = await getSignupBonusClaimByUserId(env, user.id);
-  }
-
-  if (!claim) throw new Error('Claim signup bonus tidak bisa diproses.');
-  if (claim.bonus_granted === true) {
-    await ensureSignupBonusLedger(env, claim);
-  }
-
-  const highestMatchedCount = Math.max(grantedCounts.device, grantedCounts.ip);
-  const remainingEligibleByDeviceOrIp = Math.max(0, SIGNUP_BONUS_MAX_MATCHED_CLAIMS - highestMatchedCount - (isGranted ? 1 : 0));
+  await requireUser(env, request);
   return json({
-    granted: claim.bonus_granted === true,
-    alreadyProcessed: false,
-    amountIdr: claim.bonus_granted === true ? SIGNUP_BONUS_AMOUNT_IDR : 0,
-    reason: claim.reason || (claim.bonus_granted === true ? 'granted' : 'limit_reached'),
-    remainingEligibleByDeviceOrIp
+    active: false,
+    granted: false,
+    alreadyProcessed: true,
+    amountIdr: 0,
+    reason: 'disabled',
+    remainingEligibleByDeviceOrIp: 0
   });
 }
 

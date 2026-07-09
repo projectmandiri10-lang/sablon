@@ -11,6 +11,7 @@ const bootstrapSql = fs.readFileSync(path.join(import.meta.dirname, 'SUPABASE_BO
 const signupBonusGuardMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260702110000_signup_bonus_device_ip_guard.sql'), 'utf8');
 const liteLlmPrimaryMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627120000_litellm_primary_openrouter_fallback.sql'), 'utf8');
 const pricingRefreshMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627123000_set_ai_redraw_5000_ready_trace_2000.sql'), 'utf8');
+const pricingTenThousandMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260709113000_set_ai_redraw_10000.sql'), 'utf8');
 const midtransPaymentsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260701103000_add_midtrans_payment_transactions.sql'), 'utf8');
 const adminFinanceMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260702143000_add_admin_finance_tax_reporting.sql'), 'utf8');
 const canonicalLiteLlmModelMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708101500_canonicalize_litellm_gemini_image_model.sql'), 'utf8');
@@ -74,6 +75,7 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'payment_transactions', 'pricing_rules', 'signup_bonus_claims', 'business_finance_entries', 'tax_rules', 'app_settings', 'contact_messages']) {
     assert.match(bootstrapSql, new RegExp(`create table if not exists public\\.${table}`));
   }
+  assert.match(bootstrapSql, /\('ai_redraw', 10000, 'AI Redesign Premium image-to-image termasuk pecah warna sablon', true\)/);
   assert.match(bootstrapSql, /"provider":"openai_image"/);
   assert.match(bootstrapSql, /"fallbackProvider":"openrouter_image"/);
   assert.match(bootstrapSql, /"openAiImageModel":"gpt-image-1\.5"/);
@@ -94,6 +96,12 @@ test('latest pricing migration sets ready trace to 2000 and ai redraw to 5000', 
   assert.match(pricingRefreshMigration, /select 'ready_trace', 2000/);
   assert.match(pricingRefreshMigration, /amount_idr = 5000/);
   assert.match(pricingRefreshMigration, /select 'ai_redraw', 5000/);
+});
+
+test('latest pricing migration raises ai redraw to 10000 with color separation included', () => {
+  assert.match(pricingTenThousandMigration, /amount_idr = 10000/);
+  assert.match(pricingTenThousandMigration, /select 'ai_redraw', 10000/);
+  assert.match(pricingTenThousandMigration, /termasuk pecah warna sablon/);
 });
 
 test('canonical LiteLLM model migration upgrades legacy Gemini image identifiers', () => {

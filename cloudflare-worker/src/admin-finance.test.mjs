@@ -77,7 +77,7 @@ test('finance summary counts customer cash once and excludes audit ledger duplic
       {
         id: 'job-1',
         input_mode: 'ai_redraw',
-        price_idr: 5000
+        price_idr: 10000
       },
       {
         id: 'job-2',
@@ -100,7 +100,7 @@ test('finance summary counts customer cash once and excludes audit ledger duplic
   assert.equal(summary.operationalExpenseIdr, 0);
   assert.equal(summary.taxableBaseIdr, 35000);
   assert.equal(summary.estimatedTaxIdr, 175);
-  assert.equal(summary.jobValueIdr, 7000);
+  assert.equal(summary.jobValueIdr, 12000);
   assert.equal(summary.aiRedrawCount, 1);
   assert.equal(summary.readyTraceCount, 1);
 });

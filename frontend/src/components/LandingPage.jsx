@@ -23,7 +23,6 @@ import {
   Eye,
   FileDown,
   FileText,
-  Gift,
   Github,
   Globe,
   Gavel,
@@ -105,10 +104,10 @@ const pricingCards = [
   {
     title: 'AI Redesign',
     price: IMAGE_RETOUCH_PRICE_IDR,
-    description: 'Untuk gambar yang belum rapih, perlu analisis AI dan redesign ulang',
+    description: 'Untuk gambar yang belum rapih, perlu analisis AI dan redesign ulang. Harga sudah termasuk pecah warna sablon.',
     icon: Sparkles,
     popular: true,
-    features: ['AI Image-to-Image', 'Safety Check', 'Sablon + Sticker mode', 'High Quality Output', 'Hasil dalam 1-3 menit']
+    features: ['AI Image-to-Image', 'Termasuk pecah warna sablon', 'Sablon + Sticker mode', 'High Quality Output', 'Hasil dalam 1-3 menit']
   },
   {
     title: 'Vector Siap Proses',
@@ -123,31 +122,28 @@ const pricingCards = [
 const creditPackages = [
   {
     name: 'Paket Basic',
-    credits: 1,
-    price: 5000,
-    pricePerCredit: 5000,
-    callout: 'Cukup untuk 1 AI Redesign atau top up awal yang fleksibel.',
-    aiRedesign: 1,
-    readyToTrace: 2
-  },
-  {
-    name: 'Paket Standard',
-    credits: 2,
+    balanceIdr: 10000,
     price: 10000,
-    pricePerCredit: 5000,
-    callout: 'Cocok untuk 2 AI Redesign atau beberapa job vector ringan.',
-    aiRedesign: 2,
+    callout: 'Cukup untuk 1 AI Redesign yang sudah termasuk pecah warna atau 5 job Vector Siap Proses.',
+    aiRedesign: 1,
     readyToTrace: 5
   },
   {
+    name: 'Paket Standard',
+    balanceIdr: 20000,
+    price: 20000,
+    callout: 'Cocok untuk 2 AI Redesign termasuk pecah warna atau 10 job vector ringan.',
+    aiRedesign: 2,
+    readyToTrace: 10
+  },
+  {
     name: 'Paket Premium',
-    credits: 5,
-    price: 25000,
-    pricePerCredit: 5000,
+    balanceIdr: 50000,
+    price: 50000,
     highlight: true,
     callout: 'Paling pas untuk kebutuhan produksi berulang.',
     aiRedesign: 5,
-    readyToTrace: 12
+    readyToTrace: 25
   }
 ];
 
@@ -186,7 +182,7 @@ const faqItems = [
   {
     question: 'Berapa harga per gambar?',
     answer:
-      `Kami menawarkan dua mode harga: AI Redesign Premium seharga ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per gambar dan Vector Siap Proses seharga ${formatRupiah(READY_PROCESS_PRICE_IDR)} per gambar. Anda dapat membeli credit dalam paket melalui Shopee.`
+      `Kami menawarkan dua mode harga: AI Redesign Premium seharga ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per gambar dan harga ini sudah termasuk pecah warna sablon. Vector Siap Proses tetap seharga ${formatRupiah(READY_PROCESS_PRICE_IDR)} per gambar. Anda dapat membeli saldo dalam paket melalui Shopee atau top up otomatis.`
   },
   {
     question: 'Apa perbedaan AI Redesign dan Vector Siap Proses?',
@@ -204,11 +200,6 @@ const faqItems = [
       'Anda dapat membeli credit melalui produk Shopee kami. Pilih paket credit yang sesuai, lalu setelah pembayaran dikonfirmasi, credit akan ditambahkan ke akun Anda.'
   },
   {
-    question: 'Apakah ada credit gratis?',
-    answer:
-      'Ya. Pengguna baru yang memenuhi syarat akan mendapatkan 1 credit gratis. Bonus dibatasi maksimal 2 klaim untuk device atau IP yang sama.'
-  },
-  {
     question: 'Berapa lama proses gambar?',
     answer:
       'Mode Vector Siap Proses biasanya selesai dalam 30-60 detik. Mode AI Redesign membutuhkan waktu sekitar 1-3 menit.'
@@ -222,7 +213,7 @@ const faqItems = [
 
 const trustBadges = [
   { icon: ShieldCheck, text: 'Tanpa Kartu Kredit', subtext: 'Bayar via Shopee' },
-  { icon: Gift, text: '1 Credit Gratis', subtext: 'Untuk pengguna baru yang memenuhi syarat' },
+  { icon: Sparkles, text: 'AI Redraw Rp10.000', subtext: 'Sudah termasuk pecah warna' },
   { icon: Clock, text: 'Daftar 30 Detik', subtext: 'Proses instan' },
   { icon: Zap, text: 'Hasil Instan', subtext: 'Siap dalam hitungan detik' }
 ];
@@ -365,6 +356,7 @@ const termsSections = [
     title: '3. Layanan',
     list: [
       `AI Redesign Premium: ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per gambar`,
+      'Harga AI Redesign sudah termasuk pecah warna sablon',
       `Vector Siap Proses: ${formatRupiah(READY_PROCESS_PRICE_IDR)} per gambar`,
       'Download film separasi sablon tidak dikenakan biaya tambahan per warna',
       'Output sablon dan sticker',
@@ -378,7 +370,7 @@ const termsSections = [
     subsections: [
       {
         subtitle: 'Hak Pengguna',
-        items: ['Menggunakan layanan sesuai ketentuan', 'Mendapat 1 credit gratis saat mendaftar jika memenuhi syarat', 'Mengunduh hasil pemrosesan', 'Meminta penghapusan data pribadi']
+        items: ['Menggunakan layanan sesuai ketentuan', 'Mengunduh hasil pemrosesan', 'Meminta penghapusan data pribadi']
       },
       {
         subtitle: 'Kewajiban Pengguna',
@@ -397,7 +389,6 @@ const termsSections = [
     icon: CreditCard,
     title: '5. Sistem Credit dan Pembayaran',
     list: [
-      'Pengguna baru yang memenuhi syarat mendapatkan 1 credit gratis, dibatasi maksimal 2 klaim untuk device atau IP yang sama',
       'Credit dapat dibeli melalui kanal resmi yang tersedia, termasuk Shopee, transfer manual, Midtrans, atau payment gateway lain bila sudah diaktifkan',
       'Pembayaran dapat diproses oleh pihak ketiga seperti Midtrans, bank, e-wallet, payment network, marketplace, atau penyedia pembayaran terkait',
       'Dengan membayar melalui kanal pihak ketiga, pengguna juga tunduk pada syarat, kebijakan privasi, keamanan, biaya kanal, batas waktu pembayaran, dan status transaksi dari kanal tersebut',
@@ -554,10 +545,10 @@ const pricingCardsEn = [
   {
     title: 'AI Redesign',
     price: IMAGE_RETOUCH_PRICE_IDR,
-    description: 'For blurry photos, scans, or logos that need AI analysis and redraw.',
+    description: 'For blurry photos, scans, or logos that need AI analysis and redraw. Color separation is included.',
     icon: Sparkles,
     popular: true,
-    features: ['AI Image-to-Image', 'Safety Check', 'Screen Print + Sticker mode', 'High Quality Output', 'Results in 1-3 minutes']
+    features: ['AI Image-to-Image', 'Color separation included', 'Screen Print + Sticker mode', 'High Quality Output', 'Results in 1-3 minutes']
   },
   {
     title: 'Production-Ready Vector',
@@ -572,31 +563,28 @@ const pricingCardsEn = [
 const creditPackagesEn = [
   {
     name: 'Basic Package',
-    credits: 1,
-    price: 5000,
-    pricePerCredit: 5000,
-    callout: 'Fits 1 AI Redesign or can be combined with other top-ups.',
-    aiRedesign: 1,
-    readyToTrace: 2
-  },
-  {
-    name: 'Standard Package',
-    credits: 2,
+    balanceIdr: 10000,
     price: 10000,
-    pricePerCredit: 5000,
-    callout: 'Good for 2 AI Redesign jobs or up to 5 ready-vector jobs.',
-    aiRedesign: 2,
+    callout: 'Fits 1 AI Redesign with color separation included or 5 ready-vector jobs.',
+    aiRedesign: 1,
     readyToTrace: 5
   },
   {
+    name: 'Standard Package',
+    balanceIdr: 20000,
+    price: 20000,
+    callout: 'Good for 2 AI Redesign jobs with color separation included or 10 ready-vector jobs.',
+    aiRedesign: 2,
+    readyToTrace: 10
+  },
+  {
     name: 'Premium Package',
-    credits: 5,
-    price: 25000,
-    pricePerCredit: 5000,
+    balanceIdr: 50000,
+    price: 50000,
     highlight: true,
     callout: 'Best value for recurring production work.',
     aiRedesign: 5,
-    readyToTrace: 12
+    readyToTrace: 25
   }
 ];
 
@@ -631,7 +619,7 @@ const faqItemsEn = [
   },
   {
     question: 'How much does each image cost?',
-    answer: `We currently offer two pricing modes: AI Redesign Premium at ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per image and Production-Ready Vector at ${formatRupiah(READY_PROCESS_PRICE_IDR)} per image. You can buy credits in packages.`
+    answer: `We currently offer two pricing modes: AI Redesign Premium at ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per image with screen-print color separation included, and Production-Ready Vector at ${formatRupiah(READY_PROCESS_PRICE_IDR)} per image. You can top up balance in packages.`
   },
   {
     question: 'What is the difference between AI Redesign and Production-Ready Vector?',
@@ -646,10 +634,6 @@ const faqItemsEn = [
     answer: 'You can buy credits through the available payment channels, including Shopee and Midtrans when enabled.'
   },
   {
-    question: 'Do new users get free credits?',
-    answer: 'Yes. Eligible new users can receive 1 free credit, limited to the first two claims per matching device or IP.'
-  },
-  {
     question: 'How long does processing take?',
     answer: 'Production-Ready Vector usually finishes in 30-60 seconds. AI Redesign usually takes around 1-3 minutes.'
   },
@@ -661,7 +645,7 @@ const faqItemsEn = [
 
 const trustBadgesEn = [
   { icon: ShieldCheck, text: 'No Credit Card', subtext: 'Pay via Shopee or gateway' },
-  { icon: Gift, text: '1 Free Credit', subtext: 'For eligible new users' },
+  { icon: Sparkles, text: 'AI Redraw Rp10,000', subtext: 'Color separation included' },
   { icon: Clock, text: '30s Signup', subtext: 'Quick access' },
   { icon: Zap, text: 'Fast Results', subtext: 'Ready in seconds' }
 ];
@@ -1006,7 +990,7 @@ function HeroSection({ locale = 'id', onStart }) {
   const floatingBadges = [
     { label: 'AI Powered', icon: Sparkles, tone: 'text-primary border-primary/20', position: 'right-[8%] top-[12%] sm:right-[12%] sm:top-[15%]', delay: '0s' },
     { label: formatRupiah(IMAGE_RETOUCH_PRICE_IDR), icon: Zap, tone: 'text-chart-3 border-chart-3/20', position: 'left-[5%] top-[25%] sm:left-[8%] sm:top-[30%]', delay: '1.3s' },
-    { label: isId ? '1 Credit Gratis' : '1 Free Credit', icon: Star, tone: 'text-chart-2 border-chart-2/20', position: 'right-[15%] bottom-[18%] sm:right-[18%] sm:bottom-[20%]', delay: '2.6s' }
+    { label: isId ? 'Termasuk Pecah Warna' : 'Color Separation Included', icon: Star, tone: 'text-chart-2 border-chart-2/20', position: 'right-[15%] bottom-[18%] sm:right-[18%] sm:bottom-[20%]', delay: '2.6s' }
   ];
 
   return (
@@ -1103,7 +1087,7 @@ function HeroSection({ locale = 'id', onStart }) {
             </div>
             <div className="mt-5 flex items-center justify-between text-xs text-mutedForeground">
               <span className="rounded-full border border-chart-3/20 bg-white/5 px-3 py-1 text-chart-3">{formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}</span>
-              <span className="rounded-full border border-primary/20 bg-white/5 px-3 py-1 text-primary">{isId ? '1 Credit Gratis' : '1 Free Credit'}</span>
+              <span className="rounded-full border border-primary/20 bg-white/5 px-3 py-1 text-primary">{isId ? 'Sudah termasuk pecah warna' : 'Color separation included'}</span>
             </div>
           </div>
 
@@ -1234,9 +1218,13 @@ function PricingSection({ locale = 'id' }) {
             <div key={pkg.name} className={`landing-mini-card landing-credit-card rounded-2xl p-5 ${pkg.highlight ? 'landing-credit-card-highlight ring-1 ring-primary/20' : ''}`}>
               {pkg.highlight && <div className="mb-3 inline-flex rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white">{isId ? 'Rekomendasi' : 'Recommended'}</div>}
               <h4 className="text-lg font-bold text-foreground">{pkg.name}</h4>
-              <p className="mt-1 text-sm text-mutedForeground">{pkg.credits} {isId ? 'credit untuk proses gambar' : 'credits for image processing'}</p>
+              <p className="mt-1 text-sm text-mutedForeground">
+                {isId ? `Saldo masuk ${formatMiniRupiah(pkg.balanceIdr)}` : `Balance added ${formatMiniRupiah(pkg.balanceIdr)}`}
+              </p>
               <div className="mt-4 text-2xl font-black text-foreground">{formatMiniRupiah(pkg.price)}</div>
-              <div className="mt-1 text-sm text-mutedForeground">{formatMiniRupiah(pkg.pricePerCredit)}/credit</div>
+              <div className="mt-1 text-sm text-mutedForeground">
+                {isId ? 'AI Redraw sudah termasuk pecah warna' : 'AI Redesign includes color separation'}
+              </div>
               <div className="mt-4 space-y-2 text-sm text-mutedForeground">
                 <p>{pkg.aiRedesign}x AI Redesign</p>
                 <p>{pkg.readyToTrace}x {isId ? 'Vector Siap Proses' : 'Production-Ready Vector'}</p>
@@ -1384,7 +1372,7 @@ function CtaSection({ locale = 'id', onStart }) {
             </span>
           </h2>
           <p className="mt-5 max-w-xl text-lg text-white/80 sm:text-xl">
-            {isId ? 'Daftar sekarang dan dapatkan 1 credit gratis jika memenuhi syarat untuk mencoba layanan kami.' : 'Sign up now and get 1 free credit if you are eligible to try the service.'}
+            {isId ? 'Masuk sekarang dan mulai proses logo dengan AI Redraw Rp10.000 yang sudah termasuk pecah warna, atau pilih Vector Siap Proses untuk file SVG murni.' : 'Sign in now and start with AI Redesign at Rp10,000 including color separation, or choose Production-Ready Vector for pure SVG files.'}
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
@@ -1393,7 +1381,7 @@ function CtaSection({ locale = 'id', onStart }) {
               onClick={onStart}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-8 text-base font-semibold text-primary shadow-lg transition hover:bg-white/95"
             >
-              {isId ? 'Mulai Gratis Sekarang' : 'Start Free Now'}
+              {isId ? 'Mulai Sekarang' : 'Start Now'}
               <ArrowRight className="h-5 w-5" />
             </button>
             <button

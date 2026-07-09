@@ -15,12 +15,12 @@ function getModeOptions(locale) {
       value: INPUT_MODE_RETOUCH,
       title: isId ? 'Gambar perlu digambar ulang' : 'Image needs AI redraw',
       description: isId
-        ? 'Untuk foto buram, scan, atau logo yang perlu dirapikan sebelum diproses.'
+        ? 'Untuk foto buram, scan, atau logo yang perlu dirapikan sebelum diproses. Harga sudah termasuk pecah warna sablon.'
         : 'For blurry photos, scans, or logos that need cleanup before processing.',
       priceIdr: IMAGE_RETOUCH_PRICE_IDR,
       helper: isId
-        ? 'Upload JPG, PNG, atau WebP. Cocok untuk foto logo yang masih perlu dibersihkan sebelum redraw AI.'
-        : 'Upload JPG, PNG, or WebP files. Best for logo photos that still need cleanup before AI redraw.',
+        ? 'Upload JPG, PNG, atau WebP. Cocok untuk foto logo yang masih perlu dibersihkan sebelum redraw AI, lalu diteruskan ke pecah warna sablon.'
+        : 'Upload JPG, PNG, or WebP files. Best for logo photos that still need cleanup before AI redraw and screen-print color separation.',
       accept: 'image/png,image/jpeg,image/webp',
       badge: isId ? 'Raster + AI' : 'Raster + AI'
     },
@@ -259,7 +259,7 @@ export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, 
       <p className="mt-3 text-xs text-gray-600">
         {inputMode === INPUT_MODE_READY
           ? isId ? 'Vector Siap Proses dipakai untuk file vector murni yang akan dipisah warna dan dibuat contour sticker.' : 'Production-Ready Vector is meant for pure vector files that will be separated by color and used to create sticker cutlines.'
-          : isId ? 'Jika foto terlalu gelap, blur, atau banyak bayangan, hasil redraw bisa tetap meleset dan perlu upload ulang.' : 'If the photo is too dark, blurry, or heavily shadowed, the redraw can still miss details and may need a re-upload.'}
+          : isId ? 'AI Redraw seharga Rp10.000 per gambar sudah termasuk pecah warna. Jika foto terlalu gelap, blur, atau banyak bayangan, hasil redraw bisa tetap meleset dan perlu upload ulang.' : 'AI Redraw costs Rp10,000 per image and includes screen-print color separation. If the photo is too dark, blurry, or heavily shadowed, the redraw can still miss details and may need a re-upload.'}
       </p>
     </section>
   );

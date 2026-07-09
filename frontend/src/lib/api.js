@@ -338,14 +338,6 @@ export async function getAppConfig() {
   return apiFetch('/api/app-config');
 }
 
-export async function claimSignupBonus(payload, accessToken) {
-  return apiFetch('/api/auth/signup-bonus', {
-    method: 'POST',
-    accessToken,
-    body: payload
-  });
-}
-
 export async function createMidtransCheckout(payload, accessToken) {
   return apiFetch('/api/payments/midtrans/checkout', {
     method: 'POST',

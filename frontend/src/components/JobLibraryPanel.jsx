@@ -260,11 +260,11 @@ export default function JobLibraryPanel({
       <div className="mb-4 flex items-center gap-2">
         <Archive className="h-5 w-5 text-spruce" aria-hidden="true" />
         <div>
-          <h2 className="text-base font-semibold text-ink">{isId ? 'Riwayat job & contoh' : 'Job history and examples'}</h2>
+          <h2 className="text-base font-semibold text-ink">{isId ? 'Riwayat job & contoh hasil' : 'Job history and example results'}</h2>
           <p className="text-xs text-gray-600">
             {isId
-              ? 'Riwayat milik Anda di browser ini digabung dengan contoh job superadmin yang siap dibuka dan didownload.'
-              : 'Your browser history is merged with superadmin example jobs that are ready to open and download.'}
+              ? 'Riwayat milik Anda di browser ini digabung dengan contoh hasil dari job superadmin yang dipublish dan siap dibuka atau didownload.'
+              : 'Your browser history is merged with published superadmin example jobs that are ready to open or download.'}
           </p>
         </div>
       </div>

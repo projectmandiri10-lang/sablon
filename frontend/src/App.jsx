@@ -9,11 +9,11 @@ import LandingPage, { AboutPage, ContactPage, PrivacyPage, TermsPage } from './c
 import ResultPreview from './components/ResultPreview.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
 import UploadBox from './components/UploadBox.jsx';
-import { claimSignupBonus, commitJob, deleteCloudJob, getAppConfig, getBalance, listExampleJobs, quoteJob, requestImageRetouch, toUserApiError, uploadExampleArtifacts } from './lib/api.js';
+import { commitJob, deleteCloudJob, getAppConfig, getBalance, listExampleJobs, quoteJob, requestImageRetouch, toUserApiError, uploadExampleArtifacts } from './lib/api.js';
 import { createNormalizedImagePreviewBlob } from './lib/imagePreview.js';
 import { deleteHistoryJob, loadHistoryJobs, releaseHistoryJobs, saveHistoryJob } from './lib/localHistoryStore.js';
 import { parseMidtransReturnParams, stripMidtransReturnParams } from './lib/billingPanelState.js';
-import { ensureBrowserDeviceId, loadStoredLocale, localeTag, resolveInitialLocale, saveStoredLocale } from './lib/locale.js';
+import { loadStoredLocale, localeTag, resolveInitialLocale, saveStoredLocale } from './lib/locale.js';
 import { processImageLocally } from './lib/localProcessor.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from './lib/modes.js';
 import { IMAGE_RETOUCH_PRICE_IDR, calculateJobPrice, formatRupiah } from './lib/pricing.js';
@@ -133,12 +133,13 @@ function getAppCopy(locale = 'id') {
       refreshBalance: isId ? 'Refresh saldo' : 'Refresh balance',
       processSection: isId ? 'Proses Baru' : 'New Process',
       historySection: isId ? 'Riwayat Job' : 'Job History',
+      examplesSection: isId ? 'Contoh hasil' : 'Example results',
       processingButtonIdle: isId ? 'Proses dan debit credit' : 'Process and deduct credit',
       processingButtonBusy: isId ? 'Sedang memproses' : 'Processing',
       activeHistoryTitle: isId ? 'Riwayat aktif' : 'Active history',
       activeHistoryBody: isId
-        ? 'Job yang selesai dipindahkan ke halaman ini supaya area proses tetap fokus untuk upload berikutnya.'
-        : 'Completed jobs move here so the process area stays focused on your next upload.',
+        ? 'Riwayat perangkat Anda tetap ada di sini, digabung dengan contoh hasil yang dipublish superadmin.'
+        : 'Your device history stays here, merged with published superadmin examples.',
       backToProcess: isId ? 'Kembali ke Proses Baru' : 'Back to New Process',
       sourcePreview: isId ? 'Preview gambar awal' : 'Original image preview'
     },
@@ -177,16 +178,7 @@ function getAppCopy(locale = 'id') {
       sessionReadError: isId ? 'Session login tidak bisa dibaca.' : 'The login session could not be read.',
       serviceConnectionError: isId
         ? 'Koneksi ke layanan belum tersambung. Periksa URL API aplikasi.'
-        : 'The service connection is not ready yet. Please check the app API URL.',
-      signupBonusGranted: isId
-        ? 'Bonus pengguna baru berhasil masuk: 1 credit gratis.'
-        : 'New user bonus applied successfully: 1 free credit.',
-      signupBonusLimit: isId
-        ? 'Akun ini berhasil dibuat, tetapi bonus pengguna baru sudah habis untuk device atau IP ini.'
-        : 'Your account was created successfully, but the new-user bonus has already been used up for this device or IP.',
-      signupBonusClaimError: isId
-        ? 'Akun berhasil login, tetapi bonus pengguna baru belum bisa dicek sekarang.'
-        : 'You are signed in, but the new-user bonus could not be checked right now.'
+        : 'The service connection is not ready yet. Please check the app API URL.'
     }
   };
 }
@@ -370,8 +362,6 @@ export default function App() {
   const [midtransReturnState, setMidtransReturnState] = useState(() => parseMidtransReturnParams(window.location.search || ''));
   const [appConfig, setAppConfig] = useState({ settings: {}, features: {}, viewer: {} });
   const [localeOverride, setLocaleOverride] = useState(() => loadStoredLocale());
-  const [signupBonusNotice, setSignupBonusNotice] = useState('');
-  const signupBonusClaimRef = useRef('');
   const locale = resolveInitialLocale({
     storedLocale: localeOverride,
     viewerDefaultLocale: appConfig?.viewer?.defaultLocale || '',
@@ -622,32 +612,6 @@ export default function App() {
   }, [session?.access_token, session?.user?.id, view]);
 
   useEffect(() => {
-    const claimKey = `${session?.user?.id || ''}:${session?.access_token ? '1' : '0'}`;
-    if (!session?.access_token || !session?.user?.id || signupBonusClaimRef.current === claimKey) return;
-    signupBonusClaimRef.current = claimKey;
-
-    claimSignupBonus(
-      {
-        deviceId: ensureBrowserDeviceId()
-      },
-      session.access_token
-    )
-      .then(async (data) => {
-        if (data?.granted) {
-          setSignupBonusNotice(copy.messages.signupBonusGranted);
-          await refreshBalance(session);
-          return;
-        }
-        if (data?.reason === 'limit_reached') {
-          setSignupBonusNotice(copy.messages.signupBonusLimit);
-        }
-      })
-      .catch(() => {
-        setSignupBonusNotice(copy.messages.signupBonusClaimError);
-      });
-  }, [copy.messages.signupBonusClaimError, copy.messages.signupBonusGranted, copy.messages.signupBonusLimit, session?.access_token, session?.user?.id]);
-
-  useEffect(() => {
     return () => {
       releaseHistoryJobs(historyJobsRef.current);
       historyJobsRef.current = [];
@@ -657,7 +621,6 @@ export default function App() {
   async function signOut() {
     if (supabase) await supabase.auth.signOut();
     clearFallbackSession();
-    signupBonusClaimRef.current = '';
     setSession(null);
     setBalance(null);
     setJob(null);
@@ -670,7 +633,13 @@ export default function App() {
     setExampleJobs([]);
     setExampleError('');
     setDeletingLibraryJobId('');
-    setSignupBonusNotice('');
+  }
+
+  function openExampleResults() {
+    setAppSection('history');
+    setHistoryNotice('');
+    const firstExampleJobId = exampleJobs.find((item) => item?.jobId)?.jobId || '';
+    if (firstExampleJobId) setHistorySelectedKey(firstExampleJobId);
   }
 
   function handleMidtransReturnHandled() {
@@ -963,11 +932,6 @@ export default function App() {
               <p className="border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">{balanceError}</p>
             </div>
           )}
-          {signupBonusNotice && (
-            <div className="mx-auto max-w-6xl px-4 pb-4 sm:px-6">
-              <p className="border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{signupBonusNotice}</p>
-            </div>
-          )}
         </div>
       )}
 
@@ -1027,7 +991,19 @@ export default function App() {
                     {section.key === 'process' ? copy.labels.processSection : copy.labels.historySection}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={openExampleResults}
+                  className="inline-flex min-h-10 items-center justify-center border border-chart-3 bg-chart-3 px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                >
+                  {copy.labels.examplesSection}
+                </button>
               </div>
+              <p className="mt-3 text-xs text-gray-600">
+                {isId
+                  ? 'Tombol Contoh hasil membuka galeri yang menggabungkan riwayat Anda dengan contoh job superadmin yang dipublish.'
+                  : 'The Example results button opens the gallery that merges your history with published superadmin example jobs.'}
+              </p>
             </section>
 
             {appSection === 'process' ? (
