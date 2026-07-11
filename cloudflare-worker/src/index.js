@@ -32,6 +32,11 @@ import {
   OPENROUTER_IMAGE_REDRAW_PROVIDER,
   normalizeHybridRedrawConfig
 } from '../../shared/hybridRedrawConfig.js';
+import {
+  DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS,
+  getInteractiveQrisClosedState,
+  normalizeInteractiveQrisClosedHours
+} from '../../shared/interactiveQrisClosedHours.js';
 
 const DEFAULT_PRICING = {
   ready_trace: 2000,
@@ -50,6 +55,9 @@ const INTERACTIVE_QRIS_EXPIRY_MINUTES = 30;
 const INTERACTIVE_QRIS_PAYMENT_REASON = 'interactive_qris_payment';
 const INTERACTIVE_QRIS_PAYMENT_TYPE = 'qris_static_unique';
 const DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS = 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.';
+const INTERACTIVE_QRIS_ASSET_PREFIX = 'app-assets/qris';
+const INTERACTIVE_QRIS_ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const INTERACTIVE_QRIS_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const AUTOMATIC_PAYMENT_SELECT_FIELDS =
   'id,user_id,provider,order_id,external_transaction_id,amount_idr,base_amount_idr,unique_code,currency,status,payment_type,redirect_url,credited_ledger_id,paid_at,expired_at,created_at,updated_at';
 const SIGNUP_BONUS_REASON = 'signup_free_credit';
@@ -647,7 +655,8 @@ function normalizeInteractiveQrisSetting(value = {}) {
     merchantName: String(value?.merchantName || '').trim(),
     qrImageUrl: String(value?.qrImageUrl || '').trim(),
     instructions: String(value?.instructions || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS).trim() || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS,
-    contact: String(value?.contact || '').trim()
+    contact: String(value?.contact || '').trim(),
+    closedHours: normalizeInteractiveQrisClosedHours(value?.closedHours || DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)
   };
 }
 
@@ -670,8 +679,36 @@ function buildInteractiveQrisInstruction(payment = {}, settingValue = {}, env = 
     qrImageUrl: settings.qrImageUrl,
     merchantName: settings.merchantName,
     instructions: settings.instructions,
-    contact: settings.contact
+    contact: settings.contact,
+    closedHours: settings.closedHours
   };
+}
+
+function interactiveQrisAssetPublicUrl(env, path) {
+  return `${storageBaseUrl(env)}/object/public/${EXAMPLE_JOBS_BUCKET}/${encodeStoragePath(path)}`;
+}
+
+function normalizeInteractiveQrisImageExtension(file) {
+  const contentType = String(file?.type || '').toLowerCase();
+  if (contentType === 'image/png') return 'png';
+  if (contentType === 'image/jpeg') return 'jpg';
+  if (contentType === 'image/webp') return 'webp';
+  const name = String(file?.name || '').toLowerCase();
+  if (name.endsWith('.png')) return 'png';
+  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'jpg';
+  if (name.endsWith('.webp')) return 'webp';
+  return 'png';
+}
+
+function buildInteractiveQrisAssetPath(file) {
+  return `${INTERACTIVE_QRIS_ASSET_PREFIX}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${normalizeInteractiveQrisImageExtension(file)}`;
+}
+
+function requireInteractiveQrisOpen(settingValue, now = new Date(Date.now())) {
+  const closedState = getInteractiveQrisClosedState(normalizeInteractiveQrisSetting(settingValue).closedHours, now);
+  if (closedState.isClosed) {
+    throw new Error(closedState.message);
+  }
 }
 
 export function allocateInteractiveQrisPaymentAmount(baseAmountIdr, activePayments = [], digits = INTERACTIVE_QRIS_DEFAULT_UNIQUE_DIGITS) {
@@ -2652,6 +2689,7 @@ async function handleCreateInteractiveQrisCheckout(env, request) {
   if (!qrisSetting.qrImageUrl) {
     throw new Error('QR image untuk QRIS otomatis belum diisi.');
   }
+  requireInteractiveQrisOpen(qrisSetting);
 
   const { user } = await requireUser(env, request);
   const body = await readJson(request);
@@ -2691,6 +2729,31 @@ async function handleCreateInteractiveQrisCheckout(env, request) {
   return json({
     payment,
     instruction: buildInteractiveQrisInstruction(payment, qrisSetting, env)
+  });
+}
+
+async function handleAdminInteractiveQrisImageUpload(env, request) {
+  await requireAdmin(env, request);
+  const form = await request.formData();
+  const file = requireFormFile(form, 'image', 'Gambar QRIS wajib diunggah.');
+  const contentType = String(file.type || '').toLowerCase();
+  if (!INTERACTIVE_QRIS_ALLOWED_IMAGE_TYPES.has(contentType)) {
+    throw new Error('Format gambar QRIS harus PNG, JPG, JPEG, atau WEBP.');
+  }
+
+  const bytes = await fileToUint8Array(file);
+  if (bytes.byteLength <= 0) {
+    throw new Error('File gambar QRIS kosong.');
+  }
+  if (bytes.byteLength > INTERACTIVE_QRIS_MAX_IMAGE_BYTES) {
+    throw new Error('Ukuran gambar QRIS maksimal 5 MB.');
+  }
+
+  const assetPath = buildInteractiveQrisAssetPath(file);
+  await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, assetPath, bytes, contentType);
+  return json({
+    url: interactiveQrisAssetPublicUrl(env, assetPath),
+    path: assetPath
   });
 }
 
@@ -3113,7 +3176,12 @@ async function handleAdminSettings(env, request) {
 
   const body = await readJson(request);
   if (!body.key) throw new Error('Key setting wajib diisi.');
-  const normalizedValue = body.key === 'ai_redraw_model' ? normalizeAiRedrawModelConfig(body.value, env) : body.value || {};
+  const normalizedValue =
+    body.key === 'ai_redraw_model'
+      ? normalizeAiRedrawModelConfig(body.value, env)
+      : body.key === 'interactive_qris_payment'
+        ? normalizeInteractiveQrisSetting(body.value || {})
+        : body.value || {};
   const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=*', {
     method: 'POST',
     prefer: 'resolution=merge-duplicates,return=representation',
@@ -3317,6 +3385,7 @@ export default {
       if (url.pathname === '/api/admin/finance/business-entries') return await handleAdminBusinessFinanceEntries(env, request);
       if (url.pathname === '/api/admin/finance/tax-rules') return await handleAdminTaxRules(env, request);
       if (url.pathname === '/api/admin/pricing-rules') return await handleAdminPricingRules(env, request);
+      if (url.pathname === '/api/admin/settings/interactive-qris-image' && request.method === 'POST') return await handleAdminInteractiveQrisImageUpload(env, request);
       if (url.pathname === '/api/admin/settings') return await handleAdminSettings(env, request);
       const midtransRefreshMatch = url.pathname.match(/^\/api\/payments\/midtrans\/([^/]+)\/refresh$/);
       if (midtransRefreshMatch && request.method === 'POST') return await handleRefreshMidtransPayment(env, request, midtransRefreshMatch[1]);

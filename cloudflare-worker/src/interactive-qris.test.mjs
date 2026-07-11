@@ -51,7 +51,14 @@ test('app config exposes interactive qris availability when env and public setti
             merchantName: 'Merchant QRIS',
             qrImageUrl: 'https://cdn.example/qris.png',
             instructions: 'Bayar sesuai nominal unik.',
-            contact: 'WA Admin'
+            contact: 'WA Admin',
+            closedHours: {
+              enabled: true,
+              timezone: 'Asia/Jakarta',
+              start: '22:00',
+              end: '05:00',
+              message: 'QRIS tutup malam.'
+            }
           },
           is_public: true
         }
@@ -83,6 +90,7 @@ test('app config exposes interactive qris availability when env and public setti
     assert.equal(data.features.interactiveQrisAvailable, true);
     assert.equal(data.features.interactiveQrisMinimumAmountIdr, 2000);
     assert.equal(data.features.interactiveQrisUniqueDigits, 2);
+    assert.equal(data.settings.interactive_qris_payment.closedHours.start, '22:00');
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -128,7 +136,14 @@ test('interactive qris checkout expires stale rows and creates pending unique pa
             merchantName: 'Merchant QRIS',
             qrImageUrl: 'https://cdn.example/qris.png',
             instructions: 'Bayar sesuai nominal unik.',
-            contact: 'WA Admin'
+            contact: 'WA Admin',
+            closedHours: {
+              enabled: false,
+              timezone: 'Asia/Jakarta',
+              start: '22:00',
+              end: '05:00',
+              message: 'QRIS tutup malam.'
+            }
           },
           is_public: true
         }
@@ -202,6 +217,91 @@ test('interactive qris checkout expires stale rows and creates pending unique pa
   }
 });
 
+test('interactive qris checkout rejects closed hours in Asia Jakarta', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalDateNow = Date.now;
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+
+    if (url.endsWith('/auth/v1/user')) {
+      return jsonResponse({
+        id: 'user-1',
+        email: 'user@example.com',
+        user_metadata: { full_name: 'User Test' }
+      });
+    }
+
+    if (url.includes('/rest/v1/profiles?id=eq.user-1&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at')) {
+      return jsonResponse([
+        {
+          id: 'user-1',
+          email: 'user@example.com',
+          full_name: 'User Test',
+          role: 'user',
+          is_unlimited: false,
+          is_active: true,
+          deleted_at: null,
+          created_at: '2026-07-11T09:00:00.000Z'
+        }
+      ]);
+    }
+
+    if (url.includes('/rest/v1/app_settings?select=key,value,is_public,description,updated_at&key=eq.interactive_qris_payment&limit=1')) {
+      return jsonResponse([
+        {
+          key: 'interactive_qris_payment',
+          value: {
+            enabled: true,
+            merchantName: 'Merchant QRIS',
+            qrImageUrl: 'https://cdn.example/qris.png',
+            instructions: 'Bayar sesuai nominal unik.',
+            contact: 'WA Admin',
+            closedHours: {
+              enabled: true,
+              timezone: 'Asia/Jakarta',
+              start: '22:00',
+              end: '05:00',
+              message: 'QRIS tutup malam.'
+            }
+          },
+          is_public: true
+        }
+      ]);
+    }
+
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  Date.now = () => new Date('2026-07-11T15:30:00.000Z').getTime();
+
+  try {
+    const env = {
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role',
+      INTERACTIVE_QRIS_WEBHOOK_SECRET: 'secret-123',
+      INTERACTIVE_QRIS_SOURCE_PACKAGE: 'com.interactive.qrisid'
+    };
+    const request = new Request('https://worker.example/api/payments/interactive-qris/checkout', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer user-token',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ amountIdr: 10000 })
+    });
+
+    const response = await worker.fetch(request, env);
+    const data = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.equal(data.error, 'QRIS tutup malam.');
+  } finally {
+    Date.now = originalDateNow;
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('interactive qris webhook rejects invalid secret and ignores wrong package name', async () => {
   const env = {
     SUPABASE_URL: 'https://example.supabase.co',
@@ -239,6 +339,7 @@ test('interactive qris webhook rejects invalid secret and ignores wrong package 
 
 test('interactive qris webhook settles matching payment without double credit', async () => {
   const originalFetch = globalThis.fetch;
+  const originalDateNow = Date.now;
   let ledgerLookupCount = 0;
 
   globalThis.fetch = async (input, init = {}) => {
@@ -303,6 +404,7 @@ test('interactive qris webhook settles matching payment without double credit', 
   };
 
   try {
+    Date.now = () => new Date('2026-07-11T15:30:00.000Z').getTime();
     const env = {
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'service-role',
@@ -334,6 +436,128 @@ test('interactive qris webhook settles matching payment without double credit', 
     assert.equal(data.payment.status, 'settlement');
     assert.equal(data.payment.credited_ledger_id, 'ledger-1');
     assert.equal(ledgerLookupCount, 2);
+  } finally {
+    Date.now = originalDateNow;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('admin can upload interactive qris image to storage bucket', async () => {
+  const originalFetch = globalThis.fetch;
+  let uploadedPath = '';
+
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+
+    if (url.endsWith('/auth/v1/user')) {
+      return jsonResponse({
+        id: 'admin-1',
+        email: 'admin@example.com',
+        user_metadata: { full_name: 'Admin Test' }
+      });
+    }
+
+    if (url.includes('/rest/v1/profiles?id=eq.admin-1&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at')) {
+      return jsonResponse([
+        {
+          id: 'admin-1',
+          email: 'admin@example.com',
+          full_name: 'Admin Test',
+          role: 'superuser',
+          is_unlimited: true,
+          is_active: true,
+          deleted_at: null,
+          created_at: '2026-07-11T09:00:00.000Z'
+        }
+      ]);
+    }
+
+    if (url.includes('/storage/v1/object/example-jobs/app-assets/qris/') && init.method === 'POST') {
+      uploadedPath = url;
+      return jsonResponse({ Key: 'ok' });
+    }
+
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  try {
+    const env = {
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role'
+    };
+    const form = new FormData();
+    form.append('image', new File([new Uint8Array([1, 2, 3])], 'qris.png', { type: 'image/png' }));
+    const request = new Request('https://worker.example/api/admin/settings/interactive-qris-image', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer admin-token'
+      },
+      body: form
+    });
+
+    const response = await worker.fetch(request, env);
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.match(uploadedPath, /app-assets\/qris\//);
+    assert.match(data.url, /\/storage\/v1\/object\/public\/example-jobs\/app-assets\/qris\//);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('admin interactive qris image upload rejects non-image mime types', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+
+    if (url.endsWith('/auth/v1/user')) {
+      return jsonResponse({
+        id: 'admin-1',
+        email: 'admin@example.com',
+        user_metadata: { full_name: 'Admin Test' }
+      });
+    }
+
+    if (url.includes('/rest/v1/profiles?id=eq.admin-1&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at')) {
+      return jsonResponse([
+        {
+          id: 'admin-1',
+          email: 'admin@example.com',
+          full_name: 'Admin Test',
+          role: 'superuser',
+          is_unlimited: true,
+          is_active: true,
+          deleted_at: null,
+          created_at: '2026-07-11T09:00:00.000Z'
+        }
+      ]);
+    }
+
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  try {
+    const env = {
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role'
+    };
+    const form = new FormData();
+    form.append('image', new File([new Uint8Array([1, 2, 3])], 'qris.pdf', { type: 'application/pdf' }));
+    const request = new Request('https://worker.example/api/admin/settings/interactive-qris-image', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer admin-token'
+      },
+      body: form
+    });
+
+    const response = await worker.fetch(request, env);
+    const data = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.equal(data.error, 'Format gambar QRIS harus PNG, JPG, JPEG, atau WEBP.');
   } finally {
     globalThis.fetch = originalFetch;
   }

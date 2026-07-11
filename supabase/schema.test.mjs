@@ -22,6 +22,7 @@ const photoLogoCleanupPromptMigration = fs.readFileSync(path.join(import.meta.di
 const logoPhotoCleanupShortPromptMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708203000_set_logo_photo_cleanup_short_prompt_profile.sql'), 'utf8');
 const openAiDirectMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260709100000_migrate_ai_redraw_to_openai_direct.sql'), 'utf8');
 const interactiveQrisPaymentsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260711103000_add_interactive_qris_payment_support.sql'), 'utf8');
+const interactiveQrisClosedHoursMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260711120000_add_interactive_qris_closed_hours_defaults.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -186,6 +187,16 @@ test('interactive qris payment migration extends automatic payments and seeds se
   assert.match(interactiveQrisPaymentsMigration, /credit_ledger_interactive_qris_reference_unique_idx/);
   assert.match(interactiveQrisPaymentsMigration, /payment_transactions_interactive_qris_pending_amount_unique_idx/);
   assert.match(interactiveQrisPaymentsMigration, /interactive_qris_payment/);
+});
+
+test('interactive qris closed-hours migration seeds overnight closure defaults', () => {
+  assert.match(interactiveQrisClosedHoursMigration, /interactive_qris_payment/);
+  assert.match(interactiveQrisClosedHoursMigration, /closedHours/);
+  assert.match(interactiveQrisClosedHoursMigration, /Asia\/Jakarta/);
+  assert.match(interactiveQrisClosedHoursMigration, /22:00/);
+  assert.match(interactiveQrisClosedHoursMigration, /05:00/);
+  assert.match(bootstrapSql, /closedHours/);
+  assert.match(bootstrapSql, /Asia\/Jakarta/);
 });
 
 test('admin finance migration provisions business ledger and tax rules with admin policies', () => {

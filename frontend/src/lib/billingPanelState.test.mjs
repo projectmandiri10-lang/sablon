@@ -8,6 +8,7 @@ import {
   buildMidtransReturnMessage,
   isAutomaticPaymentRefreshable,
   parseMidtransReturnParams,
+  resolveInteractiveQrisClosedState,
   stripMidtransReturnParams
 } from './billingPanelState.js';
 
@@ -24,7 +25,14 @@ test('billing panel state keeps Midtrans, QRIS, and Shopee sections available', 
           merchantName: 'Merchant Test',
           qrImageUrl: 'https://cdn.example/qris.png',
           instructions: 'Bayar sesuai nominal unik.',
-          contact: 'WA Admin'
+          contact: 'WA Admin',
+          closedHours: {
+            enabled: true,
+            timezone: 'Asia/Jakarta',
+            start: '22:00',
+            end: '05:00',
+            message: 'QRIS tutup malam.'
+          }
         }
       },
       features: {
@@ -49,6 +57,8 @@ test('billing panel state keeps Midtrans, QRIS, and Shopee sections available', 
   assert.equal(state.midtrans.minimumAmountIdr, 2000);
   assert.equal(state.interactiveQris.available, true);
   assert.equal(state.interactiveQris.qrImageUrl, 'https://cdn.example/qris.png');
+  assert.equal(state.interactiveQris.closedHours.start, '22:00');
+  assert.equal(state.interactiveQris.closedHours.message, 'QRIS tutup malam.');
 });
 
 test('midtrans return parser reads order id and normalizes pending status', () => {
@@ -103,4 +113,35 @@ test('automatic payment helpers keep QRIS non-refreshable and label mixed provid
   assert.equal(isAutomaticPaymentRefreshable({ provider: 'interactive_qris', status: 'pending' }), false);
   assert.equal(automaticPaymentProviderLabel('interactive_qris'), 'QRIS otomatis');
   assert.equal(automaticPaymentChannelLabel({ provider: 'interactive_qris', payment_type: 'qris_static_unique' }), 'QRIS statis');
+});
+
+test('interactive qris closed hours helper follows Asia Jakarta overnight window', () => {
+  const closedState = resolveInteractiveQrisClosedState(
+    {
+      closedHours: {
+        enabled: true,
+        timezone: 'Asia/Jakarta',
+        start: '22:00',
+        end: '05:00',
+        message: 'QRIS tutup malam.'
+      }
+    },
+    new Date('2026-07-11T15:30:00.000Z').getTime()
+  );
+
+  const openState = resolveInteractiveQrisClosedState(
+    {
+      closedHours: {
+        enabled: true,
+        timezone: 'Asia/Jakarta',
+        start: '22:00',
+        end: '05:00',
+        message: 'QRIS tutup malam.'
+      }
+    },
+    new Date('2026-07-11T03:00:00.000Z').getTime()
+  );
+
+  assert.equal(closedState.isClosed, true);
+  assert.equal(openState.isClosed, false);
 });

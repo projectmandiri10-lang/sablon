@@ -15,7 +15,8 @@ import {
   buildBillingPanelState,
   buildInteractiveQrisPaymentInstruction,
   buildMidtransReturnMessage,
-  isAutomaticPaymentRefreshable
+  isAutomaticPaymentRefreshable,
+  resolveInteractiveQrisClosedState
 } from '../lib/billingPanelState.js';
 import { formatRupiah } from '../lib/pricing.js';
 
@@ -41,6 +42,7 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isCreatingQris, setIsCreatingQris] = useState(false);
   const [refreshingOrderId, setRefreshingOrderId] = useState('');
+  const [clockNow, setClockNow] = useState(() => Date.now());
   const handledReturnRef = useRef('');
   const isId = locale === 'id';
   const copy = {
@@ -74,6 +76,7 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
       : 'The system will create a unique payable amount for the static merchant QRIS. Once the payment notification arrives, credits are added automatically.',
     gatewayMissing: isId ? 'Gateway redirect belum aktif di deploy ini. Isi konfigurasi Worker lebih dulu.' : 'The redirect gateway is not enabled on this deployment yet. Configure the Worker first.',
     qrisMissing: isId ? 'QRIS otomatis belum aktif di deploy ini. Isi secret Worker dan setting QRIS lebih dulu.' : 'Automatic QRIS is not enabled on this deployment yet. Configure the Worker secret and QRIS setting first.',
+    qrisClosed: isId ? 'QRIS sedang tutup pada jam ini.' : 'QRIS is currently closed at this time.',
     qrisCreated: isId ? 'Instruksi QRIS otomatis berhasil dibuat. Bayar sesuai nominal unik di bawah ini.' : 'The automatic QRIS instruction has been created. Pay the exact unique amount below.',
     exactPayableAmount: isId ? 'Nominal yang harus dibayar' : 'Exact payable amount',
     baseAmount: isId ? 'Nominal dasar top up' : 'Base top-up amount',
@@ -118,6 +121,11 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
   useEffect(() => {
     loadBillingData();
   }, [session?.access_token]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function handleRefreshPayment(orderId, options = {}) {
     if (!orderId) return;
@@ -188,6 +196,10 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
 
   async function handleInteractiveQrisCheckout(event) {
     event.preventDefault();
+    if (qrisClosedState.isClosed) {
+      setPaymentError(qrisClosedState.message || copy.qrisClosed);
+      return;
+    }
     const amountIdr = Number.parseInt(qrisAmountInput, 10);
     if (!Number.isInteger(amountIdr) || amountIdr < state.interactiveQris.minimumAmountIdr) {
       setPaymentError(copy.minimumAmount(formatRupiah(state.interactiveQris.minimumAmountIdr)));
@@ -218,13 +230,16 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     ? `AI Redraw aktif di deploy ini. Jalur utama: ${billingProviderLabel(state.aiRedraw.primaryProvider) || 'OpenAI'}${state.aiRedraw.fallbackProvider ? `, fallback: ${billingProviderLabel(state.aiRedraw.fallbackProvider)}.` : '.'}`
     : 'AI Redraw belum aktif di deploy ini. Mode Ready Trace tetap tersedia sampai secret OpenAI atau OpenRouter diisi di Worker.';
 
+  const qrisClosedState = resolveInteractiveQrisClosedState(state.interactiveQris, clockNow);
+  const qrisCheckoutDisabled = !state.interactiveQris.available || qrisClosedState.isClosed || isCreatingQris;
+
   const activeQrisInstruction = useMemo(() => {
     for (const payment of payments) {
-      const instruction = buildInteractiveQrisPaymentInstruction(payment, state.interactiveQris);
+      const instruction = buildInteractiveQrisPaymentInstruction(payment, state.interactiveQris, clockNow);
       if (instruction) return instruction;
     }
     return null;
-  }, [payments, state.interactiveQris]);
+  }, [payments, state.interactiveQris, clockNow]);
 
   return (
     <div id="billing" className="space-y-5">
@@ -312,19 +327,24 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
                   onChange={(event) => setQrisAmountInput(event.target.value)}
                   className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   placeholder={String(state.interactiveQris.minimumAmountIdr)}
-                  disabled={!state.interactiveQris.available || isCreatingQris}
+                  disabled={qrisCheckoutDisabled}
                 />
                 <p className="mt-1 text-xs text-gray-600">{copy.minimumCreditInfo(formatRupiah(state.interactiveQris.minimumAmountIdr))}</p>
               </label>
               <button
                 type="submit"
-                disabled={!state.interactiveQris.available || isCreatingQris}
+                disabled={qrisCheckoutDisabled}
                 className="inline-flex min-h-11 items-center justify-center gap-2 border border-spruce bg-spruce px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300 disabled:text-gray-600"
               >
                 <QrCode className="h-4 w-4" aria-hidden="true" />
                 {isCreatingQris ? copy.creatingQris : copy.createQris}
               </button>
             </form>
+            {qrisClosedState.isClosed && (
+              <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+                {qrisClosedState.message || copy.qrisClosed}
+              </div>
+            )}
             {!state.interactiveQris.available && (
               <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
                 {copy.qrisMissing}

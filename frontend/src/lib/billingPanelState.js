@@ -1,3 +1,9 @@
+import {
+  DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS,
+  getInteractiveQrisClosedState,
+  normalizeInteractiveQrisClosedHours
+} from '../../../shared/interactiveQrisClosedHours.js';
+
 export const DEFAULT_SHOPEE_URL = 'https://shopee.co.id/';
 export const DEFAULT_SHOPEE_NOTE =
   'Checkout nominal credit di Shopee, lalu kirim email akun EasyRedesign Pro melalui chat Shopee. Admin top up manual 5-15 menit pada jam kerja.';
@@ -46,8 +52,13 @@ export function buildInteractiveQrisPaymentInstruction(payment = {}, interactive
     qrImageUrl: interactiveQris.qrImageUrl || '',
     merchantName: interactiveQris.merchantName || '',
     instructions: interactiveQris.instructions || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS,
-    contact: interactiveQris.contact || ''
+    contact: interactiveQris.contact || '',
+    closedHours: normalizeInteractiveQrisClosedHours(interactiveQris.closedHours || DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)
   };
+}
+
+export function resolveInteractiveQrisClosedState(interactiveQris = {}, now = Date.now()) {
+  return getInteractiveQrisClosedState(interactiveQris.closedHours || DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS, new Date(now));
 }
 
 export function buildBillingPanelState(appConfig = {}, session = null) {
@@ -76,7 +87,8 @@ export function buildBillingPanelState(appConfig = {}, session = null) {
       merchantName: interactiveQris.merchantName || '',
       qrImageUrl: interactiveQris.qrImageUrl || '',
       instructions: interactiveQris.instructions || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS,
-      contact: interactiveQris.contact || ''
+      contact: interactiveQris.contact || '',
+      closedHours: normalizeInteractiveQrisClosedHours(interactiveQris.closedHours || DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)
     },
     aiRedraw: {
       available: Boolean(features.aiRedrawAvailable),

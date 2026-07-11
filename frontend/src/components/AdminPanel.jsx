@@ -18,7 +18,8 @@ import {
   toUserApiError,
   updateAdminPricingRule,
   updateAdminSetting,
-  updateAdminUser
+  updateAdminUser,
+  uploadInteractiveQrisImage
 } from '../lib/api.js';
 import AdminFinancePanel from './AdminFinancePanel.jsx';
 import {
@@ -29,6 +30,7 @@ import {
 } from '../../../shared/hybridRedrawConfig.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from '../lib/modes.js';
 import { formatRupiah } from '../lib/pricing.js';
+import { DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS, normalizeInteractiveQrisClosedHours } from '../../../shared/interactiveQrisClosedHours.js';
 
 const pricingLabels = {
   [INPUT_MODE_READY]: 'Gambar siap proses',
@@ -74,6 +76,17 @@ function paymentChannelLabel(payment = {}) {
   return payment.payment_type || '-';
 }
 
+function buildDefaultInteractiveQrisDraft() {
+  return {
+    enabled: false,
+    merchantName: '',
+    qrImageUrl: '',
+    instructions: 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.',
+    contact: '',
+    closedHours: normalizeInteractiveQrisClosedHours(DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)
+  };
+}
+
 function examplePublishHint(job, isPublished) {
   if (isPublished) return 'Job ini sedang tampil di feed contoh user.';
   if (job.can_set_as_example) return 'Siap dipublish sebagai contoh.';
@@ -106,13 +119,9 @@ export default function AdminPanel({ session, enabled }) {
   const [amountByUser, setAmountByUser] = useState({});
   const [pricingDraft, setPricingDraft] = useState({});
   const [shopeeDraft, setShopeeDraft] = useState({ url: '', note: '', contact: '' });
-  const [interactiveQrisDraft, setInteractiveQrisDraft] = useState({
-    enabled: false,
-    merchantName: '',
-    qrImageUrl: '',
-    instructions: '',
-    contact: ''
-  });
+  const [interactiveQrisDraft, setInteractiveQrisDraft] = useState(buildDefaultInteractiveQrisDraft);
+  const [interactiveQrisImageFile, setInteractiveQrisImageFile] = useState(null);
+  const [isUploadingInteractiveQrisImage, setIsUploadingInteractiveQrisImage] = useState(false);
   const [aiModelDraft, setAiModelDraft] = useState(normalizeAiModelDraft());
   const [rejectReasonByPayment, setRejectReasonByPayment] = useState({});
   const [newUser, setNewUser] = useState({
@@ -168,8 +177,10 @@ export default function AdminPanel({ session, enabled }) {
         merchantName: interactiveQris.merchantName || '',
         qrImageUrl: interactiveQris.qrImageUrl || '',
         instructions: interactiveQris.instructions || 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.',
-        contact: interactiveQris.contact || ''
+        contact: interactiveQris.contact || '',
+        closedHours: normalizeInteractiveQrisClosedHours(interactiveQris.closedHours || DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)
       });
+      setInteractiveQrisImageFile(null);
       setAiModelDraft(normalizeAiModelDraft(aiModel));
     } catch (error) {
       setMessage(toUserApiError(error, 'Gagal membaca data superadmin.').message);
@@ -357,25 +368,52 @@ export default function AdminPanel({ session, enabled }) {
     }
   }
 
-  async function saveInteractiveQrisSetting() {
+  async function persistInteractiveQrisSetting(nextDraft, successMessage = 'Setting QRIS otomatis berhasil disimpan.') {
     setIsBusy(true);
     setMessage('');
     try {
       await updateAdminSetting(
         {
           key: 'interactive_qris_payment',
-          value: interactiveQrisDraft,
+          value: nextDraft,
           isPublic: true,
           description: 'Konfigurasi QRIS otomatis dengan nominal unik'
         },
         accessToken
       );
       await loadAdminData();
-      setMessage('Setting QRIS otomatis berhasil disimpan.');
+      setMessage(successMessage);
     } catch (error) {
       setMessage(toUserApiError(error, 'Gagal menyimpan setting QRIS otomatis.').message);
     } finally {
       setIsBusy(false);
+    }
+  }
+
+  async function saveInteractiveQrisSetting() {
+    await persistInteractiveQrisSetting(interactiveQrisDraft);
+  }
+
+  async function handleInteractiveQrisImageUpload() {
+    if (!interactiveQrisImageFile) {
+      setMessage('Pilih file gambar QRIS terlebih dulu.');
+      return;
+    }
+    setIsUploadingInteractiveQrisImage(true);
+    setMessage('');
+    try {
+      const data = await uploadInteractiveQrisImage(interactiveQrisImageFile, accessToken);
+      const nextDraft = {
+        ...interactiveQrisDraft,
+        qrImageUrl: data?.url || ''
+      };
+      setInteractiveQrisDraft(nextDraft);
+      await persistInteractiveQrisSetting(nextDraft, 'Gambar QRIS berhasil diupload dan setting QRIS diperbarui.');
+    } catch (error) {
+      setMessage(toUserApiError(error, 'Gagal mengupload gambar QRIS.').message);
+    } finally {
+      setIsUploadingInteractiveQrisImage(false);
+      setInteractiveQrisImageFile(null);
     }
   }
 
@@ -1108,14 +1146,46 @@ export default function AdminPanel({ session, enabled }) {
                 />
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">URL gambar QR</span>
+                <span className="mb-1.5 block text-sm font-medium text-ink">Upload gambar QR</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(event) => setInteractiveQrisImageFile(event.target.files?.[0] || null)}
+                  className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                />
+                <p className="mt-1 text-xs text-gray-600">Format: PNG, JPG/JPEG, atau WEBP. Maksimal 5 MB.</p>
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleInteractiveQrisImageUpload}
+                  disabled={isBusy || isUploadingInteractiveQrisImage || !interactiveQrisImageFile}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 border border-spruce bg-white px-3 py-2 text-sm font-bold text-spruce disabled:opacity-60"
+                >
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                  {isUploadingInteractiveQrisImage ? 'Mengupload gambar...' : 'Upload gambar QRIS'}
+                </button>
+                {interactiveQrisImageFile && <p className="text-xs text-gray-600">{interactiveQrisImageFile.name}</p>}
+              </div>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">URL gambar QR aktif</span>
                 <input
                   value={interactiveQrisDraft.qrImageUrl}
-                  onChange={(event) => setInteractiveQrisDraft((current) => ({ ...current, qrImageUrl: event.target.value }))}
-                  className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                  placeholder="https://..."
+                  readOnly
+                  className="w-full border border-line bg-panel px-3 py-2.5 text-sm text-gray-700 outline-none"
+                  placeholder="Belum ada gambar QR aktif"
                 />
               </label>
+              {interactiveQrisDraft.qrImageUrl && (
+                <div className="border border-line bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase text-gray-600">Preview QR aktif</p>
+                  <img
+                    src={interactiveQrisDraft.qrImageUrl}
+                    alt={interactiveQrisDraft.merchantName || 'QRIS aktif'}
+                    className="h-auto w-full max-w-[220px] border border-line bg-white p-2"
+                  />
+                </div>
+              )}
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-ink">Instruksi billing</span>
                 <textarea
@@ -1132,6 +1202,96 @@ export default function AdminPanel({ session, enabled }) {
                   className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                 />
               </label>
+              <div className="border border-line bg-white p-3">
+                <h4 className="mb-3 text-sm font-bold text-ink">Jam tutup QRIS</h4>
+                <div className="grid gap-3">
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-ink">
+                    <input
+                      type="checkbox"
+                      checked={interactiveQrisDraft.closedHours.enabled !== false}
+                      onChange={(event) =>
+                        setInteractiveQrisDraft((current) => ({
+                          ...current,
+                          closedHours: {
+                            ...current.closedHours,
+                            enabled: event.target.checked
+                          }
+                        }))
+                      }
+                      className="h-4 w-4 accent-spruce"
+                    />
+                    Aktifkan penutupan QRIS otomatis
+                  </label>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-medium text-ink">Jam mulai tutup</span>
+                      <input
+                        type="time"
+                        value={interactiveQrisDraft.closedHours.start}
+                        onChange={(event) =>
+                          setInteractiveQrisDraft((current) => ({
+                            ...current,
+                            closedHours: {
+                              ...current.closedHours,
+                              start: event.target.value
+                            }
+                          }))
+                        }
+                        className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-medium text-ink">Jam buka kembali</span>
+                      <input
+                        type="time"
+                        value={interactiveQrisDraft.closedHours.end}
+                        onChange={(event) =>
+                          setInteractiveQrisDraft((current) => ({
+                            ...current,
+                            closedHours: {
+                              ...current.closedHours,
+                              end: event.target.value
+                            }
+                          }))
+                        }
+                        className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-medium text-ink">Timezone</span>
+                      <input
+                        value={interactiveQrisDraft.closedHours.timezone}
+                        onChange={(event) =>
+                          setInteractiveQrisDraft((current) => ({
+                            ...current,
+                            closedHours: {
+                              ...current.closedHours,
+                              timezone: event.target.value
+                            }
+                          }))
+                        }
+                        className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                      />
+                    </label>
+                  </div>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-ink">Pesan saat tutup</span>
+                    <textarea
+                      value={interactiveQrisDraft.closedHours.message}
+                      onChange={(event) =>
+                        setInteractiveQrisDraft((current) => ({
+                          ...current,
+                          closedHours: {
+                            ...current.closedHours,
+                            message: event.target.value
+                          }
+                        }))
+                      }
+                      className="min-h-24 w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                    />
+                  </label>
+                </div>
+              </div>
               <button type="button" onClick={saveInteractiveQrisSetting} className="inline-flex min-h-10 w-fit items-center justify-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-bold text-white">
                 <Save className="h-4 w-4" aria-hidden="true" />
                 Simpan setting QRIS

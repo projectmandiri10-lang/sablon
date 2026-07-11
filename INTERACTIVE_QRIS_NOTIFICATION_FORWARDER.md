@@ -47,11 +47,18 @@ Masuk ke tab `Setting aplikasi` di halaman superadmin, lalu isi `QRIS otomatis`:
 
 - `Aktifkan QRIS otomatis`: centang
 - `Nama merchant`: nama toko/merchant yang muncul di billing
-- `URL gambar QR`: URL publik gambar QRIS statis
+- `Upload gambar QR`: upload langsung gambar QRIS statis dari halaman admin
 - `Instruksi billing`: instruksi singkat untuk user
 - `Kontak admin`: nomor WhatsApp atau kontak bantuan
+- `Jam tutup QRIS`: default 22:00 sampai 05:00 WIB
 
 Field ini disimpan sebagai app setting publik `interactive_qris_payment`.
+
+Saat jam tutup aktif:
+
+- user tetap bisa melihat card QRIS
+- instruksi QRIS yang sudah terbit sebelum jam tutup tetap terlihat sampai expiry normal
+- checkout QRIS baru akan ditolak sampai jam operasional kembali buka
 
 ## 3. Setup NotificationForwarder
 

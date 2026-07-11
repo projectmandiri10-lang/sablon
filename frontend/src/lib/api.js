@@ -457,6 +457,16 @@ export async function updateAdminSetting(payload, accessToken) {
   });
 }
 
+export async function uploadInteractiveQrisImage(file, accessToken) {
+  const formData = new FormData();
+  formData.append('image', file);
+  return apiFetch('/api/admin/settings/interactive-qris-image', {
+    method: 'POST',
+    accessToken,
+    body: formData
+  });
+}
+
 export async function getAdminFinanceSummary(params, accessToken) {
   return apiFetch(`/api/admin/finance/summary${buildAdminFinanceQuery(params)}`, { accessToken });
 }
