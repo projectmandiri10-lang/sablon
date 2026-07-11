@@ -112,6 +112,73 @@ Payload minimum yang harus dikirim:
 
 Minimal `packageName` dan `text` harus ada. `text` harus berisi nominal sukses bayar yang bisa diparsing Worker.
 
+## 3A. Alternatif MacroDroid
+
+Jika `NotificationForwarder` tidak bisa dipakai di Android 16, Anda bisa mencoba **MacroDroid** sebagai alternatif. Flow backend-nya tetap sama:
+
+- tetap kirim `POST` ke webhook Worker
+- tetap kirim header `x-interactive-qris-secret`
+- tetap kirim `packageName`, `title`, dan `text`
+- paket import project ini tersedia di `macrodroid/interactive-qris-relay.macro`
+
+Catatan penting:
+
+- MacroDroid tetap bergantung pada **Notification Access**
+- jika toggle `Notification Access` juga abu-abu untuk MacroDroid, maka MacroDroid tidak akan menyelesaikan masalah utama
+- setelah import, isi secure variable `IQRIS_WEBHOOK_SECRET` satu kali dengan secret production yang sama seperti Worker
+- panduan import lengkap ada di `MACRODROID_INTERACTIVE_QRIS_IMPORT.md`
+
+### Trigger MacroDroid
+
+1. Buat macro baru.
+2. Pilih trigger `Notification`.
+3. Gunakan event `Notification Received`.
+4. Filter hanya aplikasi **InterActive QRIS**.
+5. Jika perlu, tambahkan filter teks seperti `QRIS` atau `Pembayaran`.
+
+### Action MacroDroid
+
+Gunakan action `HTTP Request` dengan konfigurasi:
+
+- Method: `POST`
+- URL:
+
+```text
+https://sablon.jho-j80.workers.dev/api/payments/interactive-qris/webhook
+```
+
+- Header:
+
+```text
+x-interactive-qris-secret: {v=IQRIS_WEBHOOK_SECRET}
+```
+
+- Body type: `application/json`
+
+Contoh payload:
+
+```json
+{
+  "packageName": "{not_app_package}",
+  "title": "{not_title}",
+  "text": "{notification}",
+  "raw": "{not_text_big}"
+}
+```
+
+Catatan payload:
+
+- `postedAt` tidak wajib untuk Worker saat ini
+- yang paling penting adalah `packageName` dan `text`
+- `text` harus tetap berisi nominal pembayaran yang bisa diparsing, misalnya `Rp 10.237`
+
+### Rekomendasi operasional MacroDroid
+
+- set baterai ke `Unrestricted`
+- aktifkan auto-start atau background run jika ROM Android memerlukannya
+- kunci aplikasi di recent apps jika vendor Android menyediakan opsi itu
+- lakukan 1 transaksi test untuk memastikan macro benar-benar mengirim webhook
+
 ## 4. Hardening Operasional
 
 - Gunakan **1 HP merchant khusus** jika memungkinkan.

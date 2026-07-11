@@ -79,6 +79,12 @@ npx wrangler secret put INTERACTIVE_QRIS_WEBHOOK_SECRET
 npx wrangler deploy
 ```
 
+Untuk jalur MacroDroid QRIS production, isi `INTERACTIVE_QRIS_WEBHOOK_SECRET` dengan nilai yang sama seperti secure variable MacroDroid:
+
+```env
+INTERACTIVE_QRIS_WEBHOOK_SECRET=qris_whsec_8kR4mN2pV7xL1sQa6tH9cD3yB5uF0wZe
+```
+
 Env Worker yang penting:
 
 ```env

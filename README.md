@@ -12,6 +12,8 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 - `.env` dan `.env.example` - env versi Cloudflare
 - `DEPLOY_CLOUDFLARE_SUPABASE.md` - panduan deploy
 - `INTERACTIVE_QRIS_NOTIFICATION_FORWARDER.md` - panduan QRIS gratis via NotificationForwarder
+- `MACRODROID_INTERACTIVE_QRIS_IMPORT.md` - panduan import MacroDroid untuk relay QRIS gratis
+- `macrodroid/` - file `.macro` siap import untuk MacroDroid
 
 ## Yang Berubah
 
@@ -35,4 +37,4 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 
 - Folder `landing/` dan `backend/` sengaja tidak ikut ke copy ini karena bukan target Cloudflare free tier.
 - Jalur AI redraw tidak mengirim token provider AI ke browser atau Supabase. Worker menerima upload dari browser, memanggil provider yang aktif, lalu mengembalikan hasil ke flow trace lokal browser yang membuat vector, film sablon, PDF, dan ZIP.
-- Untuk pembayaran otomatis biaya rendah tanpa Open API berbayar, gunakan jalur `interactive_qris` yang didokumentasikan di `INTERACTIVE_QRIS_NOTIFICATION_FORWARDER.md`.
+- Untuk pembayaran otomatis biaya rendah tanpa Open API berbayar, gunakan jalur `interactive_qris` yang didokumentasikan di `INTERACTIVE_QRIS_NOTIFICATION_FORWARDER.md`. Jika Android 16 menolak NotificationForwarder, gunakan paket MacroDroid di `MACRODROID_INTERACTIVE_QRIS_IMPORT.md`.
