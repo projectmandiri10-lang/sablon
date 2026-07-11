@@ -346,8 +346,20 @@ export async function createMidtransCheckout(payload, accessToken) {
   });
 }
 
+export async function createInteractiveQrisCheckout(payload, accessToken) {
+  return apiFetch('/api/payments/interactive-qris/checkout', {
+    method: 'POST',
+    accessToken,
+    body: payload
+  });
+}
+
 export async function listMidtransPayments(accessToken) {
   return apiFetch('/api/payments/midtrans', { accessToken });
+}
+
+export async function listAutomaticPayments(accessToken) {
+  return apiFetch('/api/payments/automatic', { accessToken });
 }
 
 export async function refreshMidtransPayment(orderId, accessToken) {
@@ -400,6 +412,10 @@ export async function listAdminManualPayments(accessToken) {
 
 export async function listAdminMidtransPayments(accessToken) {
   return apiFetch('/api/admin/midtrans-payments', { accessToken });
+}
+
+export async function listAdminPaymentTransactions(accessToken) {
+  return apiFetch('/api/admin/payment-transactions', { accessToken });
 }
 
 export async function approveManualPayment(paymentId, accessToken) {

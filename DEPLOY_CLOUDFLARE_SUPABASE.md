@@ -75,6 +75,7 @@ npx wrangler login
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 npx wrangler secret put OPENAI_API_KEY
 npx wrangler secret put OPENROUTER_API_KEY
+npx wrangler secret put INTERACTIVE_QRIS_WEBHOOK_SECRET
 npx wrangler deploy
 ```
 
@@ -96,6 +97,9 @@ OPENROUTER_IMAGE_SIZE=1K
 OPENROUTER_MAX_IMAGE_INPUT_BYTES=3200000
 AI_REDRAW_PRIMARY_PROVIDER=openai_image
 AI_REDRAW_FALLBACK_PROVIDER=openrouter_image
+INTERACTIVE_QRIS_SOURCE_PACKAGE=com.interactive.qrisid
+INTERACTIVE_QRIS_MIN_AMOUNT_IDR=2000
+INTERACTIVE_QRIS_UNIQUE_DIGITS=2
 ```
 
 `SUPABASE_ACCESS_TOKEN` tidak dibutuhkan oleh runtime Worker di Cloudflare. Token itu hanya berguna untuk tooling lokal seperti MCP atau Supabase CLI.
@@ -107,6 +111,8 @@ Endpoint penting:
 ```text
 GET  /api/app-config
 GET  /api/me/balance
+POST /api/payments/interactive-qris/checkout
+POST /api/payments/interactive-qris/webhook
 POST /api/jobs/quote
 POST /api/jobs/commit
 POST /api/image-retouch
@@ -147,6 +153,7 @@ VITE_GOOGLE_OAUTH_REDIRECT_TO=http://localhost:5173
 4. Pastikan credit dan admin data terbaca dari Supabase.
 5. Coba mode Ready Trace saat secret OpenAI dan OpenRouter belum diisi; mode ini diproses lokal di browser dan hanya memakai Worker untuk quote/commit credit.
 6. Pastikan pesan error AI redraw jelas, bukan error teknis mentah.
+7. Jika memakai QRIS gratis via Android relay, lanjutkan setup operator di `INTERACTIVE_QRIS_NOTIFICATION_FORWARDER.md`.
 
 ## 6. Jika Anda Mau Menyalakan AI Redraw
 

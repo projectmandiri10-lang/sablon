@@ -85,6 +85,7 @@ export function classifyCreditLedgerEntry(entry = {}) {
         reviewRequired: true
       };
     case 'midtrans_payment':
+    case 'interactive_qris_payment':
     case 'manual_payment_shopee':
       return {
         category: 'payment_audit_credit',

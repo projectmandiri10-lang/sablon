@@ -7,8 +7,8 @@ import {
   deleteAdminUser,
   getAdminOverview,
   listAdminJobs,
-  listAdminMidtransPayments,
   listAdminManualPayments,
+  listAdminPaymentTransactions,
   listAdminPricingRules,
   listAdminSettings,
   listAdminUsers,
@@ -63,6 +63,17 @@ function providerModelLabel(provider, config = {}) {
   return '-';
 }
 
+function paymentProviderLabel(provider) {
+  if (provider === 'interactive_qris') return 'QRIS otomatis';
+  if (provider === 'midtrans') return 'Gateway redirect';
+  return provider || '-';
+}
+
+function paymentChannelLabel(payment = {}) {
+  if (payment.provider === 'interactive_qris') return 'QRIS statis';
+  return payment.payment_type || '-';
+}
+
 function examplePublishHint(job, isPublished) {
   if (isPublished) return 'Job ini sedang tampil di feed contoh user.';
   if (job.can_set_as_example) return 'Siap dipublish sebagai contoh.';
@@ -88,13 +99,20 @@ export default function AdminPanel({ session, enabled }) {
   const [overview, setOverview] = useState(null);
   const [users, setUsers] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [midtransPayments, setMidtransPayments] = useState([]);
+  const [automaticPayments, setAutomaticPayments] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [pricingRules, setPricingRules] = useState([]);
   const [settings, setSettings] = useState([]);
   const [amountByUser, setAmountByUser] = useState({});
   const [pricingDraft, setPricingDraft] = useState({});
   const [shopeeDraft, setShopeeDraft] = useState({ url: '', note: '', contact: '' });
+  const [interactiveQrisDraft, setInteractiveQrisDraft] = useState({
+    enabled: false,
+    merchantName: '',
+    qrImageUrl: '',
+    instructions: '',
+    contact: ''
+  });
   const [aiModelDraft, setAiModelDraft] = useState(normalizeAiModelDraft());
   const [rejectReasonByPayment, setRejectReasonByPayment] = useState({});
   const [newUser, setNewUser] = useState({
@@ -116,11 +134,11 @@ export default function AdminPanel({ session, enabled }) {
     setIsBusy(true);
     setMessage('');
     try {
-      const [overviewData, usersData, paymentsData, midtransPaymentsData, pricingData, settingsData, jobsData] = await Promise.all([
+      const [overviewData, usersData, paymentsData, automaticPaymentsData, pricingData, settingsData, jobsData] = await Promise.all([
         getAdminOverview(accessToken),
         listAdminUsers(accessToken),
         listAdminManualPayments(accessToken),
-        listAdminMidtransPayments(accessToken),
+        listAdminPaymentTransactions(accessToken),
         listAdminPricingRules(accessToken),
         listAdminSettings(accessToken),
         listAdminJobs(accessToken)
@@ -128,7 +146,7 @@ export default function AdminPanel({ session, enabled }) {
       setOverview(overviewData.overview || null);
       setUsers(usersData.users || []);
       setPayments(paymentsData.payments || []);
-      setMidtransPayments(midtransPaymentsData.payments || []);
+      setAutomaticPayments(automaticPaymentsData.payments || []);
       setPricingRules(pricingData.rules || []);
       setSettings(settingsData.settings || []);
       setJobs(jobsData.jobs || []);
@@ -136,6 +154,7 @@ export default function AdminPanel({ session, enabled }) {
         Object.fromEntries((pricingData.rules || []).map((rule) => [rule.key, { amountIdr: rule.amount_idr, description: rule.description || '', active: rule.active !== false }]))
       );
       const shopee = (settingsData.settings || []).find((setting) => setting.key === 'shopee_payment')?.value || {};
+      const interactiveQris = (settingsData.settings || []).find((setting) => setting.key === 'interactive_qris_payment')?.value || {};
       const aiModel = (settingsData.settings || []).find((setting) => setting.key === 'ai_redraw_model')?.value || {};
       const defaultShopeeNote =
         'Checkout nominal credit di Shopee, lalu kirim email akun EasyRedesign Pro melalui chat Shopee. Admin top up manual 5-15 menit pada jam kerja.';
@@ -143,6 +162,13 @@ export default function AdminPanel({ session, enabled }) {
         url: shopee.url || 'https://shopee.co.id/',
         note: shopee.note || defaultShopeeNote,
         contact: shopee.contact || ''
+      });
+      setInteractiveQrisDraft({
+        enabled: interactiveQris.enabled === true,
+        merchantName: interactiveQris.merchantName || '',
+        qrImageUrl: interactiveQris.qrImageUrl || '',
+        instructions: interactiveQris.instructions || 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.',
+        contact: interactiveQris.contact || ''
       });
       setAiModelDraft(normalizeAiModelDraft(aiModel));
     } catch (error) {
@@ -326,6 +352,28 @@ export default function AdminPanel({ session, enabled }) {
       setMessage('Setting Shopee berhasil disimpan.');
     } catch (error) {
       setMessage(toUserApiError(error, 'Gagal menyimpan setting Shopee.').message);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function saveInteractiveQrisSetting() {
+    setIsBusy(true);
+    setMessage('');
+    try {
+      await updateAdminSetting(
+        {
+          key: 'interactive_qris_payment',
+          value: interactiveQrisDraft,
+          isPublic: true,
+          description: 'Konfigurasi QRIS otomatis dengan nominal unik'
+        },
+        accessToken
+      );
+      await loadAdminData();
+      setMessage('Setting QRIS otomatis berhasil disimpan.');
+    } catch (error) {
+      setMessage(toUserApiError(error, 'Gagal menyimpan setting QRIS otomatis.').message);
     } finally {
       setIsBusy(false);
     }
@@ -661,14 +709,16 @@ export default function AdminPanel({ session, enabled }) {
             </div>
           </div>
           <div>
-            <h3 className="mb-3 text-sm font-bold text-ink">Transaksi payment gateway</h3>
+            <h3 className="mb-3 text-sm font-bold text-ink">Transaksi pembayaran otomatis</h3>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[940px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-line text-xs uppercase text-gray-600">
                     <th className="py-2 pr-3">User</th>
+                    <th className="py-2 pr-3">Provider</th>
                     <th className="py-2 pr-3">Order</th>
-                    <th className="py-2 pr-3">Nominal</th>
+                    <th className="py-2 pr-3">Nominal bayar</th>
+                    <th className="py-2 pr-3">Nominal dasar</th>
                     <th className="py-2 pr-3">Status</th>
                     <th className="py-2 pr-3">Channel</th>
                     <th className="py-2 pr-3">Credit</th>
@@ -676,18 +726,20 @@ export default function AdminPanel({ session, enabled }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {midtransPayments.length === 0 ? (
+                  {automaticPayments.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="py-3 text-sm text-gray-600">Belum ada transaksi payment gateway.</td>
+                      <td colSpan="9" className="py-3 text-sm text-gray-600">Belum ada transaksi pembayaran otomatis.</td>
                     </tr>
                   ) : (
-                    midtransPayments.map((payment) => (
+                    automaticPayments.map((payment) => (
                       <tr key={payment.id} className="border-b border-line">
                         <td className="py-2 pr-3 font-medium text-ink">{payment.user_email}</td>
+                        <td className="py-2 pr-3">{paymentProviderLabel(payment.provider)}</td>
                         <td className="py-2 pr-3">{payment.order_id}</td>
                         <td className="py-2 pr-3">{formatRupiah(payment.amount_idr)}</td>
+                        <td className="py-2 pr-3">{payment.base_amount_idr ? formatRupiah(payment.base_amount_idr) : '-'}</td>
                         <td className="py-2 pr-3"><StatusBadge status={payment.status} /></td>
-                        <td className="py-2 pr-3">{payment.payment_type || '-'}</td>
+                        <td className="py-2 pr-3">{paymentChannelLabel(payment)}</td>
                         <td className="py-2 pr-3">{payment.credited_ledger_id ? 'Masuk' : 'Belum'}</td>
                         <td className="py-2 pr-3">{payment.paid_at ? new Date(payment.paid_at).toLocaleString('id-ID') : '-'}</td>
                       </tr>
@@ -1032,6 +1084,57 @@ export default function AdminPanel({ session, enabled }) {
               <button type="button" onClick={saveShopeeSetting} className="inline-flex min-h-10 w-fit items-center justify-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-bold text-white">
                 <Save className="h-4 w-4" aria-hidden="true" />
                 Simpan setting
+              </button>
+            </div>
+          </div>
+          <div className="border border-line bg-panel p-3">
+            <h3 className="mb-3 text-sm font-bold text-ink">QRIS otomatis</h3>
+            <div className="grid gap-3">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-ink">
+                <input
+                  type="checkbox"
+                  checked={interactiveQrisDraft.enabled}
+                  onChange={(event) => setInteractiveQrisDraft((current) => ({ ...current, enabled: event.target.checked }))}
+                  className="h-4 w-4 accent-spruce"
+                />
+                Aktifkan QRIS otomatis
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">Nama merchant</span>
+                <input
+                  value={interactiveQrisDraft.merchantName}
+                  onChange={(event) => setInteractiveQrisDraft((current) => ({ ...current, merchantName: event.target.value }))}
+                  className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">URL gambar QR</span>
+                <input
+                  value={interactiveQrisDraft.qrImageUrl}
+                  onChange={(event) => setInteractiveQrisDraft((current) => ({ ...current, qrImageUrl: event.target.value }))}
+                  className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                  placeholder="https://..."
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">Instruksi billing</span>
+                <textarea
+                  value={interactiveQrisDraft.instructions}
+                  onChange={(event) => setInteractiveQrisDraft((current) => ({ ...current, instructions: event.target.value }))}
+                  className="min-h-24 w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">Kontak admin</span>
+                <input
+                  value={interactiveQrisDraft.contact}
+                  onChange={(event) => setInteractiveQrisDraft((current) => ({ ...current, contact: event.target.value }))}
+                  className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                />
+              </label>
+              <button type="button" onClick={saveInteractiveQrisSetting} className="inline-flex min-h-10 w-fit items-center justify-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-bold text-white">
+                <Save className="h-4 w-4" aria-hidden="true" />
+                Simpan setting QRIS
               </button>
             </div>
           </div>

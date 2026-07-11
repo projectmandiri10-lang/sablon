@@ -67,6 +67,8 @@ create table if not exists public.payment_transactions (
   order_id text not null,
   external_transaction_id text,
   amount_idr integer not null check (amount_idr >= 2000),
+  base_amount_idr integer,
+  unique_code integer,
   currency text not null default 'IDR',
   status text not null default 'pending',
   payment_type text,
@@ -276,6 +278,7 @@ set amount_idr = excluded.amount_idr,
 insert into public.app_settings (key, value, is_public, description)
 values
   ('shopee_payment', '{"url":"https://shopee.co.id/","note":"Checkout nominal credit di Shopee, lalu kirim email akun Design Mudah melalui chat Shopee. Admin top up manual 5-15 menit pada jam kerja.","contact":""}'::jsonb, true, 'Konfigurasi pembayaran manual Shopee'),
+  ('interactive_qris_payment', '{"enabled":false,"merchantName":"","qrImageUrl":"","instructions":"Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.","contact":""}'::jsonb, true, 'Konfigurasi QRIS otomatis dengan nominal unik'),
   ('app_status', '{"maintenance":false,"message":""}'::jsonb, true, 'Status aplikasi publik'),
   ('example_jobs', '{"sticker":null,"sablon":null}'::jsonb, true, 'Contoh gambar aktif untuk sticker dan sablon'),
   ('ai_redraw_model', '{"mode":"quality","preset":"quality","label":"Kualitas","provider":"openai_image","primaryProvider":"openai_image","fallbackProvider":"openrouter_image","openAiImageModel":"gpt-image-1.5","analysisModel":"","generationModel":"black-forest-labs/flux.2-klein-4b","fallbackModel":"sourceful/riverflow-v2-fast","safetyModel":"nvidia/nemotron-3.5-content-safety:free","promptProfile":"logo_photo_cleanup_short","generationQuality":"high","imageSize":"1K","reasoningEffort":"medium","backgroundMode":"transparent","safetyEnabled":true,"aspectPolicy":"match_source","resolutionPolicy":"high","preprocess":"node_heuristic","persistPrompt":true,"retryOnLowConfidence":false,"estimatedUsdPerImage":0.05,"note":"Default OpenAI GPT Image 1.5 short logo cleanup dengan OpenRouter fallback otomatis."}'::jsonb, false, 'Pipeline OpenAI primary + OpenRouter fallback untuk AI redraw')
@@ -499,6 +502,7 @@ using (private.is_superuser((select auth.uid())));
 create index if not exists credit_ledger_user_created_idx on public.credit_ledger (user_id, created_at desc);
 create index if not exists credit_ledger_created_by_idx on public.credit_ledger (created_by) where created_by is not null;
 create unique index if not exists credit_ledger_midtrans_reference_unique_idx on public.credit_ledger (reference_id, reason) where reference_id is not null and reason = 'midtrans_payment';
+create unique index if not exists credit_ledger_interactive_qris_reference_unique_idx on public.credit_ledger (reference_id, reason) where reference_id is not null and reason = 'interactive_qris_payment';
 create unique index if not exists signup_bonus_claims_user_id_key on public.signup_bonus_claims (user_id);
 create index if not exists signup_bonus_claims_device_hash_idx on public.signup_bonus_claims (device_id_hash) where device_id_hash is not null;
 create index if not exists signup_bonus_claims_ip_hash_idx on public.signup_bonus_claims (ip_hash) where ip_hash is not null;
@@ -516,6 +520,7 @@ create index if not exists manual_payments_user_created_idx on public.manual_pay
 create index if not exists manual_payments_approved_by_idx on public.manual_payments (approved_by) where approved_by is not null;
 create index if not exists manual_payments_status_created_idx on public.manual_payments (status, created_at desc);
 create unique index if not exists payment_transactions_order_id_unique_idx on public.payment_transactions (order_id);
+create unique index if not exists payment_transactions_interactive_qris_pending_amount_unique_idx on public.payment_transactions (amount_idr) where provider = 'interactive_qris' and status = 'pending';
 create index if not exists payment_transactions_user_created_idx on public.payment_transactions (user_id, created_at desc);
 create index if not exists payment_transactions_status_created_idx on public.payment_transactions (status, created_at desc);
 create index if not exists contact_messages_status_created_idx on public.contact_messages (status, created_at desc);

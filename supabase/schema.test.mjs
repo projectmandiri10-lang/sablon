@@ -21,6 +21,7 @@ const stylizedRedrawPromptMigration = fs.readFileSync(path.join(import.meta.dirn
 const photoLogoCleanupPromptMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708201000_set_photo_logo_cleanup_prompt_profile.sql'), 'utf8');
 const logoPhotoCleanupShortPromptMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260708203000_set_logo_photo_cleanup_short_prompt_profile.sql'), 'utf8');
 const openAiDirectMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260709100000_migrate_ai_redraw_to_openai_direct.sql'), 'utf8');
+const interactiveQrisPaymentsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260711103000_add_interactive_qris_payment_support.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -152,9 +153,11 @@ test('bootstrap sql hardens helper functions and policy indexes', () => {
   assert.match(bootstrapSql, /payment_transactions_select_own_or_admin/);
   assert.match(bootstrapSql, /credit_ledger_created_by_idx/);
   assert.match(bootstrapSql, /credit_ledger_midtrans_reference_unique_idx/);
+  assert.match(bootstrapSql, /credit_ledger_interactive_qris_reference_unique_idx/);
   assert.match(bootstrapSql, /jobs_ai_ledger_id_unique_idx/);
   assert.match(bootstrapSql, /manual_payments_approved_by_idx/);
   assert.match(bootstrapSql, /payment_transactions_order_id_unique_idx/);
+  assert.match(bootstrapSql, /payment_transactions_interactive_qris_pending_amount_unique_idx/);
 });
 
 test('signup bonus guard migration provisions guarded claim storage without auto-credit trigger grants', () => {
@@ -175,6 +178,14 @@ test('midtrans payment migration provisions automatic payment transaction storag
   assert.match(midtransPaymentsMigration, /payment_transactions_select_own_or_admin/);
   assert.match(midtransPaymentsMigration, /credit_ledger_midtrans_reference_unique_idx/);
   assert.match(midtransPaymentsMigration, /payment_transactions_order_id_unique_idx/);
+});
+
+test('interactive qris payment migration extends automatic payments and seeds settings', () => {
+  assert.match(interactiveQrisPaymentsMigration, /add column if not exists base_amount_idr integer/);
+  assert.match(interactiveQrisPaymentsMigration, /add column if not exists unique_code integer/);
+  assert.match(interactiveQrisPaymentsMigration, /credit_ledger_interactive_qris_reference_unique_idx/);
+  assert.match(interactiveQrisPaymentsMigration, /payment_transactions_interactive_qris_pending_amount_unique_idx/);
+  assert.match(interactiveQrisPaymentsMigration, /interactive_qris_payment/);
 });
 
 test('admin finance migration provisions business ledger and tax rules with admin policies', () => {

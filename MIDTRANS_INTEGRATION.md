@@ -1,5 +1,11 @@
 # Midtrans Integration
 
+Catatan:
+
+- Dokumen ini khusus untuk jalur `Midtrans Snap Redirect`.
+- Untuk jalur **gratis** berbasis merchant QRIS statis + notifikasi Android, lihat [`INTERACTIVE_QRIS_NOTIFICATION_FORWARDER.md`](./INTERACTIVE_QRIS_NOTIFICATION_FORWARDER.md).
+- Midtrans sekarang opsional; repo ini juga mendukung `interactive_qris` sebagai jalur auto top-up tanpa Open API InterActive berbayar.
+
 Panduan ini menjelaskan integrasi `Midtrans Snap Redirect + auto credit` untuk repo `cloudflare-free-tier` per 1 Juli 2026.
 
 ## Arsitektur

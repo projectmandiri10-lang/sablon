@@ -43,6 +43,15 @@ const MIDTRANS_PROVIDER = 'midtrans';
 const MIDTRANS_MIN_AMOUNT_IDR = 2000;
 const MIDTRANS_PAYMENT_REASON = 'midtrans_payment';
 const MIDTRANS_FINAL_STATUSES = new Set(['settlement', 'deny', 'cancel', 'expire', 'failure', 'refund', 'chargeback', 'partial_refund', 'partial_chargeback']);
+const INTERACTIVE_QRIS_PROVIDER = 'interactive_qris';
+const INTERACTIVE_QRIS_MIN_AMOUNT_IDR = 2000;
+const INTERACTIVE_QRIS_DEFAULT_UNIQUE_DIGITS = 2;
+const INTERACTIVE_QRIS_EXPIRY_MINUTES = 30;
+const INTERACTIVE_QRIS_PAYMENT_REASON = 'interactive_qris_payment';
+const INTERACTIVE_QRIS_PAYMENT_TYPE = 'qris_static_unique';
+const DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS = 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.';
+const AUTOMATIC_PAYMENT_SELECT_FIELDS =
+  'id,user_id,provider,order_id,external_transaction_id,amount_idr,base_amount_idr,unique_code,currency,status,payment_type,redirect_url,credited_ledger_id,paid_at,expired_at,created_at,updated_at';
 const SIGNUP_BONUS_REASON = 'signup_free_credit';
 const SIGNUP_BONUS_AMOUNT_IDR = 5000;
 const SIGNUP_BONUS_MAX_MATCHED_CLAIMS = 2;
@@ -50,7 +59,7 @@ const SIGNUP_BONUS_MAX_MATCHED_CLAIMS = 2;
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization,Content-Type,X-Processor-API-Key',
+  'Access-Control-Allow-Headers': 'Authorization,Content-Type,X-Processor-API-Key,X-Interactive-QRIS-Secret',
   'Access-Control-Expose-Headers': 'X-AI-Ledger-Id,X-AI-Redraw-Metadata'
 };
 
@@ -574,6 +583,24 @@ function isMidtransConfigured(env) {
   return hasEnvValue(env, 'MIDTRANS_SERVER_KEY') && hasEnvValue(env, 'APP_BASE_URL');
 }
 
+function interactiveQrisMinAmountIdr(env) {
+  const parsed = Number.parseInt(env.INTERACTIVE_QRIS_MIN_AMOUNT_IDR, 10);
+  return Number.isInteger(parsed) && parsed >= INTERACTIVE_QRIS_MIN_AMOUNT_IDR ? parsed : INTERACTIVE_QRIS_MIN_AMOUNT_IDR;
+}
+
+function interactiveQrisUniqueDigits(env) {
+  const parsed = Number.parseInt(env.INTERACTIVE_QRIS_UNIQUE_DIGITS, 10);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 6 ? parsed : INTERACTIVE_QRIS_DEFAULT_UNIQUE_DIGITS;
+}
+
+function interactiveQrisExpiryMs() {
+  return INTERACTIVE_QRIS_EXPIRY_MINUTES * 60 * 1000;
+}
+
+function isInteractiveQrisConfigured(env) {
+  return hasEnvValue(env, 'INTERACTIVE_QRIS_WEBHOOK_SECRET') && hasEnvValue(env, 'INTERACTIVE_QRIS_SOURCE_PACKAGE');
+}
+
 function isMidtransProduction(env) {
   return normalizeBooleanString(env.MIDTRANS_IS_PRODUCTION);
 }
@@ -598,6 +625,10 @@ function buildMidtransOrderId() {
   return `mt-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
+function buildInteractiveQrisOrderId() {
+  return `iq-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
 function buildMidtransFinishUrl(env, orderId) {
   const url = new URL(`${appBaseUrl(env)}/`);
   url.searchParams.set('view', 'billing');
@@ -608,6 +639,83 @@ function buildMidtransFinishUrl(env, orderId) {
 
 function midtransDisplayName() {
   return 'Top up credit EasyRedesign Pro';
+}
+
+function normalizeInteractiveQrisSetting(value = {}) {
+  return {
+    enabled: value?.enabled === true,
+    merchantName: String(value?.merchantName || '').trim(),
+    qrImageUrl: String(value?.qrImageUrl || '').trim(),
+    instructions: String(value?.instructions || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS).trim() || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS,
+    contact: String(value?.contact || '').trim()
+  };
+}
+
+function normalizeIsoDateOrNow(value) {
+  const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
+function padInteractiveQrisUniqueCode(uniqueCode, digits) {
+  return String(Math.max(0, Number.parseInt(uniqueCode, 10) || 0)).padStart(Math.max(1, digits), '0');
+}
+
+function buildInteractiveQrisInstruction(payment = {}, settingValue = {}, env = {}) {
+  const settings = normalizeInteractiveQrisSetting(settingValue);
+  return {
+    displayAmountIdr: Number(payment.amount_idr) || 0,
+    baseAmountIdr: Number(payment.base_amount_idr) || Number(payment.amount_idr) || 0,
+    uniqueCode: padInteractiveQrisUniqueCode(payment.unique_code, interactiveQrisUniqueDigits(env)),
+    expiresAt: payment.expired_at || null,
+    qrImageUrl: settings.qrImageUrl,
+    merchantName: settings.merchantName,
+    instructions: settings.instructions,
+    contact: settings.contact
+  };
+}
+
+export function allocateInteractiveQrisPaymentAmount(baseAmountIdr, activePayments = [], digits = INTERACTIVE_QRIS_DEFAULT_UNIQUE_DIGITS) {
+  const width = Number.isInteger(digits) && digits >= 1 && digits <= 6 ? digits : INTERACTIVE_QRIS_DEFAULT_UNIQUE_DIGITS;
+  const maxCode = 10 ** width - 1;
+  const usedAmounts = new Set((activePayments || []).map((payment) => Number(payment.amount_idr) || 0));
+
+  for (let uniqueCode = 1; uniqueCode <= maxCode; uniqueCode += 1) {
+    const displayAmountIdr = baseAmountIdr + uniqueCode;
+    if (!usedAmounts.has(displayAmountIdr)) {
+      return { displayAmountIdr, uniqueCode };
+    }
+  }
+
+  throw new Error('Semua nominal unik QRIS untuk nominal dasar ini sedang terpakai. Coba lagi beberapa menit lagi.');
+}
+
+function extractCurrencyInt(fragment, minimumAmountIdr) {
+  const digits = String(fragment || '').replace(/[^\d]/g, '');
+  const value = Number.parseInt(digits, 10);
+  if (!Number.isInteger(value) || value < minimumAmountIdr) return null;
+  return value;
+}
+
+export function extractInteractiveQrisAmountCandidates(payload = {}, minimumAmountIdr = INTERACTIVE_QRIS_MIN_AMOUNT_IDR) {
+  const texts = [];
+  if (typeof payload.title === 'string') texts.push(payload.title);
+  if (typeof payload.text === 'string') texts.push(payload.text);
+  if (typeof payload.raw === 'string') texts.push(payload.raw);
+  else if (payload.raw && typeof payload.raw === 'object') texts.push(JSON.stringify(payload.raw));
+
+  const candidates = new Set();
+  const patterns = [/(?:rp|idr)\s*([0-9][0-9.,\s]{0,20})/gi, /\b\d{1,3}(?:[.,]\d{3})+\b/g, /\b\d{4,}\b/g];
+
+  for (const text of texts) {
+    for (const pattern of patterns) {
+      for (const match of String(text).matchAll(pattern)) {
+        const value = extractCurrencyInt(match[1] || match[0], minimumAmountIdr);
+        if (value) candidates.add(value);
+      }
+    }
+  }
+
+  return [...candidates].sort((left, right) => left - right);
 }
 
 export function buildMidtransSnapPayload({ orderId, amountIdr, user, profile, finishUrl }) {
@@ -985,6 +1093,7 @@ function handleHealth(env) {
       openRouterConfigured: redrawAvailability.openRouterConfigured,
       midtransConfigured: isMidtransConfigured(env),
       midtransIsProduction: isMidtransProduction(env),
+      interactiveQrisConfigured: isInteractiveQrisConfigured(env),
       aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
       defaultAiRedrawModel,
       redrawPipeline: 'worker_auth_credit_to_openai_primary_with_openrouter_fallback'
@@ -992,6 +1101,9 @@ function handleHealth(env) {
     endpoints: [
       'GET /api/app-config',
       'POST /api/auth/signup-bonus',
+      'GET /api/payments/automatic',
+      'POST /api/payments/interactive-qris/checkout',
+      'POST /api/payments/interactive-qris/webhook',
       'POST /api/payments/midtrans/checkout',
       'GET /api/payments/midtrans',
       'POST /api/payments/midtrans/:orderId/refresh',
@@ -1008,6 +1120,7 @@ function handleHealth(env) {
       'GET /api/admin/finance/export.csv',
       'GET/POST /api/admin/finance/business-entries',
       'GET/POST /api/admin/finance/tax-rules',
+      'GET /api/admin/payment-transactions',
       'GET /api/admin/midtrans-payments',
       'POST /api/admin/jobs/:jobId/set-example',
       'POST /api/admin/jobs/:jobId/unset-example',
@@ -1168,7 +1281,7 @@ async function getPaymentTransactionByOrderId(env, orderId) {
 async function listUserMidtransPayments(env, userId) {
   return supabaseFetch(
     env,
-    `/rest/v1/payment_transactions?select=id,user_id,provider,order_id,external_transaction_id,amount_idr,currency,status,payment_type,redirect_url,credited_ledger_id,paid_at,expired_at,created_at,updated_at&provider=eq.${encodeURIComponent(MIDTRANS_PROVIDER)}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=20`,
+    `/rest/v1/payment_transactions?select=${AUTOMATIC_PAYMENT_SELECT_FIELDS}&provider=eq.${encodeURIComponent(MIDTRANS_PROVIDER)}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=20`,
     {}
   );
 }
@@ -1176,8 +1289,42 @@ async function listUserMidtransPayments(env, userId) {
 async function listAdminMidtransPaymentsRows(env) {
   return supabaseFetch(
     env,
-    `/rest/v1/payment_transactions?select=id,user_id,provider,order_id,external_transaction_id,amount_idr,currency,status,payment_type,credited_ledger_id,paid_at,expired_at,created_at,updated_at&provider=eq.${encodeURIComponent(MIDTRANS_PROVIDER)}&order=created_at.desc&limit=100`,
+    `/rest/v1/payment_transactions?select=${AUTOMATIC_PAYMENT_SELECT_FIELDS}&provider=eq.${encodeURIComponent(MIDTRANS_PROVIDER)}&order=created_at.desc&limit=100`,
     {}
+  );
+}
+
+async function listUserAutomaticPayments(env, userId) {
+  return supabaseFetch(
+    env,
+    `/rest/v1/payment_transactions?select=${AUTOMATIC_PAYMENT_SELECT_FIELDS}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=50`,
+    {}
+  );
+}
+
+async function listAdminPaymentTransactionsRows(env) {
+  return supabaseFetch(env, `/rest/v1/payment_transactions?select=${AUTOMATIC_PAYMENT_SELECT_FIELDS}&order=created_at.desc&limit=200`, {});
+}
+
+async function listActivePendingInteractiveQrisPayments(env) {
+  const now = new Date().toISOString();
+  return supabaseFetch(
+    env,
+    `/rest/v1/payment_transactions?select=${AUTOMATIC_PAYMENT_SELECT_FIELDS}&provider=eq.${encodeURIComponent(INTERACTIVE_QRIS_PROVIDER)}&status=eq.pending&expired_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=500`,
+    {}
+  );
+}
+
+async function expireStaleInteractiveQrisPayments(env) {
+  const now = new Date().toISOString();
+  return supabaseFetch(
+    env,
+    `/rest/v1/payment_transactions?provider=eq.${encodeURIComponent(INTERACTIVE_QRIS_PROVIDER)}&status=eq.pending&expired_at=lt.${encodeURIComponent(now)}&select=id,status,expired_at`,
+    {
+      method: 'PATCH',
+      prefer: 'return=representation',
+      body: { status: 'expired' }
+    }
   );
 }
 
@@ -1682,6 +1829,58 @@ export async function syncMidtransPaymentTransaction(env, payment, sourceData, {
 
   if (snapshot.creditEligible && !payment.credited_ledger_id) {
     const ledgerId = await ensureMidtransCreditLedger(env, payment, snapshot, createdBy);
+    if (ledgerId) patch.credited_ledger_id = ledgerId;
+  }
+
+  return updatePaymentTransactionById(env, payment.id, patch);
+}
+
+async function ensureInteractiveQrisCreditLedger(env, payment, sourceData, createdBy) {
+  if (payment.credited_ledger_id) return payment.credited_ledger_id;
+
+  const existingLedger = await findLedgerByReference(env, payment.id, INTERACTIVE_QRIS_PAYMENT_REASON);
+  if (existingLedger?.id) return existingLedger.id;
+
+  try {
+    const ledger = await insertLedger(env, {
+      userId: payment.user_id,
+      amountIdr: Number(payment.amount_idr) || Number(payment.base_amount_idr) || 0,
+      kind: 'credit',
+      reason: INTERACTIVE_QRIS_PAYMENT_REASON,
+      referenceId: payment.id,
+      createdBy: createdBy || payment.user_id,
+      metadata: {
+        provider: INTERACTIVE_QRIS_PROVIDER,
+        orderId: payment.order_id,
+        paymentType: payment.payment_type || INTERACTIVE_QRIS_PAYMENT_TYPE,
+        amountIdr: Number(payment.amount_idr) || 0,
+        baseAmountIdr: Number(payment.base_amount_idr) || Number(payment.amount_idr) || 0,
+        uniqueCode: payment.unique_code || null,
+        packageName: String(sourceData?.packageName || ''),
+        title: String(sourceData?.title || ''),
+        text: String(sourceData?.text || ''),
+        postedAt: sourceData?.postedAt || null
+      }
+    });
+    return ledger?.id || null;
+  } catch (error) {
+    if (!isDuplicateConstraintError(error)) throw error;
+    const duplicateLedger = await findLedgerByReference(env, payment.id, INTERACTIVE_QRIS_PAYMENT_REASON);
+    if (duplicateLedger?.id) return duplicateLedger.id;
+    throw error;
+  }
+}
+
+export async function syncInteractiveQrisPaymentTransaction(env, payment, sourceData, { createdBy, paidAt } = {}) {
+  const patch = {
+    status: 'settlement',
+    payment_type: payment.payment_type || INTERACTIVE_QRIS_PAYMENT_TYPE,
+    raw_notification: sourceData || {},
+    paid_at: normalizeIsoDateOrNow(paidAt || sourceData?.postedAt || payment.paid_at)
+  };
+
+  if (!payment.credited_ledger_id) {
+    const ledgerId = await ensureInteractiveQrisCreditLedger(env, payment, sourceData, createdBy);
     if (ledgerId) patch.credited_ledger_id = ledgerId;
   }
 
@@ -2441,9 +2640,69 @@ async function handleCreateMidtransCheckout(env, request) {
   });
 }
 
+async function handleCreateInteractiveQrisCheckout(env, request) {
+  if (!isInteractiveQrisConfigured(env)) {
+    throw new Error('QRIS otomatis belum diaktifkan di deploy ini.');
+  }
+
+  const qrisSetting = normalizeInteractiveQrisSetting((await getAppSetting(env, 'interactive_qris_payment'))?.value);
+  if (!qrisSetting.enabled) {
+    throw new Error('QRIS otomatis sedang dimatikan dari setting aplikasi.');
+  }
+  if (!qrisSetting.qrImageUrl) {
+    throw new Error('QR image untuk QRIS otomatis belum diisi.');
+  }
+
+  const { user } = await requireUser(env, request);
+  const body = await readJson(request);
+  const amountIdr = Number.parseInt(body.amountIdr, 10);
+  const minimumAmountIdr = interactiveQrisMinAmountIdr(env);
+  if (!Number.isInteger(amountIdr) || amountIdr < minimumAmountIdr) {
+    throw new Error(`Nominal QRIS minimal Rp${minimumAmountIdr}.`);
+  }
+
+  await expireStaleInteractiveQrisPayments(env);
+  const activePayments = await listActivePendingInteractiveQrisPayments(env);
+  const { displayAmountIdr, uniqueCode } = allocateInteractiveQrisPaymentAmount(amountIdr, activePayments, interactiveQrisUniqueDigits(env));
+  const payment = await createPaymentTransaction(env, {
+    user_id: user.id,
+    provider: INTERACTIVE_QRIS_PROVIDER,
+    order_id: buildInteractiveQrisOrderId(),
+    amount_idr: displayAmountIdr,
+    base_amount_idr: amountIdr,
+    unique_code: uniqueCode,
+    currency: 'IDR',
+    status: 'pending',
+    payment_type: INTERACTIVE_QRIS_PAYMENT_TYPE,
+    snap_token: null,
+    redirect_url: null,
+    raw_create_response: {
+      displayAmountIdr,
+      baseAmountIdr: amountIdr,
+      uniqueCode,
+      provider: INTERACTIVE_QRIS_PROVIDER
+    },
+    raw_notification: {},
+    credited_ledger_id: null,
+    paid_at: null,
+    expired_at: new Date(Date.now() + interactiveQrisExpiryMs()).toISOString()
+  });
+
+  return json({
+    payment,
+    instruction: buildInteractiveQrisInstruction(payment, qrisSetting, env)
+  });
+}
+
 async function handleListMidtransPayments(env, request) {
   const { user } = await requireUser(env, request);
   const payments = await listUserMidtransPayments(env, user.id);
+  return json({ payments });
+}
+
+async function handleListAutomaticPayments(env, request) {
+  const { user } = await requireUser(env, request);
+  const payments = await listUserAutomaticPayments(env, user.id);
   return json({ payments });
 }
 
@@ -2478,6 +2737,54 @@ async function handleMidtransWebhook(env, request) {
   }
 
   const updated = await syncMidtransPaymentTransaction(env, payment, body, { createdBy: payment.user_id });
+  return json({ received: true, payment: updated });
+}
+
+async function handleInteractiveQrisWebhook(env, request) {
+  if (!isInteractiveQrisConfigured(env)) {
+    throw new Error('QRIS otomatis belum diaktifkan di deploy ini.');
+  }
+
+  const receivedSecret = String(request.headers.get('x-interactive-qris-secret') || '').trim();
+  if (!receivedSecret || receivedSecret !== String(requireEnvValue(env, 'INTERACTIVE_QRIS_WEBHOOK_SECRET')).trim()) {
+    return error('Secret QRIS tidak valid.', 401);
+  }
+
+  const body = await readJson(request);
+  const packageName = String(body.packageName || '').trim().toLowerCase();
+  const expectedPackage = String(requireEnvValue(env, 'INTERACTIVE_QRIS_SOURCE_PACKAGE')).trim().toLowerCase();
+  if (!packageName || packageName !== expectedPackage) {
+    return json({ received: true, ignored: true, reason: 'unexpected_package', packageName: body.packageName || '' });
+  }
+
+  await expireStaleInteractiveQrisPayments(env);
+  const amountCandidates = extractInteractiveQrisAmountCandidates(body, interactiveQrisMinAmountIdr(env));
+  if (amountCandidates.length === 0) {
+    return json({ received: true, ignored: true, reason: 'amount_not_found' });
+  }
+
+  const activePayments = await listActivePendingInteractiveQrisPayments(env);
+  const matches = activePayments.filter((payment) => amountCandidates.includes(Number(payment.amount_idr) || 0));
+  if (matches.length === 0) {
+    return json({ received: true, ignored: true, reason: 'payment_not_found', amountCandidates });
+  }
+  if (matches.length > 1) {
+    return json({ received: true, ignored: true, reason: 'ambiguous_amount_match', amountCandidates });
+  }
+
+  const payment = matches[0];
+  const updated = await syncInteractiveQrisPaymentTransaction(
+    env,
+    payment,
+    {
+      ...body,
+      matchedAmountIdr: Number(payment.amount_idr) || 0
+    },
+    {
+      createdBy: payment.user_id,
+      paidAt: body.postedAt
+    }
+  );
   return json({ received: true, payment: updated });
 }
 
@@ -2620,8 +2927,13 @@ async function handleAppConfig(env, request) {
   const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=key,value,is_public&is_public=eq.true&order=key.asc', {});
   const aiRedrawModel = await getAiRedrawModelConfig(env);
   const redrawAvailability = buildAiRedrawAvailability(aiRedrawModel, env);
+  const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  const interactiveQrisSetting = normalizeInteractiveQrisSetting(settings.interactive_qris_payment);
   return json({
-    settings: Object.fromEntries(rows.map((row) => [row.key, row.value])),
+    settings: {
+      ...settings,
+      interactive_qris_payment: interactiveQrisSetting
+    },
     features: {
       aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
       aiRedrawPrimaryProvider: aiRedrawModel.primaryProvider,
@@ -2630,7 +2942,10 @@ async function handleAppConfig(env, request) {
       openRouterConfigured: redrawAvailability.openRouterConfigured,
       midtransAvailable: isMidtransConfigured(env),
       midtransIsProduction: isMidtransProduction(env),
-      midtransMinimumAmountIdr: MIDTRANS_MIN_AMOUNT_IDR
+      midtransMinimumAmountIdr: MIDTRANS_MIN_AMOUNT_IDR,
+      interactiveQrisAvailable: interactiveQrisSetting.enabled === true && Boolean(interactiveQrisSetting.qrImageUrl) && isInteractiveQrisConfigured(env),
+      interactiveQrisMinimumAmountIdr: interactiveQrisMinAmountIdr(env),
+      interactiveQrisUniqueDigits: interactiveQrisUniqueDigits(env)
     },
     viewer: {
       countryCode: getViewerCountryCode(request),
@@ -2641,7 +2956,7 @@ async function handleAppConfig(env, request) {
 
 async function handleAdminOverview(env, request) {
   await requireAdmin(env, request);
-  const [users, jobs, payments, ledger] = await Promise.all([
+  const [users, jobs, payments, gatewayPayments, ledger] = await Promise.all([
     supabaseFetch(env, '/rest/v1/profiles?select=id,is_active,is_unlimited,deleted_at', {}),
     queryJobsWithPublishFallback(
       env,
@@ -2649,11 +2964,13 @@ async function handleAdminOverview(env, request) {
       '/rest/v1/jobs?select=id,price_idr,production_type,input_mode,created_at&order=created_at.desc&limit=500'
     ),
     supabaseFetch(env, '/rest/v1/manual_payments?select=id,status,amount_idr,created_at&order=created_at.desc&limit=500', {}),
+    listAdminPaymentTransactionsRows(env),
     supabaseFetch(env, '/rest/v1/credit_ledger?select=amount_idr,kind,reason,created_at&order=created_at.desc&limit=500', {})
   ]);
   const now = Date.now();
   const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
   const recentJobs = jobs.filter((job) => new Date(job.created_at).getTime() >= sevenDaysAgo);
+  const successfulGatewayPayments = gatewayPayments.filter((payment) => isSuccessfulGatewayPayment(payment));
   return json({
     overview: {
       totalUsers: users.length,
@@ -2662,9 +2979,11 @@ async function handleAdminOverview(env, request) {
       totalJobs: jobs.length,
       jobsLast7Days: recentJobs.length,
       totalJobValueIdr: jobs.reduce((sum, job) => sum + (Number(job.price_idr) || 0), 0),
-      pendingPayments: payments.filter((payment) => payment.status === 'pending').length,
-      approvedPayments: payments.filter((payment) => payment.status === 'approved').length,
-      approvedPaymentIdr: payments.filter((payment) => payment.status === 'approved').reduce((sum, payment) => sum + (Number(payment.amount_idr) || 0), 0),
+      pendingPayments: payments.filter((payment) => payment.status === 'pending').length + gatewayPayments.filter((payment) => payment.status === 'pending').length,
+      approvedPayments: payments.filter((payment) => payment.status === 'approved').length + successfulGatewayPayments.length,
+      approvedPaymentIdr:
+        payments.filter((payment) => payment.status === 'approved').reduce((sum, payment) => sum + (Number(payment.amount_idr) || 0), 0) +
+        successfulGatewayPayments.reduce((sum, payment) => sum + (Number(payment.amount_idr) || 0), 0),
       creditAddedIdr: ledger.filter((entry) => entry.amount_idr > 0).reduce((sum, entry) => sum + Number(entry.amount_idr), 0),
       creditUsedIdr: Math.abs(ledger.filter((entry) => entry.amount_idr < 0).reduce((sum, entry) => sum + Number(entry.amount_idr), 0))
     }
@@ -2735,6 +3054,13 @@ async function handleAdminMidtransPayments(env, request) {
   await requireAdmin(env, request);
   const users = await supabaseFetch(env, '/rest/v1/profiles?select=id,email', {});
   const payments = await listAdminMidtransPaymentsRows(env);
+  return json({ payments: withUserEmails(payments, users) });
+}
+
+async function handleAdminPaymentTransactions(env, request) {
+  await requireAdmin(env, request);
+  const users = await supabaseFetch(env, '/rest/v1/profiles?select=id,email', {});
+  const payments = await listAdminPaymentTransactionsRows(env);
   return json({ payments: withUserEmails(payments, users) });
 }
 
@@ -2961,6 +3287,9 @@ export default {
       if ((url.pathname === '/' || url.pathname === '/health') && request.method === 'GET') return handleHealth(env);
       if (url.pathname === '/api/app-config' && request.method === 'GET') return await handleAppConfig(env, request);
       if (url.pathname === '/api/auth/signup-bonus' && request.method === 'POST') return await handleSignupBonusClaim(env, request);
+      if (url.pathname === '/api/payments/interactive-qris/webhook' && request.method === 'POST') return await handleInteractiveQrisWebhook(env, request);
+      if (url.pathname === '/api/payments/interactive-qris/checkout' && request.method === 'POST') return await handleCreateInteractiveQrisCheckout(env, request);
+      if (url.pathname === '/api/payments/automatic' && request.method === 'GET') return await handleListAutomaticPayments(env, request);
       if (url.pathname === '/api/payments/midtrans/webhook' && request.method === 'POST') return await handleMidtransWebhook(env, request);
       if (url.pathname === '/api/payments/midtrans/checkout' && request.method === 'POST') return await handleCreateMidtransCheckout(env, request);
       if (url.pathname === '/api/payments/midtrans' && request.method === 'GET') return await handleListMidtransPayments(env, request);
@@ -2979,6 +3308,7 @@ export default {
       if (url.pathname === '/api/admin/overview' && request.method === 'GET') return await handleAdminOverview(env, request);
       if (url.pathname === '/api/admin/jobs' && request.method === 'GET') return await handleAdminJobs(env, request);
       if (url.pathname === '/api/admin/manual-payments' && request.method === 'GET') return await handleAdminPayments(env, request);
+      if (url.pathname === '/api/admin/payment-transactions' && request.method === 'GET') return await handleAdminPaymentTransactions(env, request);
       if (url.pathname === '/api/admin/midtrans-payments' && request.method === 'GET') return await handleAdminMidtransPayments(env, request);
       if (url.pathname === '/api/admin/finance/summary' && request.method === 'GET') return await handleAdminFinanceSummary(env, request);
       if (url.pathname === '/api/admin/finance/transactions' && request.method === 'GET') return await handleAdminFinanceTransactions(env, request);

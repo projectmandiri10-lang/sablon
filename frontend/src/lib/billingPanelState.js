@@ -2,6 +2,9 @@ export const DEFAULT_SHOPEE_URL = 'https://shopee.co.id/';
 export const DEFAULT_SHOPEE_NOTE =
   'Checkout nominal credit di Shopee, lalu kirim email akun EasyRedesign Pro melalui chat Shopee. Admin top up manual 5-15 menit pada jam kerja.';
 export const DEFAULT_MIDTRANS_MINIMUM_AMOUNT_IDR = 2000;
+export const DEFAULT_INTERACTIVE_QRIS_MINIMUM_AMOUNT_IDR = 2000;
+export const DEFAULT_INTERACTIVE_QRIS_UNIQUE_DIGITS = 2;
+export const DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS = 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.';
 
 export function billingProviderLabel(provider) {
   if (provider === 'openai_image') return 'OpenAI';
@@ -9,10 +12,49 @@ export function billingProviderLabel(provider) {
   return provider || '';
 }
 
+export function automaticPaymentProviderLabel(provider) {
+  if (provider === 'interactive_qris') return 'QRIS otomatis';
+  if (provider === 'midtrans') return 'Gateway redirect';
+  return provider || 'Pembayaran otomatis';
+}
+
+export function automaticPaymentChannelLabel(payment = {}) {
+  if (payment.provider === 'interactive_qris') return 'QRIS statis';
+  return payment.payment_type || '-';
+}
+
+export function isAutomaticPaymentRefreshable(payment = {}) {
+  return payment.provider === 'midtrans' && ['pending', 'capture'].includes(String(payment.status || '').toLowerCase());
+}
+
+export function isActiveInteractiveQrisPayment(payment = {}, now = Date.now()) {
+  if (payment.provider !== 'interactive_qris') return false;
+  if (String(payment.status || '').toLowerCase() !== 'pending') return false;
+  if (payment.credited_ledger_id) return false;
+  const expiryMs = new Date(payment.expired_at || '').getTime();
+  return Number.isFinite(expiryMs) && expiryMs > now;
+}
+
+export function buildInteractiveQrisPaymentInstruction(payment = {}, interactiveQris = {}, now = Date.now()) {
+  if (!isActiveInteractiveQrisPayment(payment, now)) return null;
+  const uniqueDigits = Number(interactiveQris.uniqueDigits) || DEFAULT_INTERACTIVE_QRIS_UNIQUE_DIGITS;
+  return {
+    displayAmountIdr: Number(payment.amount_idr) || 0,
+    baseAmountIdr: Number(payment.base_amount_idr) || Number(payment.amount_idr) || 0,
+    uniqueCode: String(Math.max(0, Number.parseInt(payment.unique_code, 10) || 0)).padStart(Math.max(1, uniqueDigits), '0'),
+    expiresAt: payment.expired_at || null,
+    qrImageUrl: interactiveQris.qrImageUrl || '',
+    merchantName: interactiveQris.merchantName || '',
+    instructions: interactiveQris.instructions || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS,
+    contact: interactiveQris.contact || ''
+  };
+}
+
 export function buildBillingPanelState(appConfig = {}, session = null) {
   const settings = appConfig?.settings || {};
   const features = appConfig?.features || {};
   const shopee = settings.shopee_payment || {};
+  const interactiveQris = settings.interactive_qris_payment || {};
 
   return {
     sessionEmail: session?.user?.email || '-',
@@ -26,6 +68,15 @@ export function buildBillingPanelState(appConfig = {}, session = null) {
       available: features.midtransAvailable === true,
       isProduction: features.midtransIsProduction === true,
       minimumAmountIdr: Number(features.midtransMinimumAmountIdr) || DEFAULT_MIDTRANS_MINIMUM_AMOUNT_IDR
+    },
+    interactiveQris: {
+      available: features.interactiveQrisAvailable === true,
+      minimumAmountIdr: Number(features.interactiveQrisMinimumAmountIdr) || DEFAULT_INTERACTIVE_QRIS_MINIMUM_AMOUNT_IDR,
+      uniqueDigits: Number(features.interactiveQrisUniqueDigits) || DEFAULT_INTERACTIVE_QRIS_UNIQUE_DIGITS,
+      merchantName: interactiveQris.merchantName || '',
+      qrImageUrl: interactiveQris.qrImageUrl || '',
+      instructions: interactiveQris.instructions || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS,
+      contact: interactiveQris.contact || ''
     },
     aiRedraw: {
       available: Boolean(features.aiRedrawAvailable),
