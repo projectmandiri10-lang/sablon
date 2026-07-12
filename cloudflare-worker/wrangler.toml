@@ -28,6 +28,9 @@ SUPABASE_URL = "https://wrjhedlygozqtsdallzr.supabase.co"
 LOGO_RESTORE_ENABLED = "1"
 LOGO_RESTORE_STRICT_SPOTS = "1"
 REQUIRE_PROCESSOR_AUTH = "1"
+INTERACTIVE_QRIS_SOURCE_PACKAGE = "com.interactive.qrisid"
+INTERACTIVE_QRIS_MIN_AMOUNT_IDR = "2000"
+INTERACTIVE_QRIS_UNIQUE_DIGITS = "2"
 # Isi setelah backend processor berhasil deploy ke Cloud Run.
 # PROCESSOR_BASE_URL = "https://design-mudah-processor-xxxxx.a.run.app"
 
