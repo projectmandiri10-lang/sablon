@@ -107,8 +107,8 @@ function StatusBadge({ status }) {
   return <span className={`inline-flex border px-2 py-1 text-xs font-semibold ${styles[status] || 'border-line bg-panel text-gray-700'}`}>{status}</span>;
 }
 
-export default function AdminPanel({ session, enabled }) {
-  const [activeTab, setActiveTab] = useState('overview');
+export default function AdminPanel({ session, enabled, activeTab = 'overview', onActiveTabChange }) {
+  const [localActiveTab, setLocalActiveTab] = useState(activeTab || 'overview');
   const [overview, setOverview] = useState(null);
   const [users, setUsers] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -135,13 +135,64 @@ export default function AdminPanel({ session, enabled }) {
   });
   const [message, setMessage] = useState('');
   const [isBusy, setIsBusy] = useState(false);
+  const [savingSettingKey, setSavingSettingKey] = useState('');
 
   const accessToken = session?.access_token;
 
-  async function loadAdminData() {
+  useEffect(() => {
+    setLocalActiveTab(activeTab || 'overview');
+  }, [activeTab]);
+
+  const resolvedActiveTab = activeTab || localActiveTab;
+
+  function handleActiveTabChange(nextTab) {
+    setLocalActiveTab(nextTab);
+    onActiveTabChange?.(nextTab);
+  }
+
+  function applyUpdatedSetting(settingRow) {
+    if (!settingRow?.key) return;
+    setSettings((current) => {
+      const filtered = (current || []).filter((item) => item.key !== settingRow.key);
+      return [...filtered, settingRow].sort((left, right) => String(left.key || '').localeCompare(String(right.key || '')));
+    });
+
+    if (settingRow.key === 'interactive_qris_payment') {
+      const interactiveQris = settingRow.value || {};
+      setInteractiveQrisDraft({
+        enabled: interactiveQris.enabled === true,
+        merchantName: interactiveQris.merchantName || '',
+        qrImageUrl: interactiveQris.qrImageUrl || '',
+        instructions: interactiveQris.instructions || 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.',
+        contact: interactiveQris.contact || '',
+        closedHours: normalizeInteractiveQrisClosedHours(interactiveQris.closedHours || DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)
+      });
+      return;
+    }
+
+    if (settingRow.key === 'shopee_payment') {
+      const shopee = settingRow.value || {};
+      setShopeeDraft({
+        url: shopee.url || 'https://shopee.co.id/',
+        note:
+          shopee.note ||
+          'Checkout nominal credit di Shopee, lalu kirim email akun EasyRedesign Pro melalui chat Shopee. Admin top up manual 5-15 menit pada jam kerja.',
+        contact: shopee.contact || ''
+      });
+      return;
+    }
+
+    if (settingRow.key === 'ai_redraw_model') {
+      setAiModelDraft(normalizeAiModelDraft(settingRow.value || {}));
+    }
+  }
+
+  async function loadAdminData(options = {}) {
     if (!enabled || !accessToken) return;
     setIsBusy(true);
-    setMessage('');
+    if (!options.preserveMessage) {
+      setMessage('');
+    }
     try {
       const [overviewData, usersData, paymentsData, automaticPaymentsData, pricingData, settingsData, jobsData] = await Promise.all([
         getAdminOverview(accessToken),
@@ -350,7 +401,7 @@ export default function AdminPanel({ session, enabled }) {
     setIsBusy(true);
     setMessage('');
     try {
-      await updateAdminSetting(
+      const data = await updateAdminSetting(
         {
           key: 'shopee_payment',
           value: shopeeDraft,
@@ -359,7 +410,7 @@ export default function AdminPanel({ session, enabled }) {
         },
         accessToken
       );
-      await loadAdminData();
+      applyUpdatedSetting(data?.setting);
       setMessage('Setting Shopee berhasil disimpan.');
     } catch (error) {
       setMessage(toUserApiError(error, 'Gagal menyimpan setting Shopee.').message);
@@ -369,10 +420,10 @@ export default function AdminPanel({ session, enabled }) {
   }
 
   async function persistInteractiveQrisSetting(nextDraft, successMessage = 'Setting QRIS otomatis berhasil disimpan.') {
-    setIsBusy(true);
+    setSavingSettingKey('interactive_qris_payment');
     setMessage('');
     try {
-      await updateAdminSetting(
+      const data = await updateAdminSetting(
         {
           key: 'interactive_qris_payment',
           value: nextDraft,
@@ -381,12 +432,12 @@ export default function AdminPanel({ session, enabled }) {
         },
         accessToken
       );
-      await loadAdminData();
+      applyUpdatedSetting(data?.setting);
       setMessage(successMessage);
     } catch (error) {
       setMessage(toUserApiError(error, 'Gagal menyimpan setting QRIS otomatis.').message);
     } finally {
-      setIsBusy(false);
+      setSavingSettingKey('');
     }
   }
 
@@ -422,7 +473,7 @@ export default function AdminPanel({ session, enabled }) {
     setIsBusy(true);
     setMessage('');
     try {
-      await updateAdminSetting(
+      const data = await updateAdminSetting(
         {
           key: 'ai_redraw_model',
           value: nextValue,
@@ -431,7 +482,7 @@ export default function AdminPanel({ session, enabled }) {
         },
         accessToken
       );
-      await loadAdminData();
+      applyUpdatedSetting(data?.setting);
       setMessage(
         `Pipeline redraw disimpan: ${nextValue.label} | primary ${providerLabel(nextValue.primaryProvider)} (${providerModelLabel(nextValue.primaryProvider, nextValue)}) | fallback ${providerLabel(nextValue.fallbackProvider)} (${providerModelLabel(nextValue.fallbackProvider, nextValue)}).`
       );
@@ -490,8 +541,8 @@ export default function AdminPanel({ session, enabled }) {
           <button
             key={id}
             type="button"
-            onClick={() => setActiveTab(id)}
-            className={`inline-flex min-h-10 items-center gap-2 border px-3 py-2 text-sm font-semibold ${activeTab === id ? 'border-spruce bg-spruce text-white' : 'border-line bg-white text-ink hover:border-spruce'}`}
+            onClick={() => handleActiveTabChange(id)}
+            className={`inline-flex min-h-10 items-center gap-2 border px-3 py-2 text-sm font-semibold ${resolvedActiveTab === id ? 'border-spruce bg-spruce text-white' : 'border-line bg-white text-ink hover:border-spruce'}`}
           >
             <Icon className="h-4 w-4" aria-hidden="true" />
             {label}
@@ -501,7 +552,7 @@ export default function AdminPanel({ session, enabled }) {
 
       {message && <p className="mb-3 border border-line bg-panel px-3 py-2 text-sm text-gray-700">{message}</p>}
 
-      {activeTab === 'overview' && (
+      {resolvedActiveTab === 'overview' && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {statCards.map(([label, value]) => (
             <div key={label} className="border border-line bg-panel p-4">
@@ -512,7 +563,7 @@ export default function AdminPanel({ session, enabled }) {
         </div>
       )}
 
-      {activeTab === 'users' && (
+      {resolvedActiveTab === 'users' && (
         <div className="space-y-4">
           <form className="grid gap-3 border border-line bg-panel p-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_220px_160px_auto_auto]" onSubmit={createUser}>
             <label className="block">
@@ -696,7 +747,7 @@ export default function AdminPanel({ session, enabled }) {
         </div>
       )}
 
-      {activeTab === 'payments' && (
+      {resolvedActiveTab === 'payments' && (
         <div className="space-y-5">
           <div>
             <h3 className="mb-3 text-sm font-bold text-ink">Pembayaran manual Shopee</h3>
@@ -790,9 +841,9 @@ export default function AdminPanel({ session, enabled }) {
         </div>
       )}
 
-      {activeTab === 'finance' && <AdminFinancePanel accessToken={accessToken} />}
+      {resolvedActiveTab === 'finance' && <AdminFinancePanel accessToken={accessToken} />}
 
-      {activeTab === 'pricing' && (
+      {resolvedActiveTab === 'pricing' && (
         <div className="grid gap-3">
           {pricingRules.map((rule) => {
             const draft = pricingDraft[rule.key] || {};
@@ -839,7 +890,7 @@ export default function AdminPanel({ session, enabled }) {
         </div>
       )}
 
-      {activeTab === 'settings' && (
+      {resolvedActiveTab === 'settings' && (
         <div className="grid gap-3">
           <div className="border border-line bg-panel p-3">
             <h3 className="mb-3 text-sm font-bold text-ink">Model gambar ulang</h3>
@@ -1292,9 +1343,14 @@ export default function AdminPanel({ session, enabled }) {
                   </label>
                 </div>
               </div>
-              <button type="button" onClick={saveInteractiveQrisSetting} className="inline-flex min-h-10 w-fit items-center justify-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-bold text-white">
+              <button
+                type="button"
+                onClick={saveInteractiveQrisSetting}
+                disabled={isBusy || savingSettingKey === 'interactive_qris_payment'}
+                className="inline-flex min-h-10 w-fit items-center justify-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-bold text-white disabled:opacity-60"
+              >
                 <Save className="h-4 w-4" aria-hidden="true" />
-                Simpan setting QRIS
+                {savingSettingKey === 'interactive_qris_payment' ? 'Menyimpan setting QRIS...' : 'Simpan setting QRIS'}
               </button>
             </div>
           </div>
@@ -1304,7 +1360,7 @@ export default function AdminPanel({ session, enabled }) {
         </div>
       )}
 
-      {activeTab === 'jobs' && (
+      {resolvedActiveTab === 'jobs' && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] border-collapse text-left text-sm">
             <thead>

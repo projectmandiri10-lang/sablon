@@ -23,6 +23,9 @@ const SUPERUSER_ACCOUNT = ['jho.j80@gm', 'a', 'il.com'].join('');
 const FALLBACK_SESSION_STORAGE_KEY = 'easyredesignpro.supabaseFallbackSession';
 const LEGACY_FALLBACK_SESSION_STORAGE_KEY = 'designmudahfree.supabaseFallbackSession';
 const LEGAL_PATHS = new Set(['/privacy', '/terms', '/contact', '/about']);
+const DASHBOARD_VIEWS = new Set(['app', 'billing', 'admin']);
+const APP_SECTIONS = new Set(['process', 'history']);
+const ADMIN_TABS = new Set(['overview', 'users', 'payments', 'finance', 'pricing', 'settings', 'jobs']);
 
 function normalizePathname(pathname) {
   const trimmed = pathname.replace(/\/+$/, '') || '/';
@@ -36,6 +39,14 @@ function getPublicRouteFromPathname(pathname) {
   if (normalized === '/contact') return 'contact';
   if (normalized === '/about') return 'about';
   return 'landing';
+}
+
+function parseDashboardSearch(search = '') {
+  const params = new URLSearchParams(String(search || '').replace(/^\?/, ''));
+  const view = DASHBOARD_VIEWS.has(params.get('view')) ? params.get('view') : 'app';
+  const appSection = APP_SECTIONS.has(params.get('section')) ? params.get('section') : 'process';
+  const adminTab = ADMIN_TABS.has(params.get('admin_tab')) ? params.get('admin_tab') : 'overview';
+  return { view, appSection, adminTab };
 }
 
 function getDocumentTitle(route, hasSession, locale = 'id') {
@@ -335,11 +346,12 @@ function clearFallbackSession() {
 }
 
 export default function App() {
+  const initialDashboardState = parseDashboardSearch(window.location.search || '');
   const browserLanguage = typeof navigator !== 'undefined' ? navigator.language : '';
   const [file, setFile] = useState(null);
   const [settings, setSettings] = useState(initialSettings);
   const [job, setJob] = useState(null);
-  const [appSection, setAppSection] = useState('process');
+  const [appSection, setAppSection] = useState(initialDashboardState.appSection);
   const [historySelectedKey, setHistorySelectedKey] = useState('');
   const [historyNotice, setHistoryNotice] = useState('');
   const [jobError, setJobError] = useState('');
@@ -349,7 +361,8 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [session, setSession] = useState(null);
   const [balance, setBalance] = useState(null);
-  const [view, setView] = useState('app');
+  const [view, setView] = useState(initialDashboardState.view);
+  const [adminTab, setAdminTab] = useState(initialDashboardState.adminTab);
   const previewRef = useRef('');
   const historyJobsRef = useRef([]);
   const [historyJobs, setHistoryJobs] = useState([]);
@@ -394,6 +407,7 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       setPublicRoute(getPublicRouteFromPathname(window.location.pathname || '/'));
+      restoreDashboardStateFromUrl();
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -425,6 +439,29 @@ export default function App() {
       setView('billing');
     }
   }, [midtransReturnState.isReturn, session?.access_token]);
+
+  function restoreDashboardStateFromUrl() {
+    const nextDashboardState = parseDashboardSearch(window.location.search || '');
+    setView(nextDashboardState.view);
+    setAppSection(nextDashboardState.appSection);
+    setAdminTab(nextDashboardState.adminTab);
+  }
+
+  useEffect(() => {
+    if (!session || LEGAL_PATHS.has(normalizePathname(window.location.pathname || '/'))) return;
+    const params = new URLSearchParams(window.location.search.replace(/^\?/, ''));
+    params.set('view', view);
+    if (view === 'app') params.set('section', appSection);
+    else params.delete('section');
+    if (view === 'admin') params.set('admin_tab', adminTab);
+    else params.delete('admin_tab');
+
+    const nextSearch = params.toString();
+    const currentSearch = (window.location.search || '').replace(/^\?/, '');
+    if (nextSearch !== currentSearch) {
+      window.history.replaceState({}, document.title, `${window.location.pathname || '/'}${nextSearch ? `?${nextSearch}` : ''}`);
+    }
+  }, [session, view, appSection, adminTab]);
 
   function navigatePublicPath(path, { replace = false } = {}) {
     const normalized = normalizePathname(path);
@@ -478,7 +515,7 @@ export default function App() {
               saveFallbackSession(fallbackSession);
               setAuthCallbackError('');
               setSession(fallbackSession);
-              setView('app');
+              restoreDashboardStateFromUrl();
               return;
             }
             throw error;
@@ -491,7 +528,7 @@ export default function App() {
               saveFallbackSession(fallbackSession);
               setAuthCallbackError('');
               setSession(fallbackSession);
-              setView('app');
+              restoreDashboardStateFromUrl();
               return;
             }
             setAuthCallbackError(error.message || copy.messages.oauthCallbackError);
@@ -500,7 +537,7 @@ export default function App() {
           setAuthCallbackError('');
           clearFallbackSession();
           setSession(data.session || null);
-          if (data.session) setView('app');
+          if (data.session) restoreDashboardStateFromUrl();
           return;
         }
 
@@ -514,7 +551,7 @@ export default function App() {
         }
         const nextSession = data.session || fallbackSession;
         setSession(nextSession || null);
-        if (nextSession) setView('app');
+        if (nextSession) restoreDashboardStateFromUrl();
       } catch (error) {
         cleanAuthCallbackUrl();
         if (isMounted) {
@@ -522,7 +559,7 @@ export default function App() {
           if (fallbackSession) {
             setAuthCallbackError('');
             setSession(fallbackSession);
-            setView('app');
+            restoreDashboardStateFromUrl();
           } else {
             setAuthCallbackError(error instanceof Error ? error.message : copy.messages.oauthCallbackError);
           }
@@ -536,7 +573,7 @@ export default function App() {
         clearFallbackSession();
         setSession(nextSession);
         setAuthCallbackError('');
-        setView('app');
+        restoreDashboardStateFromUrl();
       } else if (event === 'SIGNED_OUT') {
         clearFallbackSession();
         setSession(null);
@@ -621,10 +658,12 @@ export default function App() {
   async function signOut() {
     if (supabase) await supabase.auth.signOut();
     clearFallbackSession();
+    window.history.replaceState({}, document.title, window.location.pathname || '/');
     setSession(null);
     setBalance(null);
     setJob(null);
     setAppSection('process');
+    setAdminTab('overview');
     setHistorySelectedKey('');
     setHistoryNotice('');
     setView('app');
@@ -806,6 +845,12 @@ export default function App() {
   const balanceLabel = isUnlimited ? 'Unlimited' : formatRupiah(balance?.balance || 0);
   const roleLabel = isSuperuser ? copy.labels.roleSuperadmin : copy.labels.roleUser;
 
+  useEffect(() => {
+    if (view === 'admin' && session && !isSuperuser) {
+      setView('app');
+    }
+  }, [view, session, isSuperuser]);
+
   async function handleDeleteLibraryJob(item) {
     if (!item?.canDelete) return;
     const deleteMessage = item.isExample
@@ -962,7 +1007,7 @@ export default function App() {
 
       {session && view === 'admin' && (
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
-          <AdminPanel session={session} enabled={isSuperuser} />
+          <AdminPanel session={session} enabled={isSuperuser} activeTab={adminTab} onActiveTabChange={setAdminTab} />
         </div>
       )}
 

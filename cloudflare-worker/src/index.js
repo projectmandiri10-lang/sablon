@@ -3006,7 +3006,7 @@ async function handleAppConfig(env, request) {
       midtransAvailable: isMidtransConfigured(env),
       midtransIsProduction: isMidtransProduction(env),
       midtransMinimumAmountIdr: MIDTRANS_MIN_AMOUNT_IDR,
-      interactiveQrisAvailable: interactiveQrisSetting.enabled === true && Boolean(interactiveQrisSetting.qrImageUrl) && isInteractiveQrisConfigured(env),
+      interactiveQrisAvailable: interactiveQrisSetting.enabled === true && isInteractiveQrisConfigured(env),
       interactiveQrisMinimumAmountIdr: interactiveQrisMinAmountIdr(env),
       interactiveQrisUniqueDigits: interactiveQrisUniqueDigits(env)
     },

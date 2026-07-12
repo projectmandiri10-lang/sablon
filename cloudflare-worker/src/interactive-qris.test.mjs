@@ -96,6 +96,53 @@ test('app config exposes interactive qris availability when env and public setti
   }
 });
 
+test('app config keeps interactive qris available even when qr image is not filled yet', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+
+    if (url.includes('/rest/v1/app_settings?select=key,value,is_public&is_public=eq.true&order=key.asc')) {
+      return jsonResponse([
+        {
+          key: 'interactive_qris_payment',
+          value: {
+            enabled: true,
+            merchantName: 'Merchant QRIS',
+            qrImageUrl: '',
+            instructions: 'Bayar sesuai nominal unik.',
+            contact: 'WA Admin'
+          },
+          is_public: true
+        }
+      ]);
+    }
+
+    if (url.includes('/rest/v1/app_settings?select=key,value,is_public,description,updated_at&key=eq.ai_redraw_model&limit=1')) {
+      return jsonResponse([]);
+    }
+
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  try {
+    const env = {
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role',
+      INTERACTIVE_QRIS_WEBHOOK_SECRET: 'secret-123',
+      INTERACTIVE_QRIS_SOURCE_PACKAGE: 'com.interactive.qrisid'
+    };
+
+    const response = await worker.fetch(new Request('https://worker.example/api/app-config'), env);
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.features.interactiveQrisAvailable, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('interactive qris checkout expires stale rows and creates pending unique payment', async () => {
   const originalFetch = globalThis.fetch;
   let expiredRowsPatched = 0;
