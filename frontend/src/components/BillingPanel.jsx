@@ -67,6 +67,9 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     paymentMethodHelp: isId ? 'QRIS statis menjadi pilihan utama. Metode online lain tersedia melalui halaman pembayaran.' : 'Static QRIS is the default option. Other online methods are available through the payment page.',
     qrisMethod: isId ? 'QRIS statis' : 'Static QRIS',
     onlineMethod: isId ? 'E-wallet, VA, kartu, dan metode lain' : 'E-wallet, VA, cards, and other methods',
+    onlineMethodPending: isId
+      ? 'E-wallet, VA, kartu, dan metode lain (segera hadir)'
+      : 'E-wallet, VA, cards, and other methods (coming soon)',
     minimumCreditInfo: (amount) =>
       isId ? `Minimum ${amount}. Credit akan bertambah 1:1 sesuai nominal pembayaran yang terverifikasi.` : `Minimum ${amount}. Credits increase 1:1 based on the verified payment amount.`,
     openCheckout: isId ? 'Membuka checkout...' : 'Opening checkout...',
@@ -143,6 +146,12 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
   useEffect(() => {
     paymentsRef.current = payments;
   }, [payments]);
+
+  useEffect(() => {
+    if (selectedPaymentMethod === 'midtrans' && !state.midtrans.available) {
+      setSelectedPaymentMethod('interactive_qris');
+    }
+  }, [selectedPaymentMethod, state.midtrans.available]);
 
   async function handleRefreshPayment(orderId, options = {}) {
     if (!orderId) return;
@@ -369,7 +378,9 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
                 className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
               >
                 <option value="interactive_qris">{copy.qrisMethod}</option>
-                <option value="midtrans">{copy.onlineMethod}</option>
+                <option value="midtrans" disabled={!state.midtrans.available}>
+                  {state.midtrans.available ? copy.onlineMethod : copy.onlineMethodPending}
+                </option>
               </select>
             </label>
             <label className="block">
