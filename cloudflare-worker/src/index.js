@@ -516,6 +516,48 @@ async function readJson(request) {
   return request.json().catch(() => ({}));
 }
 
+function cleanInteractiveQrisWebhookField(value = '') {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+    .trim();
+}
+
+function extractInteractiveQrisMalformedJsonPayload(rawText = '') {
+  const text = String(rawText || '');
+  if (!text.trim()) return {};
+
+  const packageName = /"packageName"\s*:\s*"([\s\S]*?)"\s*,\s*"title"/i.exec(text)?.[1] || '';
+  const title = /"title"\s*:\s*"([\s\S]*?)"\s*,\s*"text"/i.exec(text)?.[1] || '';
+  const bodyText = /"text"\s*:\s*"([\s\S]*?)"\s*,\s*"raw"/i.exec(text)?.[1] || '';
+  const raw = /"raw"\s*:\s*"([\s\S]*?)"\s*}/i.exec(text)?.[1] || '';
+
+  if (!packageName && !title && !bodyText && !raw) return {};
+
+  return {
+    packageName: cleanInteractiveQrisWebhookField(packageName),
+    title: cleanInteractiveQrisWebhookField(title),
+    text: cleanInteractiveQrisWebhookField(bodyText),
+    raw: cleanInteractiveQrisWebhookField(raw)
+  };
+}
+
+async function readInteractiveQrisWebhookPayload(request) {
+  const fallbackRequest = request.clone();
+  const parsed = await request.json().catch(() => null);
+  if (parsed && typeof parsed === 'object') return parsed;
+
+  const rawText = await fallbackRequest.text().catch(() => '');
+  if (!rawText.trim()) return {};
+
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return extractInteractiveQrisMalformedJsonPayload(rawText);
+  }
+}
+
 function normalizeLocale(locale) {
   return String(locale || '').trim().toLowerCase().startsWith('id') ? 'id' : 'en';
 }
@@ -2692,7 +2734,7 @@ async function handleCreateInteractiveQrisCheckout(env, request) {
   requireInteractiveQrisOpen(qrisSetting);
 
   const { user } = await requireUser(env, request);
-  const body = await readJson(request);
+  const body = await readInteractiveQrisWebhookPayload(request);
   const amountIdr = Number.parseInt(body.amountIdr, 10);
   const minimumAmountIdr = interactiveQrisMinAmountIdr(env);
   if (!Number.isInteger(amountIdr) || amountIdr < minimumAmountIdr) {
@@ -2813,7 +2855,7 @@ async function handleInteractiveQrisWebhook(env, request) {
     return error('Secret QRIS tidak valid.', 401);
   }
 
-  const body = await readJson(request);
+  const body = await readInteractiveQrisWebhookPayload(request);
   const packageName = String(body.packageName || '').trim().toLowerCase();
   const expectedPackage = String(requireEnvValue(env, 'INTERACTIVE_QRIS_SOURCE_PACKAGE')).trim().toLowerCase();
   if (!packageName || packageName !== expectedPackage) {

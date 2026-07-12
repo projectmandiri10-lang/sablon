@@ -360,16 +360,16 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
             </div>
           )}
           {activeQrisInstruction ? (
-            <div className="grid gap-3 border border-line bg-panel p-3 lg:grid-cols-[160px_minmax(0,1fr)]">
+            <div className="grid gap-4 border border-line bg-panel p-3 lg:grid-cols-[280px_minmax(0,1fr)] lg:p-4">
               <div className="flex items-start justify-center">
                 {activeQrisInstruction.qrImageUrl ? (
                   <img
                     src={activeQrisInstruction.qrImageUrl}
                     alt={state.interactiveQris.merchantName || copy.qrisTitle}
-                    className="h-auto w-full max-w-[160px] border border-line bg-white p-2"
+                    className="h-auto w-full max-w-[280px] border border-line bg-white p-3 shadow-sm"
                   />
                 ) : (
-                  <div className="flex h-40 w-full max-w-[160px] items-center justify-center border border-dashed border-line bg-white text-xs text-gray-500">
+                  <div className="flex h-72 w-full max-w-[280px] items-center justify-center border border-dashed border-line bg-white text-sm text-gray-500">
                     QR belum diisi
                   </div>
                 )}

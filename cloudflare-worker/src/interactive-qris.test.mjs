@@ -489,6 +489,104 @@ test('interactive qris webhook settles matching payment without double credit', 
   }
 });
 
+test('interactive qris webhook can recover malformed multiline MacroDroid JSON payload', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+
+    if (url.includes('/rest/v1/payment_transactions?provider=eq.interactive_qris&status=eq.pending&expired_at=lt.') && init.method === 'PATCH') {
+      return jsonResponse([]);
+    }
+
+    if (url.includes('/rest/v1/payment_transactions?select=id,user_id,provider,order_id,external_transaction_id,amount_idr,base_amount_idr,unique_code,currency,status,payment_type,redirect_url,credited_ledger_id,paid_at,expired_at,created_at,updated_at&provider=eq.interactive_qris&status=eq.pending&expired_at=gt.')) {
+      return jsonResponse([
+        {
+          id: 'payment-1',
+          user_id: 'user-1',
+          provider: 'interactive_qris',
+          order_id: 'iq-123',
+          amount_idr: 2001,
+          base_amount_idr: 2000,
+          unique_code: 1,
+          status: 'pending',
+          payment_type: 'qris_static_unique',
+          credited_ledger_id: null,
+          expired_at: '2099-07-12T22:00:00.000Z'
+        }
+      ]);
+    }
+
+    if (url.includes('/rest/v1/credit_ledger?select=id&reference_id=eq.payment-1&reason=eq.interactive_qris_payment&limit=1')) {
+      return jsonResponse([]);
+    }
+
+    if (url.endsWith('/rest/v1/credit_ledger?select=id') && init.method === 'POST') {
+      return jsonResponse([{ id: 'ledger-1' }]);
+    }
+
+    if (url.includes('/rest/v1/payment_transactions?id=eq.payment-1&select=*') && init.method === 'PATCH') {
+      const patch = JSON.parse(init.body);
+      return jsonResponse([
+        {
+          id: 'payment-1',
+          user_id: 'user-1',
+          provider: 'interactive_qris',
+          order_id: 'iq-123',
+          amount_idr: 2001,
+          base_amount_idr: 2000,
+          unique_code: 1,
+          status: patch.status,
+          payment_type: patch.payment_type,
+          credited_ledger_id: patch.credited_ledger_id || 'ledger-1',
+          paid_at: patch.paid_at,
+          expired_at: '2099-07-12T22:00:00.000Z',
+          updated_at: '2026-07-12T21:14:01.000Z'
+        }
+      ]);
+    }
+
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  try {
+    const env = {
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role',
+      INTERACTIVE_QRIS_WEBHOOK_SECRET: 'secret-123',
+      INTERACTIVE_QRIS_SOURCE_PACKAGE: 'com.interactive.qrisid'
+    };
+
+    const malformedBody = `{
+  "packageName": "com.interactive.qrisid",
+  "title": "Transaksi InterActive QRIS",
+  "text": "Pembayaran QRIS sebesar Rp 2.001
+6285156861485 - ShopeePay telah diterima",
+  "raw": "Pembayaran QRIS sebesar Rp 2.001
+6285156861485 - ShopeePay telah diterima"
+}`;
+
+    const response = await worker.fetch(
+      new Request('https://worker.example/api/payments/interactive-qris/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-interactive-qris-secret': 'secret-123'
+        },
+        body: malformedBody
+      }),
+      env
+    );
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.payment.status, 'settlement');
+    assert.equal(data.payment.credited_ledger_id, 'ledger-1');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('admin can upload interactive qris image to storage bucket', async () => {
   const originalFetch = globalThis.fetch;
   let uploadedPath = '';
