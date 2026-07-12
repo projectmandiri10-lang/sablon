@@ -25,7 +25,7 @@ export const HYBRID_REDRAW_PRESETS = {
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
     safetyModel: DEFAULT_OPENROUTER_SAFETY_MODEL,
     promptProfile: DEFAULT_OPENROUTER_PROMPT_PROFILE,
-    generationQuality: 'standard',
+    generationQuality: 'low',
     imageSize: '1K',
     reasoningEffort: 'low',
     backgroundMode: 'transparent',
@@ -51,7 +51,7 @@ export const HYBRID_REDRAW_PRESETS = {
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
     safetyModel: DEFAULT_OPENROUTER_SAFETY_MODEL,
     promptProfile: DEFAULT_OPENROUTER_PROMPT_PROFILE,
-    generationQuality: 'high',
+    generationQuality: 'medium',
     imageSize: '1K',
     reasoningEffort: 'low',
     backgroundMode: 'transparent',
@@ -77,7 +77,7 @@ export const HYBRID_REDRAW_PRESETS = {
     fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
     safetyModel: DEFAULT_OPENROUTER_SAFETY_MODEL,
     promptProfile: DEFAULT_OPENROUTER_PROMPT_PROFILE,
-    generationQuality: 'high',
+    generationQuality: 'medium',
     imageSize: '1K',
     reasoningEffort: 'medium',
     backgroundMode: 'transparent',
@@ -151,7 +151,8 @@ function normalizeOpenAiImageModel(value, fallback = DEFAULT_OPENAI_IMAGE_MODEL)
 
 function normalizeGenerationQuality(value, fallback) {
   const normalized = normalizeText(value, fallback).toLowerCase();
-  return normalized === 'low' || normalized === 'standard' || normalized === 'high' ? normalized : fallback;
+  if (normalized === 'standard') return 'medium';
+  return normalized === 'low' || normalized === 'medium' || normalized === 'high' ? normalized : fallback;
 }
 
 function normalizeImageSize(value, fallback) {

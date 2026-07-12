@@ -1,6 +1,7 @@
 .env
 .env.local
 cloudflare-worker/.dev.vars
+supabase/.temp/
 **/node_modules/
 **/dist/
 **/.wrangler/

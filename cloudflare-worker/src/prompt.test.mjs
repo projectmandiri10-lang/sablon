@@ -12,11 +12,23 @@ test('AI redraw model presets expose OpenAI primary with OpenRouter fallback', (
   assert.equal(presets.budget.generationModel, 'black-forest-labs/flux.2-klein-4b');
   assert.equal(presets.budget.fallbackModel, 'sourceful/riverflow-v2-fast');
   assert.equal(presets.budget.promptProfile, 'logo_photo_cleanup_short');
+  assert.equal(presets.budget.generationQuality, 'low');
   assert.equal(presets.quality.openAiImageModel, 'gpt-image-1.5');
+  assert.equal(presets.standard.generationQuality, 'medium');
+  assert.equal(presets.quality.generationQuality, 'medium');
   assert.equal(presets.quality.imageSize, '1K');
   assert.equal(presets.quality.safetyModel, 'nvidia/nemotron-3.5-content-safety:free');
   assert.equal(presets.premium.retryOnLowConfidence, true);
   assert.equal(Object.keys(presets).length, 4);
+});
+
+test('legacy standard quality values normalize into medium', () => {
+  const normalized = normalizeAiRedrawModelConfig({
+    mode: 'quality',
+    generationQuality: 'standard'
+  });
+
+  assert.equal(normalized.generationQuality, 'medium');
 });
 
 test('legacy Gemini direct values normalize into OpenAI primary config', () => {

@@ -23,6 +23,7 @@ const logoPhotoCleanupShortPromptMigration = fs.readFileSync(path.join(import.me
 const openAiDirectMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260709100000_migrate_ai_redraw_to_openai_direct.sql'), 'utf8');
 const interactiveQrisPaymentsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260711103000_add_interactive_qris_payment_support.sql'), 'utf8');
 const interactiveQrisClosedHoursMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260711120000_add_interactive_qris_closed_hours_defaults.sql'), 'utf8');
+const mediumOpenAiQualityMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260712103000_set_openai_redraw_medium_quality.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -144,6 +145,12 @@ test('latest direct OpenAI migration upgrades legacy LiteLLM redraw rows', () =>
   assert.match(openAiDirectMigration, /- 'liteLlmImageModel'/);
   assert.match(openAiDirectMigration, /Pipeline OpenAI primary \+ OpenRouter fallback untuk AI redraw/);
   assert.match(openAiDirectMigration, /logo_photo_cleanup_short/);
+});
+
+test('latest redraw quality migration switches default OpenAI redraw quality to medium', () => {
+  assert.match(mediumOpenAiQualityMigration, /'generationQuality', 'medium'/);
+  assert.match(mediumOpenAiQualityMigration, /quality medium untuk testing/);
+  assert.match(bootstrapSql, /"generationQuality":"medium"/);
 });
 
 test('bootstrap sql hardens helper functions and policy indexes', () => {

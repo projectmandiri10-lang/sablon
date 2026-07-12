@@ -2212,7 +2212,7 @@ async function requestProviderRetouchedImage(env, image, settings, aiModelConfig
 async function requestOpenAiRetouchedImage(env, image, settings, aiModelConfig, routing) {
   const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
   const inputFidelity = resolveOpenAiInputFidelity();
-  const imageQuality = resolveOpenAiImageQuality();
+  const imageQuality = resolveOpenAiImageQuality(aiModelConfig);
   const imageSize = resolveOpenAiImageSize();
   let response;
   try {
@@ -2277,8 +2277,11 @@ function resolveOpenAiImageSize() {
   return 'auto';
 }
 
-function resolveOpenAiImageQuality() {
-  return 'high';
+function resolveOpenAiImageQuality(aiModelConfig = {}) {
+  const requestedQuality = String(aiModelConfig.generationQuality || '').trim().toLowerCase();
+  if (requestedQuality === 'standard') return 'medium';
+  if (requestedQuality === 'low' || requestedQuality === 'medium' || requestedQuality === 'high') return requestedQuality;
+  return 'medium';
 }
 
 function resolveOpenAiInputFidelity() {

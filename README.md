@@ -33,6 +33,12 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 5. Jalankan migration Supabase dari folder `supabase/`.
 6. Jika project Supabase baru masih kosong, jalankan `supabase/SUPABASE_BOOTSTRAP.sql` di SQL Editor dulu.
 
+## Helper Supabase CLI
+
+- Gunakan `.\supabase\scripts\supabase-cli.ps1` agar CLI lokal otomatis memakai `SUPABASE_ACCESS_TOKEN` dan `SUPABASE_PROJECT_REF` dari `.env` repo ini.
+- Contoh cek project: `.\supabase\scripts\supabase-cli.ps1 projects list`
+- Contoh link ke project repo: `.\supabase\scripts\supabase-cli.ps1 link`
+
 ## Catatan
 
 - Folder `landing/` dan `backend/` sengaja tidak ikut ke copy ini karena bukan target Cloudflare free tier.

@@ -1021,7 +1021,7 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
                     <option value="high">High</option>
-                    <option value="standard">Standard</option>
+                    <option value="medium">Medium</option>
                     <option value="low">Low</option>
                   </select>
                 </label>
