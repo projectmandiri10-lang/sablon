@@ -14,10 +14,14 @@ import {
   buildBillingPanelState,
   buildInteractiveQrisPaymentInstruction,
   buildMidtransReturnMessage,
+  findNewlyCreditedAutomaticPayment,
+  hasPendingAutomaticPayments,
   isAutomaticPaymentRefreshable,
   resolveInteractiveQrisClosedState
 } from '../lib/billingPanelState.js';
 import { formatRupiah } from '../lib/pricing.js';
+
+const AUTOMATIC_PAYMENTS_POLL_MS = 10000;
 
 function formatPaymentTime(value, locale = 'id') {
   if (!value) return '-';
@@ -43,6 +47,7 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
   const [refreshingOrderId, setRefreshingOrderId] = useState('');
   const [clockNow, setClockNow] = useState(() => Date.now());
   const handledReturnRef = useRef('');
+  const paymentsRef = useRef([]);
   const isId = locale === 'id';
   const copy = {
     billingLoadError: isId ? 'Billing belum bisa dimuat saat ini.' : 'Billing cannot be loaded right now.',
@@ -80,6 +85,9 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     qrisMissing: isId ? 'QRIS otomatis belum aktif saat ini. Silakan pilih metode lain atau hubungi admin.' : 'Automatic QRIS is not available right now. Please choose another method or contact admin.',
     qrisClosed: isId ? 'QRIS sedang tutup pada jam ini.' : 'QRIS is currently closed at this time.',
     qrisCreated: isId ? 'Instruksi QRIS otomatis berhasil dibuat. Bayar sesuai nominal unik di bawah ini.' : 'The automatic QRIS instruction has been created. Pay the exact unique amount below.',
+    autoPaymentSuccess: isId
+      ? 'Pembayaran berhasil diverifikasi. Saldo Anda sudah diperbarui otomatis.'
+      : 'Payment verified successfully. Your balance has been refreshed automatically.',
     exactPayableAmount: isId ? 'Nominal yang harus dibayar' : 'Exact payable amount',
     baseAmount: isId ? 'Nominal dasar top up' : 'Base top-up amount',
     uniqueCode: isId ? 'Kode unik' : 'Unique code',
@@ -111,12 +119,15 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
       setConfigError('');
       const [configData, paymentsData] = await Promise.all([getAppConfig(), listAutomaticPayments(session?.access_token)]);
       setAppConfig(configData || { settings: {}, features: {} });
-      setPayments(Array.isArray(paymentsData?.payments) ? paymentsData.payments : []);
+      const nextPayments = Array.isArray(paymentsData?.payments) ? paymentsData.payments : [];
+      setPayments(nextPayments);
+      paymentsRef.current = nextPayments;
     } catch (error) {
       const userError = toUserApiError(error, copy.billingLoadError);
       setConfigError(userError.message);
       setAppConfig({ settings: {}, features: {} });
       setPayments([]);
+      paymentsRef.current = [];
     }
   }
 
@@ -128,6 +139,10 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     const timer = window.setInterval(() => setClockNow(Date.now()), 30000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    paymentsRef.current = payments;
+  }, [payments]);
 
   async function handleRefreshPayment(orderId, options = {}) {
     if (!orderId) return;
@@ -225,6 +240,7 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
   }
 
   const qrisClosedState = resolveInteractiveQrisClosedState(state.interactiveQris, clockNow);
+  const shouldPollAutomaticPayments = hasPendingAutomaticPayments(payments, clockNow);
   const selectedMinimumAmountIdr =
     selectedPaymentMethod === 'midtrans' ? state.midtrans.minimumAmountIdr : state.interactiveQris.minimumAmountIdr;
   const selectedMethodAvailable = selectedPaymentMethod === 'midtrans' ? state.midtrans.available : state.interactiveQris.available;
@@ -256,6 +272,42 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     }
     return null;
   }, [payments, state.interactiveQris, clockNow]);
+
+  useEffect(() => {
+    if (!session?.access_token || !shouldPollAutomaticPayments) return undefined;
+
+    let cancelled = false;
+
+    const pollAutomaticPayments = async () => {
+      try {
+        const paymentsData = await listAutomaticPayments(session.access_token);
+        if (cancelled) return;
+        const nextPayments = Array.isArray(paymentsData?.payments) ? paymentsData.payments : [];
+        const creditedPayment = findNewlyCreditedAutomaticPayment(paymentsRef.current, nextPayments);
+        setPayments(nextPayments);
+        paymentsRef.current = nextPayments;
+
+        if (creditedPayment) {
+          setNotice(copy.autoPaymentSuccess);
+          setPaymentError('');
+          await onRefreshBalance?.();
+        }
+      } catch {
+        if (!cancelled) {
+          // Keep the current UI state; manual refresh stays available if polling fails.
+        }
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      pollAutomaticPayments();
+    }, AUTOMATIC_PAYMENTS_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [copy.autoPaymentSuccess, onRefreshBalance, session?.access_token, shouldPollAutomaticPayments]);
 
   return (
     <div id="billing" className="space-y-5">

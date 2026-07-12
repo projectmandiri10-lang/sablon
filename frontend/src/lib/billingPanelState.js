@@ -29,6 +29,10 @@ export function automaticPaymentChannelLabel(payment = {}) {
   return payment.payment_type || '-';
 }
 
+export function isAutomaticPaymentCredited(payment = {}) {
+  return Boolean(payment?.credited_ledger_id);
+}
+
 export function isAutomaticPaymentRefreshable(payment = {}) {
   return payment.provider === 'midtrans' && ['pending', 'capture'].includes(String(payment.status || '').toLowerCase());
 }
@@ -39,6 +43,33 @@ export function isActiveInteractiveQrisPayment(payment = {}, now = Date.now()) {
   if (payment.credited_ledger_id) return false;
   const expiryMs = new Date(payment.expired_at || '').getTime();
   return Number.isFinite(expiryMs) && expiryMs > now;
+}
+
+export function hasPendingAutomaticPayments(payments = [], now = Date.now()) {
+  return (payments || []).some((payment) => {
+    if (!payment || isAutomaticPaymentCredited(payment)) return false;
+    const status = String(payment.status || '').toLowerCase();
+
+    if (payment.provider === 'interactive_qris') {
+      return isActiveInteractiveQrisPayment(payment, now);
+    }
+
+    return ['pending', 'capture', 'settlement'].includes(status);
+  });
+}
+
+export function findNewlyCreditedAutomaticPayment(previousPayments = [], nextPayments = []) {
+  const previousById = new Map((previousPayments || []).map((payment) => [payment?.id, payment]));
+
+  for (const payment of nextPayments || []) {
+    if (!payment?.id || !isAutomaticPaymentCredited(payment)) continue;
+    const previous = previousById.get(payment.id);
+    if (!isAutomaticPaymentCredited(previous)) {
+      return payment;
+    }
+  }
+
+  return null;
 }
 
 export function buildInteractiveQrisPaymentInstruction(payment = {}, interactiveQris = {}, now = Date.now()) {

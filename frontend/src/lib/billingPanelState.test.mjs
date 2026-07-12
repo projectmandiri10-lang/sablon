@@ -6,6 +6,8 @@ import {
   buildBillingPanelState,
   buildInteractiveQrisPaymentInstruction,
   buildMidtransReturnMessage,
+  findNewlyCreditedAutomaticPayment,
+  hasPendingAutomaticPayments,
   isAutomaticPaymentRefreshable,
   parseMidtransReturnParams,
   resolveInteractiveQrisClosedState,
@@ -114,6 +116,62 @@ test('automatic payment helpers keep QRIS non-refreshable and label mixed provid
   assert.equal(automaticPaymentProviderLabel('interactive_qris'), 'QRIS otomatis');
   assert.equal(automaticPaymentProviderLabel('midtrans'), 'Pembayaran online');
   assert.equal(automaticPaymentChannelLabel({ provider: 'interactive_qris', payment_type: 'qris_static_unique' }), 'QRIS statis');
+});
+
+test('pending automatic payment helper keeps polling for active rows only', () => {
+  assert.equal(
+    hasPendingAutomaticPayments(
+      [
+        {
+          id: 'qris-1',
+          provider: 'interactive_qris',
+          status: 'pending',
+          expired_at: '2099-07-11T10:30:00.000Z'
+        }
+      ],
+      new Date('2099-07-11T10:00:00.000Z').getTime()
+    ),
+    true
+  );
+
+  assert.equal(
+    hasPendingAutomaticPayments(
+      [
+        {
+          id: 'qris-2',
+          provider: 'interactive_qris',
+          status: 'pending',
+          expired_at: '2099-07-11T09:30:00.000Z'
+        }
+      ],
+      new Date('2099-07-11T10:00:00.000Z').getTime()
+    ),
+    false
+  );
+});
+
+test('newly credited automatic payment helper detects success transition', () => {
+  const creditedPayment = findNewlyCreditedAutomaticPayment(
+    [
+      {
+        id: 'payment-1',
+        provider: 'interactive_qris',
+        status: 'pending',
+        credited_ledger_id: null
+      }
+    ],
+    [
+      {
+        id: 'payment-1',
+        provider: 'interactive_qris',
+        status: 'settlement',
+        credited_ledger_id: 'ledger-123'
+      }
+    ]
+  );
+
+  assert.equal(creditedPayment?.id, 'payment-1');
+  assert.equal(creditedPayment?.credited_ledger_id, 'ledger-123');
 });
 
 test('interactive qris closed hours helper follows Asia Jakarta overnight window', () => {
