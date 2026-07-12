@@ -11,7 +11,6 @@ import {
 import {
   automaticPaymentChannelLabel,
   automaticPaymentProviderLabel,
-  billingProviderLabel,
   buildBillingPanelState,
   buildInteractiveQrisPaymentInstruction,
   buildMidtransReturnMessage,
@@ -34,8 +33,8 @@ function mergePaymentRows(currentRows, nextPayment) {
 export default function BillingPanel({ locale = 'id', session, returnState = null, onRefreshBalance, onReturnHandled }) {
   const [appConfig, setAppConfig] = useState({ settings: {}, features: {} });
   const [payments, setPayments] = useState([]);
-  const [midtransAmountInput, setMidtransAmountInput] = useState('2000');
-  const [qrisAmountInput, setQrisAmountInput] = useState('2000');
+  const [amountInput, setAmountInput] = useState('2000');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('interactive_qris');
   const [notice, setNotice] = useState('');
   const [configError, setConfigError] = useState('');
   const [paymentError, setPaymentError] = useState('');
@@ -59,23 +58,26 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
       : 'Choose any available automatic payment method. Credits will be added automatically after the payment status is verified.',
     topupEmailLabel: isId ? 'Email akun Anda yang dipakai untuk top up:' : 'Your account email used for top-up:',
     amountLabel: isId ? 'Nominal top up' : 'Top-up amount',
+    paymentMethodLabel: isId ? 'Metode pembayaran' : 'Payment method',
+    paymentMethodHelp: isId ? 'QRIS statis menjadi pilihan utama. Metode online lain tersedia melalui halaman pembayaran.' : 'Static QRIS is the default option. Other online methods are available through the payment page.',
+    qrisMethod: isId ? 'QRIS statis' : 'Static QRIS',
+    onlineMethod: isId ? 'E-wallet, VA, kartu, dan metode lain' : 'E-wallet, VA, cards, and other methods',
     minimumCreditInfo: (amount) =>
       isId ? `Minimum ${amount}. Credit akan bertambah 1:1 sesuai nominal pembayaran yang terverifikasi.` : `Minimum ${amount}. Credits increase 1:1 based on the verified payment amount.`,
     openCheckout: isId ? 'Membuka checkout...' : 'Opening checkout...',
     continuePayment: isId ? 'Lanjutkan Pembayaran' : 'Continue to Payment',
     createQris: isId ? 'Buat Instruksi QRIS' : 'Create QRIS instruction',
     creatingQris: isId ? 'Membuat instruksi...' : 'Creating instruction...',
-    gatewayTitle: isId ? 'Gateway redirect' : 'Redirect gateway',
-    gatewayLabel: isId ? 'Gateway pembayaran' : 'Payment gateway',
-    gatewayInfo: isId
-      ? 'Buka checkout redirect untuk menyelesaikan pembayaran otomatis melalui gateway yang aktif.'
-      : 'Open the redirect checkout to complete an automatic payment through the enabled gateway.',
+    onlinePaymentTitle: isId ? 'Pembayaran online' : 'Online payment',
+    onlinePaymentInfo: isId
+      ? 'Gunakan metode online untuk membayar melalui e-wallet, virtual account, kartu, atau kanal lain yang tersedia.'
+      : 'Use online payment to pay with e-wallets, virtual accounts, cards, or any available channel.',
     qrisTitle: isId ? 'QRIS otomatis' : 'Automatic QRIS',
     qrisInfo: isId
       ? 'Sistem akan membuat nominal unik yang harus dibayar ke QRIS merchant statis. Setelah notifikasi pembayaran masuk, saldo akan dikreditkan otomatis.'
       : 'The system will create a unique payable amount for the static merchant QRIS. Once the payment notification arrives, credits are added automatically.',
-    gatewayMissing: isId ? 'Gateway redirect belum aktif di deploy ini. Isi konfigurasi Worker lebih dulu.' : 'The redirect gateway is not enabled on this deployment yet. Configure the Worker first.',
-    qrisMissing: isId ? 'QRIS otomatis belum aktif di deploy ini. Isi secret Worker dan setting QRIS lebih dulu.' : 'Automatic QRIS is not enabled on this deployment yet. Configure the Worker secret and QRIS setting first.',
+    onlinePaymentMissing: isId ? 'Metode pembayaran online belum tersedia saat ini. Silakan pilih QRIS atau hubungi admin.' : 'Online payment is not available right now. Please choose QRIS or contact admin.',
+    qrisMissing: isId ? 'QRIS otomatis belum aktif saat ini. Silakan pilih metode lain atau hubungi admin.' : 'Automatic QRIS is not available right now. Please choose another method or contact admin.',
     qrisClosed: isId ? 'QRIS sedang tutup pada jam ini.' : 'QRIS is currently closed at this time.',
     qrisCreated: isId ? 'Instruksi QRIS otomatis berhasil dibuat. Bayar sesuai nominal unik di bawah ini.' : 'The automatic QRIS instruction has been created. Pay the exact unique amount below.',
     exactPayableAmount: isId ? 'Nominal yang harus dibayar' : 'Exact payable amount',
@@ -98,8 +100,8 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     shopeeStepTwo: isId ? 'Admin akan top up credit manual ke akun tersebut dalam 5-15 menit pada jam kerja.' : 'Admin will manually top up that account within 5-15 minutes during business hours.',
     baseAmountNote: (amount) => (isId ? `Dasar ${amount}` : `Base ${amount}`),
     table: isId
-      ? ['Waktu', 'Provider', 'Order', 'Nominal', 'Status', 'Channel', 'Credit', 'Aksi']
-      : ['Time', 'Provider', 'Order', 'Amount', 'Status', 'Channel', 'Credit', 'Action']
+      ? ['Waktu', 'Metode', 'Order', 'Nominal', 'Status', 'Kanal', 'Saldo', 'Aksi']
+      : ['Time', 'Method', 'Order', 'Amount', 'Status', 'Channel', 'Credit', 'Action']
   };
 
   const state = buildBillingPanelState(appConfig, session);
@@ -171,9 +173,7 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     onReturnHandled?.();
   }, [returnState?.isReturn, returnState?.orderId, returnState?.status, session?.access_token]);
 
-  async function handleMidtransCheckout(event) {
-    event.preventDefault();
-    const amountIdr = Number.parseInt(midtransAmountInput, 10);
+  async function submitMidtransCheckout(amountIdr) {
     if (!Number.isInteger(amountIdr) || amountIdr < state.midtrans.minimumAmountIdr) {
       setPaymentError(copy.minimumAmount(formatRupiah(state.midtrans.minimumAmountIdr)));
       return;
@@ -185,7 +185,7 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     try {
       const data = await createMidtransCheckout({ amountIdr }, session?.access_token);
       if (!data?.redirectUrl) {
-        throw new Error('Gateway pembayaran tidak mengembalikan redirect URL.');
+        throw new Error('Metode pembayaran belum mengembalikan link checkout.');
       }
       window.location.assign(data.redirectUrl);
     } catch (error) {
@@ -194,13 +194,11 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     }
   }
 
-  async function handleInteractiveQrisCheckout(event) {
-    event.preventDefault();
+  async function submitInteractiveQrisCheckout(amountIdr) {
     if (qrisClosedState.isClosed) {
       setPaymentError(qrisClosedState.message || copy.qrisClosed);
       return;
     }
-    const amountIdr = Number.parseInt(qrisAmountInput, 10);
     if (!Number.isInteger(amountIdr) || amountIdr < state.interactiveQris.minimumAmountIdr) {
       setPaymentError(copy.minimumAmount(formatRupiah(state.interactiveQris.minimumAmountIdr)));
       return;
@@ -226,12 +224,30 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     }
   }
 
-  const aiRedrawProviderText = state.aiRedraw.available
-    ? `AI Redraw aktif di deploy ini. Jalur utama: ${billingProviderLabel(state.aiRedraw.primaryProvider) || 'OpenAI'}${state.aiRedraw.fallbackProvider ? `, fallback: ${billingProviderLabel(state.aiRedraw.fallbackProvider)}.` : '.'}`
-    : 'AI Redraw belum aktif di deploy ini. Mode Ready Trace tetap tersedia sampai secret OpenAI atau OpenRouter diisi di Worker.';
-
   const qrisClosedState = resolveInteractiveQrisClosedState(state.interactiveQris, clockNow);
-  const qrisCheckoutDisabled = !state.interactiveQris.available || qrisClosedState.isClosed || isCreatingQris;
+  const selectedMinimumAmountIdr =
+    selectedPaymentMethod === 'midtrans' ? state.midtrans.minimumAmountIdr : state.interactiveQris.minimumAmountIdr;
+  const selectedMethodAvailable = selectedPaymentMethod === 'midtrans' ? state.midtrans.available : state.interactiveQris.available;
+  const selectedMethodBusy = selectedPaymentMethod === 'midtrans' ? isCheckingOut : isCreatingQris;
+  const selectedMethodClosed = selectedPaymentMethod === 'interactive_qris' && qrisClosedState.isClosed;
+  const automaticCheckoutDisabled = !selectedMethodAvailable || selectedMethodClosed || selectedMethodBusy;
+  const selectedMethodInfo = selectedPaymentMethod === 'midtrans' ? copy.onlinePaymentInfo : copy.qrisInfo;
+  const selectedMethodButtonLabel =
+    selectedPaymentMethod === 'midtrans'
+      ? isCheckingOut ? copy.openCheckout : copy.continuePayment
+      : isCreatingQris ? copy.creatingQris : copy.createQris;
+  const selectedMethodIcon =
+    selectedPaymentMethod === 'midtrans' ? <ExternalLink className="h-4 w-4" aria-hidden="true" /> : <QrCode className="h-4 w-4" aria-hidden="true" />;
+
+  async function handleAutomaticPaymentSubmit(event) {
+    event.preventDefault();
+    const amountIdr = Number.parseInt(amountInput, 10);
+    if (selectedPaymentMethod === 'midtrans') {
+      await submitMidtransCheckout(amountIdr);
+      return;
+    }
+    await submitInteractiveQrisCheckout(amountIdr);
+  }
 
   const activeQrisInstruction = useMemo(() => {
     for (const payment of payments) {
@@ -266,121 +282,113 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
           <p>{copy.topupEmailLabel} <strong>{state.sessionEmail}</strong></p>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
-          <div className="space-y-3 border border-line bg-white p-4">
+        <div className="space-y-4 border border-line bg-white p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-center gap-2">
-              <ExternalLink className="h-5 w-5 text-spruce" aria-hidden="true" />
+              {selectedPaymentMethod === 'midtrans' ? (
+                <ExternalLink className="h-5 w-5 text-spruce" aria-hidden="true" />
+              ) : (
+                <QrCode className="h-5 w-5 text-spruce" aria-hidden="true" />
+              )}
               <div>
-                <h3 className="text-sm font-bold text-ink">{copy.gatewayTitle}</h3>
-                <p className="text-xs text-gray-600">{copy.gatewayLabel} {state.midtrans.isProduction ? 'Production' : 'Sandbox'}</p>
+                <h3 className="text-sm font-bold text-ink">
+                  {selectedPaymentMethod === 'midtrans' ? copy.onlinePaymentTitle : copy.qrisTitle}
+                </h3>
+                <p className="text-xs text-gray-600">
+                  {selectedPaymentMethod === 'midtrans' ? copy.onlineMethod : state.interactiveQris.merchantName || copy.merchantName}
+                </p>
               </div>
             </div>
-            <p className="text-sm leading-6 text-gray-700">{copy.gatewayInfo}</p>
-            <form className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={handleMidtransCheckout}>
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">{copy.amountLabel}</span>
-                <input
-                  type="number"
-                  min={state.midtrans.minimumAmountIdr}
-                  step="1000"
-                  value={midtransAmountInput}
-                  onChange={(event) => setMidtransAmountInput(event.target.value)}
-                  className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                  placeholder={String(state.midtrans.minimumAmountIdr)}
-                  disabled={!state.midtrans.available || isCheckingOut}
-                />
-                <p className="mt-1 text-xs text-gray-600">{copy.minimumCreditInfo(formatRupiah(state.midtrans.minimumAmountIdr))}</p>
-              </label>
-              <button
-                type="submit"
-                disabled={!state.midtrans.available || isCheckingOut}
-                className="inline-flex min-h-11 items-center justify-center gap-2 border border-spruce bg-spruce px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300 disabled:text-gray-600"
-              >
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                {isCheckingOut ? copy.openCheckout : copy.continuePayment}
-              </button>
-            </form>
-            {!state.midtrans.available && (
-              <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
-                {copy.gatewayMissing}
-              </div>
-            )}
+            <div className="border border-line bg-panel px-3 py-2 text-xs text-gray-600">{copy.paymentMethodHelp}</div>
           </div>
 
-          <div className="space-y-3 border border-line bg-white p-4">
-            <div className="flex items-center gap-2">
-              <QrCode className="h-5 w-5 text-spruce" aria-hidden="true" />
-              <div>
-                <h3 className="text-sm font-bold text-ink">{copy.qrisTitle}</h3>
-                <p className="text-xs text-gray-600">{state.interactiveQris.merchantName || copy.merchantName}</p>
+          <p className="text-sm leading-6 text-gray-700">{selectedMethodInfo}</p>
+
+          <form className="grid gap-3 lg:grid-cols-[minmax(180px,260px)_minmax(0,1fr)_auto]" onSubmit={handleAutomaticPaymentSubmit}>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">{copy.paymentMethodLabel}</span>
+              <select
+                value={selectedPaymentMethod}
+                onChange={(event) => {
+                  setSelectedPaymentMethod(event.target.value);
+                  setPaymentError('');
+                  setNotice('');
+                }}
+                className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+              >
+                <option value="interactive_qris">{copy.qrisMethod}</option>
+                <option value="midtrans">{copy.onlineMethod}</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">{copy.amountLabel}</span>
+              <input
+                type="number"
+                min={selectedMinimumAmountIdr}
+                step="1000"
+                value={amountInput}
+                onChange={(event) => setAmountInput(event.target.value)}
+                className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+                placeholder={String(selectedMinimumAmountIdr)}
+                disabled={automaticCheckoutDisabled}
+              />
+              <p className="mt-1 text-xs text-gray-600">{copy.minimumCreditInfo(formatRupiah(selectedMinimumAmountIdr))}</p>
+            </label>
+            <button
+              type="submit"
+              disabled={automaticCheckoutDisabled}
+              className="inline-flex min-h-11 items-center justify-center gap-2 self-end border border-spruce bg-spruce px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300 disabled:text-gray-600"
+            >
+              {selectedMethodIcon}
+              {selectedMethodButtonLabel}
+            </button>
+          </form>
+
+          {selectedPaymentMethod === 'midtrans' && !state.midtrans.available && (
+            <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+              {copy.onlinePaymentMissing}
+            </div>
+          )}
+          {selectedPaymentMethod === 'interactive_qris' && qrisClosedState.isClosed && (
+            <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+              {qrisClosedState.message || copy.qrisClosed}
+            </div>
+          )}
+          {selectedPaymentMethod === 'interactive_qris' && !state.interactiveQris.available && (
+            <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+              {copy.qrisMissing}
+            </div>
+          )}
+          {activeQrisInstruction ? (
+            <div className="grid gap-3 border border-line bg-panel p-3 lg:grid-cols-[160px_minmax(0,1fr)]">
+              <div className="flex items-start justify-center">
+                {activeQrisInstruction.qrImageUrl ? (
+                  <img
+                    src={activeQrisInstruction.qrImageUrl}
+                    alt={state.interactiveQris.merchantName || copy.qrisTitle}
+                    className="h-auto w-full max-w-[160px] border border-line bg-white p-2"
+                  />
+                ) : (
+                  <div className="flex h-40 w-full max-w-[160px] items-center justify-center border border-dashed border-line bg-white text-xs text-gray-500">
+                    QR belum diisi
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2 text-sm leading-6 text-gray-700">
+                <p><strong>{copy.exactPayableAmount}:</strong> {formatRupiah(activeQrisInstruction.displayAmountIdr)}</p>
+                <p><strong>{copy.baseAmount}:</strong> {formatRupiah(activeQrisInstruction.baseAmountIdr)}</p>
+                <p><strong>{copy.uniqueCode}:</strong> {activeQrisInstruction.uniqueCode}</p>
+                <p><strong>{copy.expiresAt}:</strong> {formatPaymentTime(activeQrisInstruction.expiresAt, locale)}</p>
+                <p><strong>{copy.merchantName}:</strong> {activeQrisInstruction.merchantName || '-'}</p>
+                <p><strong>{copy.qrisInstructions}:</strong> {activeQrisInstruction.instructions}</p>
+                {activeQrisInstruction.contact && <p><strong>{copy.adminContact}:</strong> {activeQrisInstruction.contact}</p>}
               </div>
             </div>
-            <p className="text-sm leading-6 text-gray-700">{copy.qrisInfo}</p>
-            <form className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={handleInteractiveQrisCheckout}>
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">{copy.amountLabel}</span>
-                <input
-                  type="number"
-                  min={state.interactiveQris.minimumAmountIdr}
-                  step="1000"
-                  value={qrisAmountInput}
-                  onChange={(event) => setQrisAmountInput(event.target.value)}
-                  className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                  placeholder={String(state.interactiveQris.minimumAmountIdr)}
-                  disabled={qrisCheckoutDisabled}
-                />
-                <p className="mt-1 text-xs text-gray-600">{copy.minimumCreditInfo(formatRupiah(state.interactiveQris.minimumAmountIdr))}</p>
-              </label>
-              <button
-                type="submit"
-                disabled={qrisCheckoutDisabled}
-                className="inline-flex min-h-11 items-center justify-center gap-2 border border-spruce bg-spruce px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300 disabled:text-gray-600"
-              >
-                <QrCode className="h-4 w-4" aria-hidden="true" />
-                {isCreatingQris ? copy.creatingQris : copy.createQris}
-              </button>
-            </form>
-            {qrisClosedState.isClosed && (
-              <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
-                {qrisClosedState.message || copy.qrisClosed}
-              </div>
-            )}
-            {!state.interactiveQris.available && (
-              <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
-                {copy.qrisMissing}
-              </div>
-            )}
-            {activeQrisInstruction ? (
-              <div className="grid gap-3 border border-line bg-panel p-3 lg:grid-cols-[160px_minmax(0,1fr)]">
-                <div className="flex items-start justify-center">
-                  {activeQrisInstruction.qrImageUrl ? (
-                    <img
-                      src={activeQrisInstruction.qrImageUrl}
-                      alt={state.interactiveQris.merchantName || copy.qrisTitle}
-                      className="h-auto w-full max-w-[160px] border border-line bg-white p-2"
-                    />
-                  ) : (
-                    <div className="flex h-40 w-full max-w-[160px] items-center justify-center border border-dashed border-line bg-white text-xs text-gray-500">
-                      QR belum diisi
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2 text-sm leading-6 text-gray-700">
-                  <p><strong>{copy.exactPayableAmount}:</strong> {formatRupiah(activeQrisInstruction.displayAmountIdr)}</p>
-                  <p><strong>{copy.baseAmount}:</strong> {formatRupiah(activeQrisInstruction.baseAmountIdr)}</p>
-                  <p><strong>{copy.uniqueCode}:</strong> {activeQrisInstruction.uniqueCode}</p>
-                  <p><strong>{copy.expiresAt}:</strong> {formatPaymentTime(activeQrisInstruction.expiresAt, locale)}</p>
-                  <p><strong>{copy.merchantName}:</strong> {activeQrisInstruction.merchantName || '-'}</p>
-                  <p><strong>{copy.qrisInstructions}:</strong> {activeQrisInstruction.instructions}</p>
-                  {activeQrisInstruction.contact && <p><strong>{copy.adminContact}:</strong> {activeQrisInstruction.contact}</p>}
-                </div>
-              </div>
-            ) : (
-              <div className="border border-line bg-panel p-3 text-sm leading-6 text-gray-700">
-                {copy.waitingPayment}
-              </div>
-            )}
-          </div>
+          ) : selectedPaymentMethod === 'interactive_qris' ? (
+            <div className="border border-line bg-panel p-3 text-sm leading-6 text-gray-700">
+              {copy.waitingPayment}
+            </div>
+          ) : null}
         </div>
 
         {notice && <div className="mt-4 border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-800">{notice}</div>}
@@ -474,7 +482,9 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
               state.aiRedraw.available ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'
             }`}
           >
-            {aiRedrawProviderText}
+            {state.aiRedraw.available
+              ? 'Fitur redraw AI aktif untuk akun ini.'
+              : 'Fitur redraw AI belum aktif. Fitur dasar tetap bisa digunakan.'}
           </div>
         </div>
       </section>

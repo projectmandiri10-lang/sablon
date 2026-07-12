@@ -20,7 +20,7 @@ export function billingProviderLabel(provider) {
 
 export function automaticPaymentProviderLabel(provider) {
   if (provider === 'interactive_qris') return 'QRIS otomatis';
-  if (provider === 'midtrans') return 'Gateway redirect';
+  if (provider === 'midtrans') return 'Pembayaran online';
   return provider || 'Pembayaran otomatis';
 }
 

@@ -112,6 +112,7 @@ test('automatic payment helpers keep QRIS non-refreshable and label mixed provid
   assert.equal(isAutomaticPaymentRefreshable({ provider: 'midtrans', status: 'pending' }), true);
   assert.equal(isAutomaticPaymentRefreshable({ provider: 'interactive_qris', status: 'pending' }), false);
   assert.equal(automaticPaymentProviderLabel('interactive_qris'), 'QRIS otomatis');
+  assert.equal(automaticPaymentProviderLabel('midtrans'), 'Pembayaran online');
   assert.equal(automaticPaymentChannelLabel({ provider: 'interactive_qris', payment_type: 'qris_static_unique' }), 'QRIS statis');
 });
 
