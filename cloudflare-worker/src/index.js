@@ -158,6 +158,10 @@ function mapCompatibleImageError(provider, providerName, response, data) {
     `${providerName} image request failed: ${response.status}`
   );
   const lowered = message.toLowerCase();
+  const bodyAlreadyConsumed =
+    provider === AIVENE_IMAGE_REDRAW_PROVIDER &&
+    response.status === 400 &&
+    /body already used|body (?:stream )?already (?:read|consumed)/.test(lowered);
   let fallbackReason = '';
 
   if (response.status === 429 || /quota|rate limit|resource exhausted|exhausted|too many requests/.test(lowered)) {
@@ -166,11 +170,19 @@ function mapCompatibleImageError(provider, providerName, response, data) {
     fallbackReason = 'billing_required';
   } else if (response.status === 404 || /model.*unavailable|model.*not available|unknown model/.test(lowered)) {
     fallbackReason = 'model_unavailable';
-  } else if (response.status >= 500 || /timeout|timed out|connection|connect|overloaded|service unavailable|gateway|upstream/.test(lowered)) {
+  } else if (
+    bodyAlreadyConsumed ||
+    response.status >= 500 ||
+    /timeout|timed out|connection|connect|overloaded|service unavailable|gateway|upstream/.test(lowered)
+  ) {
     fallbackReason = 'upstream_unavailable';
   }
 
-  return createProviderError(provider, message, {
+  const publicMessage = bodyAlreadyConsumed
+    ? 'AIVene gagal memproses format image edit pada request ini.'
+    : message;
+
+  return createProviderError(provider, publicMessage, {
     statusCode: response.status,
     providerCode: rawStatus,
     responseData: data,
@@ -2133,11 +2145,37 @@ export async function requestAiRetouchedImage(env, image, settings, aiModelConfi
       });
     } catch (error) {
       if (fallbackConfigured && fallbackProvider !== primaryProvider && shouldFallbackToSecondaryProvider(error)) {
-        return requestProviderRetouchedImage(env, image, settings, aiModelConfig, {
-          provider: fallbackProvider,
-          fallbackAttempted: true,
-          fallbackReason: error.fallbackReason || 'primary_failed'
-        });
+        try {
+          return await requestProviderRetouchedImage(env, image, settings, aiModelConfig, {
+            provider: fallbackProvider,
+            fallbackAttempted: true,
+            fallbackReason: error.fallbackReason || 'primary_failed'
+          });
+        } catch (fallbackError) {
+          const primaryName = providerDisplayName(primaryProvider);
+          const fallbackName = providerDisplayName(fallbackProvider);
+          throw createProviderError(
+            fallbackError?.provider || fallbackProvider,
+            `${primaryName} gagal memproses image edit. ${fallbackName} fallback juga gagal: ${normalizeProviderMessage(
+              fallbackError?.message,
+              'provider tidak tersedia.'
+            )}`,
+            {
+              statusCode: fallbackError?.statusCode || 502,
+              providerCode: fallbackError?.providerCode || '',
+              fallbackReason: fallbackError?.fallbackReason || '',
+              responseData: {
+                primary: {
+                  provider: error?.provider || primaryProvider,
+                  statusCode: error?.statusCode || 502,
+                  providerCode: error?.providerCode || '',
+                  fallbackReason: error?.fallbackReason || 'primary_failed'
+                },
+                fallback: fallbackError?.responseData || null
+              }
+            }
+          );
+        }
       }
       throw error;
     }

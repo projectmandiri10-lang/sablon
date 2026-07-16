@@ -233,6 +233,90 @@ test('AIVene falls back to OpenAI on upstream network failure', async () => {
   }
 });
 
+test('AIVene Body already used error falls back once without leaking the gateway message', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    calls.push(url);
+    if (url === 'https://api.aivene.com/v1/images/edits') {
+      return new Response(JSON.stringify({ error: { message: 'Body already used' } }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    if (url === 'https://api.openai.com/v1/images/edits') {
+      return new Response(JSON.stringify({ data: [{ b64_json: 'AQID' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  try {
+    const image = new File([new Uint8Array([1, 2, 3])], 'trace.png', { type: 'image/png' });
+    const env = { AIVENE_API_KEY: 'aivene_test', OPENAI_API_KEY: 'openai_test' };
+    const config = normalizeAiRedrawModelConfig(
+      { primaryProvider: 'aivene_image', fallbackProvider: 'openai_image' },
+      env
+    );
+
+    const result = await requestAiRetouchedImage(env, image, { productionType: 'sablon' }, config);
+    assert.equal(result.metadata.providerUsed, 'openai_image');
+    assert.equal(result.metadata.fallbackAttempted, true);
+    assert.equal(result.metadata.fallbackReason, 'upstream_unavailable');
+    assert.deepEqual(calls, ['https://api.aivene.com/v1/images/edits', 'https://api.openai.com/v1/images/edits']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('AIVene Body already used plus failed OpenAI fallback returns a clear combined error', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    calls.push(url);
+    if (url === 'https://api.aivene.com/v1/images/edits') {
+      return new Response(JSON.stringify({ error: { message: 'Body already used' } }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    if (url === 'https://api.openai.com/v1/images/edits') {
+      return new Response(JSON.stringify({ error: { message: 'Billing hard limit reached' } }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  try {
+    const image = new File([new Uint8Array([1, 2, 3])], 'trace.png', { type: 'image/png' });
+    const env = { AIVENE_API_KEY: 'aivene_test', OPENAI_API_KEY: 'openai_test' };
+    const config = normalizeAiRedrawModelConfig(
+      { primaryProvider: 'aivene_image', fallbackProvider: 'openai_image' },
+      env
+    );
+
+    await assert.rejects(
+      () => requestAiRetouchedImage(env, image, { productionType: 'sablon' }, config),
+      (error) => {
+        assert.match(error.message, /AIVene gagal memproses image edit/);
+        assert.match(error.message, /OpenAI fallback juga gagal/);
+        assert.match(error.message, /Billing hard limit reached/);
+        assert.doesNotMatch(error.message, /Body already used/i);
+        return true;
+      }
+    );
+    assert.deepEqual(calls, ['https://api.aivene.com/v1/images/edits', 'https://api.openai.com/v1/images/edits']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('AIVene validation errors do not fall back to OpenAI', async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
