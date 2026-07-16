@@ -63,7 +63,7 @@ Worker berada di `cloudflare-worker/`.
 
 1. Masuk folder tersebut.
 2. Login Wrangler.
-3. Set secret Supabase, OpenAI, dan OpenRouter.
+3. Set secret Supabase, AIVene, dan OpenAI fallback.
 4. Deploy ke Cloudflare Workers.
 
 Contoh:
@@ -73,8 +73,8 @@ cd cloudflare-worker
 npm install
 npx wrangler login
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+npx wrangler secret put AIVENE_API_KEY
 npx wrangler secret put OPENAI_API_KEY
-npx wrangler secret put OPENROUTER_API_KEY
 npx wrangler secret put INTERACTIVE_QRIS_WEBHOOK_SECRET
 npx wrangler deploy
 ```
@@ -90,19 +90,20 @@ Env Worker yang penting:
 ```env
 SUPABASE_URL=https://YOUR_NEW_PROJECT_REF.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...
+AIVENE_API_KEY=...
+AIVENE_BASE_URL=https://api.aivene.com/v1
+AIVENE_IMAGE_MODEL=gpt-image-1.5
+AIVENE_MAX_IMAGE_INPUT_BYTES=20971520
 OPENAI_API_KEY=...
 OPENAI_IMAGE_MODEL=gpt-image-1.5
-OPENROUTER_API_KEY=...
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_IMAGE_MODEL=black-forest-labs/flux.2-klein-4b
-OPENROUTER_IMAGE_MODEL_FALLBACK=sourceful/riverflow-v2-fast
-OPENROUTER_SAFETY_MODEL=nvidia/nemotron-3.5-content-safety:free
-OPENROUTER_PROMPT_PROFILE=logo_photo_cleanup_short
-OPENROUTER_IMAGE_QUALITY=high
-OPENROUTER_IMAGE_SIZE=1K
-OPENROUTER_MAX_IMAGE_INPUT_BYTES=3200000
-AI_REDRAW_PRIMARY_PROVIDER=openai_image
-AI_REDRAW_FALLBACK_PROVIDER=openrouter_image
+AI_REDRAW_PROMPT_PROFILE=logo_photo_cleanup_short
+AI_REDRAW_IMAGE_QUALITY=medium
+AI_REDRAW_IMAGE_SIZE=1K
+AI_REDRAW_INPUT_FIDELITY=low
+AI_REDRAW_INPUT_MAX_EDGE=1080
+AI_REDRAW_PRESET=standard
+AI_REDRAW_PRIMARY_PROVIDER=aivene_image
+AI_REDRAW_FALLBACK_PROVIDER=openai_image
 INTERACTIVE_QRIS_SOURCE_PACKAGE=com.interactive.qrisid
 INTERACTIVE_QRIS_MIN_AMOUNT_IDR=2000
 INTERACTIVE_QRIS_UNIQUE_DIGITS=2
@@ -110,7 +111,7 @@ INTERACTIVE_QRIS_UNIQUE_DIGITS=2
 
 `SUPABASE_ACCESS_TOKEN` tidak dibutuhkan oleh runtime Worker di Cloudflare. Token itu hanya berguna untuk tooling lokal seperti MCP atau Supabase CLI.
 
-Kalau secret OpenAI dan OpenRouter sama-sama kosong, endpoint AI redraw tetap ada tetapi akan memberi pesan bahwa jalur itu belum diaktifkan.
+Kalau secret AIVene dan OpenAI sama-sama kosong, endpoint AI redraw tetap ada tetapi akan memberi pesan bahwa jalur itu belum diaktifkan.
 
 Endpoint penting:
 
@@ -157,7 +158,7 @@ VITE_GOOGLE_OAUTH_REDIRECT_TO=http://localhost:5173
 2. Coba register dan login Google.
 3. Pastikan `GET /api/app-config` terbaca dari Worker.
 4. Pastikan credit dan admin data terbaca dari Supabase.
-5. Coba mode Ready Trace saat secret OpenAI dan OpenRouter belum diisi; mode ini diproses lokal di browser dan hanya memakai Worker untuk quote/commit credit.
+5. Coba mode Ready Trace saat secret AIVene dan OpenAI belum diisi; mode ini diproses lokal di browser dan hanya memakai Worker untuk quote/commit credit.
 6. Pastikan pesan error AI redraw jelas, bukan error teknis mentah.
 7. Jika memakai QRIS gratis via Android relay, lanjutkan setup operator di `INTERACTIVE_QRIS_NOTIFICATION_FORWARDER.md`.
 
@@ -166,8 +167,8 @@ VITE_GOOGLE_OAUTH_REDIRECT_TO=http://localhost:5173
 Isi env ini di Worker:
 
 ```env
+AIVENE_API_KEY=...
 OPENAI_API_KEY=...
-OPENROUTER_API_KEY=...
 ```
 
-Mode ini tetap opsional dan bukan syarat untuk deploy Cloudflare free tier, tetapi tanpa secret OpenAI dan tanpa fallback OpenRouter, jalur AI redraw tidak aktif.
+Mode ini tetap opsional dan bukan syarat untuk deploy Cloudflare free tier, tetapi tanpa secret AIVene dan tanpa fallback OpenAI, jalur AI redraw tidak aktif.

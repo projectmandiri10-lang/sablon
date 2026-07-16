@@ -9,7 +9,6 @@ const exampleJobsMigration = fs.readFileSync(path.join(import.meta.dirname, 'mig
 const publishedExamplesMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260528153000_publishable_example_jobs.sql'), 'utf8');
 const bootstrapSql = fs.readFileSync(path.join(import.meta.dirname, 'SUPABASE_BOOTSTRAP.sql'), 'utf8');
 const signupBonusGuardMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260702110000_signup_bonus_device_ip_guard.sql'), 'utf8');
-const liteLlmPrimaryMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627120000_litellm_primary_openrouter_fallback.sql'), 'utf8');
 const pricingRefreshMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260627123000_set_ai_redraw_5000_ready_trace_2000.sql'), 'utf8');
 const pricingTenThousandMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260709113000_set_ai_redraw_10000.sql'), 'utf8');
 const midtransPaymentsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260701103000_add_midtrans_payment_transactions.sql'), 'utf8');
@@ -24,6 +23,8 @@ const openAiDirectMigration = fs.readFileSync(path.join(import.meta.dirname, 'mi
 const interactiveQrisPaymentsMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260711103000_add_interactive_qris_payment_support.sql'), 'utf8');
 const interactiveQrisClosedHoursMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260711120000_add_interactive_qris_closed_hours_defaults.sql'), 'utf8');
 const mediumOpenAiQualityMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260712103000_set_openai_redraw_medium_quality.sql'), 'utf8');
+const aivenePrimaryMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260716110000_switch_ai_redraw_to_aivene_primary_openai_fallback.sql'), 'utf8');
+const inputTokenOptimizationMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260716120000_optimize_ai_redraw_input_tokens.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -79,20 +80,13 @@ test('bootstrap sql includes the core tables and settings seed', () => {
     assert.match(bootstrapSql, new RegExp(`create table if not exists public\\.${table}`));
   }
   assert.match(bootstrapSql, /\('ai_redraw', 10000, 'AI Redesign Premium image-to-image termasuk pecah warna sablon', true\)/);
-  assert.match(bootstrapSql, /"provider":"openai_image"/);
-  assert.match(bootstrapSql, /"fallbackProvider":"openrouter_image"/);
+  assert.match(bootstrapSql, /"provider":"aivene_image"/);
+  assert.match(bootstrapSql, /"primaryProvider":"aivene_image"/);
+  assert.match(bootstrapSql, /"fallbackProvider":"openai_image"/);
+  assert.match(bootstrapSql, /"aiveneImageModel":"gpt-image-1\.5"/);
   assert.match(bootstrapSql, /"openAiImageModel":"gpt-image-1\.5"/);
   assert.match(bootstrapSql, /"promptProfile":"logo_photo_cleanup_short"/);
-  assert.match(bootstrapSql, /black-forest-labs\/flux\.2-klein-4b/);
   assert.match(bootstrapSql, /example-jobs/);
-});
-
-test('latest redraw migration seeds litellm primary with openrouter fallback', () => {
-  assert.match(liteLlmPrimaryMigration, /'provider', 'litellm_image'/);
-  assert.match(liteLlmPrimaryMigration, /'primaryProvider', 'litellm_image'/);
-  assert.match(liteLlmPrimaryMigration, /'fallbackProvider', 'openrouter_image'/);
-  assert.match(liteLlmPrimaryMigration, /'liteLlmImageModel', 'gemini-3\.1-flash-image-preview'/);
-  assert.match(liteLlmPrimaryMigration, /Pipeline LiteLLM primary \+ OpenRouter fallback untuk AI redraw/);
 });
 
 test('latest pricing migration sets ready trace to 2000 and ai redraw to 5000', () => {
@@ -143,7 +137,6 @@ test('latest direct OpenAI migration upgrades legacy LiteLLM redraw rows', () =>
   assert.match(openAiDirectMigration, /'primaryProvider',\s*case[\s\S]*'openai_image'/);
   assert.match(openAiDirectMigration, /'openAiImageModel'/);
   assert.match(openAiDirectMigration, /- 'liteLlmImageModel'/);
-  assert.match(openAiDirectMigration, /Pipeline OpenAI primary \+ OpenRouter fallback untuk AI redraw/);
   assert.match(openAiDirectMigration, /logo_photo_cleanup_short/);
 });
 
@@ -151,6 +144,23 @@ test('latest redraw quality migration switches default OpenAI redraw quality to 
   assert.match(mediumOpenAiQualityMigration, /'generationQuality', 'medium'/);
   assert.match(mediumOpenAiQualityMigration, /quality medium untuk testing/);
   assert.match(bootstrapSql, /"generationQuality":"medium"/);
+});
+
+test('latest AIVene migration moves redraw defaults to AIVene primary with OpenAI fallback', () => {
+  assert.match(aivenePrimaryMigration, /'provider', 'aivene_image'/);
+  assert.match(aivenePrimaryMigration, /'primaryProvider', 'aivene_image'/);
+  assert.match(aivenePrimaryMigration, /'fallbackProvider', 'openai_image'/);
+  assert.match(aivenePrimaryMigration, /'aiveneImageModel', 'gpt-image-1\.5'/);
+  assert.match(aivenePrimaryMigration, /Pipeline AIVene primary \+ OpenAI fallback untuk AI redraw/);
+});
+
+test('latest redraw optimization defaults to 1080px low-fidelity input', () => {
+  assert.match(inputTokenOptimizationMigration, /'mode', 'standard'/);
+  assert.match(inputTokenOptimizationMigration, /'inputFidelity', 'low'/);
+  assert.match(inputTokenOptimizationMigration, /'inputMaxEdge', 1080/);
+  assert.match(inputTokenOptimizationMigration, /'retryOnLowConfidence', false/);
+  assert.match(bootstrapSql, /"inputFidelity":"low"/);
+  assert.match(bootstrapSql, /"inputMaxEdge":1080/);
 });
 
 test('bootstrap sql hardens helper functions and policy indexes', () => {

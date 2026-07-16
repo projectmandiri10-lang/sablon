@@ -2,24 +2,35 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildAiRedrawPrompt, getAiRedrawModelPresets, normalizeAiRedrawModelConfig } from './index.js';
 
-test('AI redraw model presets expose OpenAI primary with OpenRouter fallback', () => {
+test('AI redraw model presets expose AIVene primary with OpenAI fallback', () => {
   const presets = getAiRedrawModelPresets();
 
-  assert.equal(presets.budget.provider, 'openai_image');
-  assert.equal(presets.budget.primaryProvider, 'openai_image');
-  assert.equal(presets.budget.fallbackProvider, 'openrouter_image');
+  assert.equal(presets.budget.provider, 'aivene_image');
+  assert.equal(presets.budget.primaryProvider, 'aivene_image');
+  assert.equal(presets.budget.fallbackProvider, 'openai_image');
+  assert.equal(presets.budget.aiveneImageModel, 'gpt-image-1.5');
   assert.equal(presets.budget.openAiImageModel, 'gpt-image-1.5');
-  assert.equal(presets.budget.generationModel, 'black-forest-labs/flux.2-klein-4b');
-  assert.equal(presets.budget.fallbackModel, 'sourceful/riverflow-v2-fast');
   assert.equal(presets.budget.promptProfile, 'logo_photo_cleanup_short');
   assert.equal(presets.budget.generationQuality, 'low');
-  assert.equal(presets.quality.openAiImageModel, 'gpt-image-1.5');
+  assert.equal(presets.budget.inputFidelity, 'low');
+  assert.equal(presets.standard.inputFidelity, 'low');
+  assert.equal(presets.standard.inputMaxEdge, 1080);
+  assert.equal(presets.quality.aiveneImageModel, 'gpt-image-1.5');
+  assert.equal(presets.quality.inputFidelity, 'high');
   assert.equal(presets.standard.generationQuality, 'medium');
   assert.equal(presets.quality.generationQuality, 'medium');
   assert.equal(presets.quality.imageSize, '1K');
-  assert.equal(presets.quality.safetyModel, 'nvidia/nemotron-3.5-content-safety:free');
-  assert.equal(presets.premium.retryOnLowConfidence, true);
+  assert.equal(presets.premium.retryOnLowConfidence, false);
   assert.equal(Object.keys(presets).length, 4);
+});
+
+test('unspecified redraw config defaults to the standard low-fidelity preset', () => {
+  const normalized = normalizeAiRedrawModelConfig();
+  assert.equal(normalized.mode, 'standard');
+  assert.equal(normalized.generationQuality, 'medium');
+  assert.equal(normalized.imageSize, '1K');
+  assert.equal(normalized.inputFidelity, 'low');
+  assert.equal(normalized.inputMaxEdge, 1080);
 });
 
 test('legacy standard quality values normalize into medium', () => {
@@ -31,7 +42,7 @@ test('legacy standard quality values normalize into medium', () => {
   assert.equal(normalized.generationQuality, 'medium');
 });
 
-test('legacy Gemini direct values normalize into OpenAI primary config', () => {
+test('legacy Gemini direct values normalize into AIVene primary config', () => {
   const normalized = normalizeAiRedrawModelConfig({
     mode: 'quality',
     provider: 'gemini_direct_image',
@@ -40,110 +51,94 @@ test('legacy Gemini direct values normalize into OpenAI primary config', () => {
     estimatedUsdPerImage: 0.101
   });
 
-  assert.equal(normalized.provider, 'openai_image');
-  assert.equal(normalized.primaryProvider, 'openai_image');
-  assert.equal(normalized.fallbackProvider, 'openrouter_image');
+  assert.equal(normalized.provider, 'aivene_image');
+  assert.equal(normalized.primaryProvider, 'aivene_image');
+  assert.equal(normalized.fallbackProvider, 'openai_image');
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-1.5');
   assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
-  assert.equal(normalized.analysisModel, '');
-  assert.equal(normalized.generationModel, 'black-forest-labs/flux.2-klein-4b');
-  assert.equal(normalized.fallbackModel, 'sourceful/riverflow-v2-fast');
   assert.equal(normalized.promptProfile, 'logo_photo_cleanup_short');
   assert.equal(normalized.imageSize, '2K');
-  assert.equal(normalized.safetyModel, 'nvidia/nemotron-3.5-content-safety:free');
   assert.equal(normalized.resolutionPolicy, 'high');
   assert.equal(normalized.persistPrompt, true);
 });
 
-test('legacy LiteLLM rows normalize into OpenAI direct shape', () => {
+test('legacy LiteLLM rows normalize into AIVene direct shape', () => {
   const normalized = normalizeAiRedrawModelConfig({
     mode: 'quality',
     provider: 'litellm_image',
     primaryProvider: 'litellm_image',
-    fallbackProvider: 'openrouter_image',
+    fallbackProvider: 'openai_image',
     liteLlmImageModel: 'openai/gpt-image-1.5'
   });
 
-  assert.equal(normalized.provider, 'openai_image');
-  assert.equal(normalized.primaryProvider, 'openai_image');
-  assert.equal(normalized.fallbackProvider, 'openrouter_image');
-  assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
+  assert.equal(normalized.provider, 'aivene_image');
+  assert.equal(normalized.primaryProvider, 'aivene_image');
+  assert.equal(normalized.fallbackProvider, 'openai_image');
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-1.5');
 });
 
-test('legacy openrouter rows preserve openrouter fallback model values', () => {
-  const normalized = normalizeAiRedrawModelConfig({
-    mode: 'quality',
-    provider: 'openrouter_gemini_image',
-    model: 'old-image-model',
-    imageSize: '2K',
-    estimatedUsdPerImage: 0.101
-  });
-
-  assert.equal(normalized.provider, 'openrouter_image');
-  assert.equal(normalized.primaryProvider, 'openrouter_image');
-  assert.equal(normalized.fallbackProvider, '');
-  assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
-  assert.equal(normalized.generationModel, 'old-image-model');
-  assert.equal(normalized.fallbackModel, 'sourceful/riverflow-v2-fast');
-});
-
-test('env defaults can activate OpenAI primary config', () => {
+test('env defaults can activate AIVene primary config', () => {
   const normalized = normalizeAiRedrawModelConfig(
     {
-      primaryProvider: 'openai_image',
-      fallbackProvider: 'openrouter_image'
+      primaryProvider: 'aivene_image',
+      fallbackProvider: 'openai_image'
     },
     {
+      AIVENE_IMAGE_MODEL: 'gpt-image-1.5',
       OPENAI_IMAGE_MODEL: 'gpt-image-1.5',
-      OPENROUTER_IMAGE_MODEL: 'owner/custom-openrouter-model',
-      AI_REDRAW_PRIMARY_PROVIDER: 'openai_image',
-      AI_REDRAW_FALLBACK_PROVIDER: 'openrouter_image'
+      AI_REDRAW_PRIMARY_PROVIDER: 'aivene_image',
+      AI_REDRAW_FALLBACK_PROVIDER: 'openai_image'
     }
   );
 
-  assert.equal(normalized.primaryProvider, 'openai_image');
-  assert.equal(normalized.fallbackProvider, 'openrouter_image');
+  assert.equal(normalized.primaryProvider, 'aivene_image');
+  assert.equal(normalized.fallbackProvider, 'openai_image');
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-1.5');
   assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
-  assert.equal(normalized.generationModel, 'owner/custom-openrouter-model');
 });
 
-test('OpenAI GPT Image 1.5 is the canonical direct default model', () => {
+test('OpenAI GPT Image 1.5 stays canonical for both AIVene and OpenAI routes', () => {
   const normalized = normalizeAiRedrawModelConfig(
     {
-      primaryProvider: 'openai_image',
-      fallbackProvider: 'openrouter_image'
+      primaryProvider: 'aivene_image',
+      fallbackProvider: 'openai_image'
     },
     {
+      AIVENE_IMAGE_MODEL: 'openai/gpt-image-1.5',
       OPENAI_IMAGE_MODEL: 'openai/gpt-image-1.5'
     }
   );
 
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-1.5');
   assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
 });
 
 test('explicit OpenAI GPT Image 1 legacy value stays pinned when requested', () => {
   const normalized = normalizeAiRedrawModelConfig(
     {
-      primaryProvider: 'openai_image',
-      fallbackProvider: 'openrouter_image',
+      primaryProvider: 'aivene_image',
+      fallbackProvider: 'openai_image',
+      aiveneImageModel: 'gpt-image-1',
       openAiImageModel: 'gpt-image-1'
     },
     {}
   );
 
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-1');
   assert.equal(normalized.openAiImageModel, 'gpt-image-1');
 });
 
-test('explicit fallback provider still works when project defaults are OpenAI-first', () => {
+test('explicit fallback provider still works when project defaults are AIVene-first', () => {
   const normalized = normalizeAiRedrawModelConfig(
     {
-      primaryProvider: 'openai_image',
-      fallbackProvider: 'openrouter_image'
+      primaryProvider: 'aivene_image',
+      fallbackProvider: 'openai_image'
     },
     {}
   );
 
-  assert.equal(normalized.primaryProvider, 'openai_image');
-  assert.equal(normalized.fallbackProvider, 'openrouter_image');
+  assert.equal(normalized.primaryProvider, 'aivene_image');
+  assert.equal(normalized.fallbackProvider, 'openai_image');
 });
 
 test('sablon redraw prompt preserves original colors automatically and improves trace quality', () => {

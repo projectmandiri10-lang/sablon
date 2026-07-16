@@ -20,9 +20,10 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 - Jalur deploy dipisah dari backend Node/Express lama.
 - `VITE_API_BASE_URL` mengarah ke Worker baru.
 - `VITE_GOOGLE_OAUTH_REDIRECT_TO` mengarah ke domain Pages baru.
-- AI redraw sekarang berjalan lewat `OpenAI` direct sebagai jalur utama dengan `OpenRouter` sebagai fallback otomatis.
-- Default copy ini disetel ke `OpenAI-first` agar local, Worker, dan seed database konsisten.
-- Jika secret `OPENAI_API_KEY` dan `OPENROUTER_API_KEY` belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai lewat proses lokal browser.
+- AI redraw sekarang berjalan lewat `AIVene` sebagai jalur utama dengan `OpenAI` sebagai fallback otomatis.
+- Default copy ini disetel ke preset hemat `standard`: input AI maksimal 1080 px pada sisi terpanjang, `input_fidelity=low`, output `medium` 1K, dan tanpa retry low-confidence.
+- Browser mengirim salinan WebP terkompresi untuk foto biasa atau PNG untuk gambar transparan; file upload asli tetap tersedia untuk preview dan proses lokal.
+- Jika secret `AIVENE_API_KEY` dan `OPENAI_API_KEY` belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai lewat proses lokal browser.
 
 ## Mulai Cepat
 

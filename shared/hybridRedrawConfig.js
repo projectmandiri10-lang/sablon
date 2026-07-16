@@ -1,124 +1,104 @@
+export const AIVENE_IMAGE_REDRAW_PROVIDER = 'aivene_image';
 export const OPENAI_IMAGE_REDRAW_PROVIDER = 'openai_image';
-export const OPENROUTER_IMAGE_REDRAW_PROVIDER = 'openrouter_image';
-export const OPENROUTER_GEMINI_REDRAW_PROVIDER = 'openrouter_gemini_image';
-export const OPENROUTER_RIVERFLOW_REDRAW_PROVIDER = 'openrouter_riverflow_image';
 export const LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER = 'gemini_direct_image';
-export const HYBRID_REDRAW_PROVIDER = OPENAI_IMAGE_REDRAW_PROVIDER;
+export const HYBRID_REDRAW_PROVIDER = AIVENE_IMAGE_REDRAW_PROVIDER;
 
+export const DEFAULT_AIVENE_IMAGE_MODEL = 'gpt-image-1.5';
 export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-1.5';
-export const DEFAULT_OPENROUTER_IMAGE_MODEL = 'black-forest-labs/flux.2-klein-4b';
-export const DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK = 'sourceful/riverflow-v2-fast';
-export const DEFAULT_OPENROUTER_SAFETY_MODEL = 'nvidia/nemotron-3.5-content-safety:free';
-export const DEFAULT_OPENROUTER_PROMPT_PROFILE = 'logo_photo_cleanup_short';
+export const DEFAULT_PROMPT_PROFILE = 'logo_photo_cleanup_short';
 
 export const HYBRID_REDRAW_PRESETS = {
   budget: {
     mode: 'budget',
     preset: 'budget',
     label: 'Hemat',
-    provider: OPENAI_IMAGE_REDRAW_PROVIDER,
-    primaryProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
-    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    provider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
+    aiveneImageModel: DEFAULT_AIVENE_IMAGE_MODEL,
     openAiImageModel: DEFAULT_OPENAI_IMAGE_MODEL,
-    analysisModel: '',
-    generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
-    fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
-    safetyModel: DEFAULT_OPENROUTER_SAFETY_MODEL,
-    promptProfile: DEFAULT_OPENROUTER_PROMPT_PROFILE,
+    promptProfile: DEFAULT_PROMPT_PROFILE,
     generationQuality: 'low',
     imageSize: '1K',
-    reasoningEffort: 'low',
-    backgroundMode: 'transparent',
-    safetyEnabled: true,
+    inputFidelity: 'low',
+    inputMaxEdge: 1080,
     aspectPolicy: 'match_source',
     resolutionPolicy: 'standard',
-    preprocess: 'node_heuristic',
+    preprocess: 'browser_1080_then_provider',
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.03,
-    note: 'OpenAI direct menjadi jalur hemat default untuk redraw dengan OpenRouter sebagai fallback otomatis.'
+    note: 'AIVene menjadi jalur hemat default untuk redraw dengan OpenAI sebagai fallback otomatis.'
   },
   standard: {
     mode: 'standard',
     preset: 'standard',
     label: 'Standar',
-    provider: OPENAI_IMAGE_REDRAW_PROVIDER,
-    primaryProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
-    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    provider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
+    aiveneImageModel: DEFAULT_AIVENE_IMAGE_MODEL,
     openAiImageModel: DEFAULT_OPENAI_IMAGE_MODEL,
-    analysisModel: '',
-    generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
-    fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
-    safetyModel: DEFAULT_OPENROUTER_SAFETY_MODEL,
-    promptProfile: DEFAULT_OPENROUTER_PROMPT_PROFILE,
+    promptProfile: DEFAULT_PROMPT_PROFILE,
     generationQuality: 'medium',
     imageSize: '1K',
-    reasoningEffort: 'low',
-    backgroundMode: 'transparent',
-    safetyEnabled: true,
+    inputFidelity: 'low',
+    inputMaxEdge: 1080,
     aspectPolicy: 'match_source',
     resolutionPolicy: 'standard',
-    preprocess: 'node_heuristic',
+    preprocess: 'browser_1080_then_provider',
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.04,
-    note: 'OpenAI direct menjadi jalur utama default, OpenRouter tetap siap sebagai cadangan saat diperlukan.'
+    note: 'AIVene menjadi jalur utama default, OpenAI tetap siap sebagai cadangan saat diperlukan.'
   },
   quality: {
     mode: 'quality',
     preset: 'quality',
     label: 'Kualitas',
-    provider: OPENAI_IMAGE_REDRAW_PROVIDER,
-    primaryProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
-    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    provider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
+    aiveneImageModel: DEFAULT_AIVENE_IMAGE_MODEL,
     openAiImageModel: DEFAULT_OPENAI_IMAGE_MODEL,
-    analysisModel: '',
-    generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
-    fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
-    safetyModel: DEFAULT_OPENROUTER_SAFETY_MODEL,
-    promptProfile: DEFAULT_OPENROUTER_PROMPT_PROFILE,
+    promptProfile: DEFAULT_PROMPT_PROFILE,
     generationQuality: 'medium',
     imageSize: '1K',
-    reasoningEffort: 'medium',
-    backgroundMode: 'transparent',
-    safetyEnabled: true,
+    inputFidelity: 'high',
+    inputMaxEdge: 1080,
     aspectPolicy: 'match_source',
     resolutionPolicy: 'high',
-    preprocess: 'node_heuristic',
+    preprocess: 'browser_1080_then_provider',
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.05,
-    note: 'Default OpenAI GPT Image 1.5 short logo cleanup dengan OpenRouter fallback untuk upstream error yang layak dialihkan.'
+    note: 'Default AIVene GPT Image 1.5 short logo cleanup dengan fallback OpenAI otomatis, quality medium untuk testing.'
   },
   premium: {
     mode: 'premium',
     preset: 'premium',
     label: 'Premium',
-    provider: OPENAI_IMAGE_REDRAW_PROVIDER,
-    primaryProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
-    fallbackProvider: OPENROUTER_IMAGE_REDRAW_PROVIDER,
+    provider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
+    aiveneImageModel: DEFAULT_AIVENE_IMAGE_MODEL,
     openAiImageModel: DEFAULT_OPENAI_IMAGE_MODEL,
-    analysisModel: '',
-    generationModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
-    fallbackModel: DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK,
-    safetyModel: DEFAULT_OPENROUTER_SAFETY_MODEL,
-    promptProfile: DEFAULT_OPENROUTER_PROMPT_PROFILE,
+    promptProfile: DEFAULT_PROMPT_PROFILE,
     generationQuality: 'high',
     imageSize: '2K',
-    reasoningEffort: 'high',
-    backgroundMode: 'transparent',
-    safetyEnabled: true,
+    inputFidelity: 'high',
+    inputMaxEdge: 1080,
     aspectPolicy: 'match_source',
     resolutionPolicy: 'high',
-    preprocess: 'node_heuristic',
+    preprocess: 'browser_1080_then_provider',
     persistPrompt: true,
-    retryOnLowConfidence: true,
+    retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.08,
-    note: 'OpenAI direct kualitas tinggi dengan OpenRouter sebagai fallback untuk menjaga kontinuitas redraw.'
+    note: 'AIVene kualitas tinggi dengan OpenAI sebagai fallback untuk menjaga kontinuitas redraw.'
   }
 };
 
-const SUPPORTED_PROVIDERS = [OPENAI_IMAGE_REDRAW_PROVIDER, OPENROUTER_IMAGE_REDRAW_PROVIDER];
+const SUPPORTED_PROVIDERS = [AIVENE_IMAGE_REDRAW_PROVIDER, OPENAI_IMAGE_REDRAW_PROVIDER];
 const SUPPORTED_PROMPT_PROFILES = ['logo_photo_cleanup_short', 'photo_logo_cleanup', 'stylized_redraw', 'generic_trace_clone', 'sourceful_trace_clone', 'gemini_trace_clone'];
 
 function isObject(value) {
@@ -134,11 +114,7 @@ function normalizeText(value, fallback) {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
-function normalizeOptionalText(value, fallback = '') {
-  return typeof value === 'string' ? value.trim() : fallback;
-}
-
-function normalizeOpenAiImageModel(value, fallback = DEFAULT_OPENAI_IMAGE_MODEL) {
+function normalizeCompatibleImageModel(value, fallback) {
   const normalized = normalizeText(value, fallback);
   const lowered = normalized.toLowerCase();
 
@@ -160,9 +136,14 @@ function normalizeImageSize(value, fallback) {
   return normalized === '1K' || normalized === '2K' || normalized === '4K' ? normalized : fallback;
 }
 
-function normalizeReasoningEffort(value, fallback) {
+function normalizeInputFidelity(value, fallback) {
   const normalized = normalizeText(value, fallback).toLowerCase();
-  return ['low', 'medium', 'high', 'xhigh'].includes(normalized) ? normalized : fallback;
+  return normalized === 'low' || normalized === 'high' ? normalized : fallback;
+}
+
+function normalizeInputMaxEdge(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 256 && parsed <= 1080 ? parsed : fallback;
 }
 
 function normalizePromptProfile(value, fallback) {
@@ -190,12 +171,11 @@ function inferPreset(input, env) {
   if (typeof input.mode === 'string' && HYBRID_REDRAW_PRESETS[input.mode]) return input.mode;
   if (typeof input.preset === 'string' && HYBRID_REDRAW_PRESETS[input.preset]) return input.preset;
   if (typeof env.AI_REDRAW_PRESET === 'string' && HYBRID_REDRAW_PRESETS[env.AI_REDRAW_PRESET]) return env.AI_REDRAW_PRESET;
-  return 'quality';
+  return 'standard';
 }
 
 function normalizeProvider(value, fallback) {
-  if (value === LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER || value === 'litellm_image') return OPENAI_IMAGE_REDRAW_PROVIDER;
-  if (value === OPENROUTER_GEMINI_REDRAW_PROVIDER || value === OPENROUTER_RIVERFLOW_REDRAW_PROVIDER) return OPENROUTER_IMAGE_REDRAW_PROVIDER;
+  if (value === LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER || value === 'litellm_image') return AIVENE_IMAGE_REDRAW_PROVIDER;
   return SUPPORTED_PROVIDERS.includes(value) ? value : fallback;
 }
 
@@ -214,10 +194,6 @@ export function normalizeHybridRedrawConfig(value = {}, env = {}) {
   const requestedPresetKey = inferPreset(input, env);
   const presetKey = requestedPresetKey === 'custom' ? 'quality' : requestedPresetKey;
   const preset = HYBRID_REDRAW_PRESETS[presetKey] || HYBRID_REDRAW_PRESETS.quality;
-  const legacyOpenRouterConfig =
-    input.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER ||
-    input.provider === OPENROUTER_GEMINI_REDRAW_PROVIDER ||
-    input.provider === OPENROUTER_RIVERFLOW_REDRAW_PROVIDER;
   const primaryProvider = normalizeProvider(input.primaryProvider || input.provider, normalizeProvider(env.AI_REDRAW_PRIMARY_PROVIDER, preset.primaryProvider));
   const fallbackProvider = normalizeFallbackProvider(
     input.fallbackProvider,
@@ -232,32 +208,22 @@ export function normalizeHybridRedrawConfig(value = {}, env = {}) {
     provider: primaryProvider,
     primaryProvider,
     fallbackProvider,
-    openAiImageModel: normalizeOpenAiImageModel(
-      input.openAiImageModel || input.liteLlmImageModel || input.geminiGenerationModel || input.geminiModel,
-      normalizeOpenAiImageModel(env.OPENAI_IMAGE_MODEL, preset.openAiImageModel)
+    aiveneImageModel: normalizeCompatibleImageModel(
+      input.aiveneImageModel || input.openAiImageModel || input.liteLlmImageModel || input.geminiGenerationModel || input.geminiModel || input.generationModel,
+      normalizeCompatibleImageModel(env.AIVENE_IMAGE_MODEL || env.OPENAI_IMAGE_MODEL, preset.aiveneImageModel)
     ),
-    analysisModel: normalizeOptionalText(
-      input.analysisModel,
-      normalizeOptionalText(env.OPENROUTER_ANALYSIS_MODEL, preset.analysisModel)
+    openAiImageModel: normalizeCompatibleImageModel(
+      input.openAiImageModel || input.liteLlmImageModel || input.aiveneImageModel || input.geminiGenerationModel || input.geminiModel,
+      normalizeCompatibleImageModel(env.OPENAI_IMAGE_MODEL || env.AIVENE_IMAGE_MODEL, preset.openAiImageModel)
     ),
-    generationModel: normalizeText(
-      input.generationModel || input.model,
-      normalizeText(env.OPENROUTER_IMAGE_MODEL, legacyOpenRouterConfig ? input.generationModel || input.model || preset.generationModel : preset.generationModel)
-    ),
-    fallbackModel: normalizeText(
-      input.fallbackModel,
-      normalizeText(env.OPENROUTER_IMAGE_MODEL_FALLBACK, legacyOpenRouterConfig ? input.fallbackModel || preset.fallbackModel : preset.fallbackModel)
-    ),
-    safetyModel: normalizeText(
-      input.safetyModel,
-      normalizeText(env.OPENROUTER_SAFETY_MODEL, legacyOpenRouterConfig ? input.safetyModel || preset.safetyModel : preset.safetyModel)
-    ),
-    promptProfile: normalizePromptProfile(input.promptProfile || env.OPENROUTER_PROMPT_PROFILE, preset.promptProfile),
-    generationQuality: normalizeGenerationQuality(input.generationQuality || env.OPENROUTER_IMAGE_QUALITY, preset.generationQuality),
-    imageSize: normalizeImageSize(input.imageSize || env.OPENROUTER_IMAGE_SIZE, preset.imageSize),
-    reasoningEffort: normalizeReasoningEffort(input.reasoningEffort || env.OPENROUTER_REASONING_EFFORT, preset.reasoningEffort),
-    backgroundMode: normalizeBackgroundMode(input.backgroundMode || env.OPENROUTER_BACKGROUND_MODE, preset.backgroundMode),
-    safetyEnabled: normalizeBoolean(input.safetyEnabled ?? env.OPENROUTER_SAFETY_ENABLED, preset.safetyEnabled),
+    promptProfile: normalizePromptProfile(input.promptProfile || env.AI_REDRAW_PROMPT_PROFILE, preset.promptProfile),
+    generationQuality: normalizeGenerationQuality(input.generationQuality || env.AI_REDRAW_IMAGE_QUALITY, preset.generationQuality),
+    imageSize: normalizeImageSize(input.imageSize || env.AI_REDRAW_IMAGE_SIZE, preset.imageSize),
+    inputFidelity: normalizeInputFidelity(input.inputFidelity || env.AI_REDRAW_INPUT_FIDELITY, preset.inputFidelity),
+    inputMaxEdge: normalizeInputMaxEdge(input.inputMaxEdge || env.AI_REDRAW_INPUT_MAX_EDGE, preset.inputMaxEdge),
+    reasoningEffort: '',
+    backgroundMode: normalizeBackgroundMode(input.backgroundMode, 'transparent'),
+    safetyEnabled: normalizeBoolean(input.safetyEnabled, true),
     aspectPolicy: normalizeText(input.aspectPolicy, preset.aspectPolicy),
     resolutionPolicy: normalizeText(input.resolutionPolicy, preset.resolutionPolicy),
     preprocess: normalizeText(input.preprocess, preset.preprocess),

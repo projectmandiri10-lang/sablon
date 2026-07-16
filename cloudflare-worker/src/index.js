@@ -27,9 +27,9 @@ import {
   normalizeManualPaymentTransaction
 } from './admin-finance.js';
 import {
+  AIVENE_IMAGE_REDRAW_PROVIDER,
   HYBRID_REDRAW_PRESETS,
   OPENAI_IMAGE_REDRAW_PROVIDER,
-  OPENROUTER_IMAGE_REDRAW_PROVIDER,
   normalizeHybridRedrawConfig
 } from '../../shared/hybridRedrawConfig.js';
 import {
@@ -63,6 +63,7 @@ const AUTOMATIC_PAYMENT_SELECT_FIELDS =
 const SIGNUP_BONUS_REASON = 'signup_free_credit';
 const SIGNUP_BONUS_AMOUNT_IDR = 5000;
 const SIGNUP_BONUS_MAX_MATCHED_CLAIMS = 2;
+const OPENAI_COMPATIBLE_FALLBACK_REASONS = ['quota_exhausted', 'billing_required', 'model_unavailable', 'upstream_unavailable'];
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -87,46 +88,38 @@ function hasEnvValue(env, key) {
   return Boolean(env[key]);
 }
 
-function isOpenRouterConfigured(env) {
-  return hasEnvValue(env, 'OPENROUTER_API_KEY');
+function isAiveneConfigured(env) {
+  return hasEnvValue(env, 'AIVENE_API_KEY');
 }
 
 function isOpenAiConfigured(env) {
   return hasEnvValue(env, 'OPENAI_API_KEY');
 }
 
+function aiveneBaseUrl(env) {
+  return String(env.AIVENE_BASE_URL || 'https://api.aivene.com/v1').replace(/\/+$/, '');
+}
+
 function openAiBaseUrl(env) {
   return String(env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+}
+
+function aiveneMaxImageInputBytes(env) {
+  const fallback = 20 * 1024 * 1024;
+  const parsed = Number.parseInt(env.AIVENE_MAX_IMAGE_INPUT_BYTES, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function openAiMaxImageInputBytes() {
   return 20 * 1024 * 1024;
 }
 
-function openRouterBaseUrl(env) {
-  return String(env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
-}
-
-function openRouterMaxImageInputBytes(env) {
-  const fallback = 3200000;
-  const parsed = Number.parseInt(env.OPENROUTER_MAX_IMAGE_INPUT_BYTES, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function openRouterAppName(env) {
-  return String(env.OPENROUTER_APP_NAME || 'EasyRedesign Pro').trim();
-}
-
-function openRouterSiteUrl(env) {
-  return String(env.OPENROUTER_SITE_URL || '').trim();
-}
-
 function providerDisplayName(provider) {
   switch (provider) {
+    case AIVENE_IMAGE_REDRAW_PROVIDER:
+      return 'AIVene';
     case OPENAI_IMAGE_REDRAW_PROVIDER:
       return 'OpenAI';
-    case OPENROUTER_IMAGE_REDRAW_PROVIDER:
-      return 'OpenRouter';
     default:
       return provider || 'provider AI';
   }
@@ -152,11 +145,17 @@ function buildOpenAiHeaders(env) {
   };
 }
 
-function mapOpenAiError(response, data) {
+function buildAiveneHeaders(env) {
+  return {
+    Authorization: `Bearer ${requireEnvValue(env, 'AIVENE_API_KEY')}`
+  };
+}
+
+function mapCompatibleImageError(provider, providerName, response, data) {
   const rawStatus = String(data?.error?.code || data?.error?.type || data?.status || '').trim();
   const message = normalizeProviderMessage(
     data?.error?.message || data?.message || data?.raw,
-    `OpenAI image request failed: ${response.status}`
+    `${providerName} image request failed: ${response.status}`
   );
   const lowered = message.toLowerCase();
   let fallbackReason = '';
@@ -171,7 +170,7 @@ function mapOpenAiError(response, data) {
     fallbackReason = 'upstream_unavailable';
   }
 
-  return createProviderError(OPENAI_IMAGE_REDRAW_PROVIDER, message, {
+  return createProviderError(provider, message, {
     statusCode: response.status,
     providerCode: rawStatus,
     responseData: data,
@@ -179,56 +178,39 @@ function mapOpenAiError(response, data) {
   });
 }
 
-function mapOpenRouterError(response, data) {
-  const message = normalizeProviderMessage(
-    data?.error?.message || data?.error || data?.message || data?.raw,
-    `OpenRouter image request failed: ${response.status}`
-  );
-  const lowered = message.toLowerCase();
-  let fallbackReason = '';
-  if (response.status === 429 || /quota|rate limit|too many requests|exhausted/.test(lowered)) {
-    fallbackReason = 'quota_exhausted';
-  } else if (response.status === 402 || /billing|payment|insufficient|credit/.test(lowered)) {
-    fallbackReason = 'billing_required';
-  } else if (response.status === 404 || /not found|unavailable|unsupported model|unknown model|not supported/.test(lowered)) {
-    fallbackReason = 'model_unavailable';
-  } else if (response.status >= 500 || /timeout|timed out|connection|connect|overloaded|service unavailable|gateway|upstream/.test(lowered)) {
-    fallbackReason = 'upstream_unavailable';
-  }
-  return createProviderError(OPENROUTER_IMAGE_REDRAW_PROVIDER, message, {
-    statusCode: response.status,
-    providerCode: String(data?.error?.code || data?.error?.type || data?.status || ''),
-    responseData: data,
-    fallbackReason
-  });
+function mapAiveneError(response, data) {
+  return mapCompatibleImageError(AIVENE_IMAGE_REDRAW_PROVIDER, 'AIVene', response, data);
 }
 
-export function shouldFallbackFromOpenAiError(error) {
-  if (!error || error.provider !== OPENAI_IMAGE_REDRAW_PROVIDER) return false;
-  return ['quota_exhausted', 'billing_required', 'model_unavailable', 'upstream_unavailable'].includes(error.fallbackReason);
+function mapOpenAiError(response, data) {
+  return mapCompatibleImageError(OPENAI_IMAGE_REDRAW_PROVIDER, 'OpenAI', response, data);
+}
+
+export function shouldFallbackFromAiveneError(error) {
+  if (!error || error.provider !== AIVENE_IMAGE_REDRAW_PROVIDER) return false;
+  return OPENAI_COMPATIBLE_FALLBACK_REASONS.includes(error.fallbackReason);
+}
+
+function shouldFallbackFromCompatibleProviderError(error) {
+  if (!error || ![AIVENE_IMAGE_REDRAW_PROVIDER, OPENAI_IMAGE_REDRAW_PROVIDER].includes(error.provider)) return false;
+  return OPENAI_COMPATIBLE_FALLBACK_REASONS.includes(error.fallbackReason);
 }
 
 function shouldFallbackToSecondaryProvider(error) {
   if (!error) return false;
-  if (error.provider === OPENAI_IMAGE_REDRAW_PROVIDER) {
-    return shouldFallbackFromOpenAiError(error);
-  }
-  if (error.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) {
-    return ['quota_exhausted', 'billing_required', 'model_unavailable', 'upstream_unavailable'].includes(error.fallbackReason);
-  }
-  return false;
+  return shouldFallbackFromCompatibleProviderError(error);
 }
 
 function isProviderConfigured(provider, env) {
+  if (provider === AIVENE_IMAGE_REDRAW_PROVIDER) return isAiveneConfigured(env);
   if (provider === OPENAI_IMAGE_REDRAW_PROVIDER) return isOpenAiConfigured(env);
-  if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return isOpenRouterConfigured(env);
   return false;
 }
 
 function buildAiRedrawAvailability(config, env) {
   return {
+    aiveneConfigured: isAiveneConfigured(env),
     openAiConfigured: isOpenAiConfigured(env),
-    openRouterConfigured: isOpenRouterConfigured(env),
     aiRedrawAvailable:
       isProviderConfigured(config.primaryProvider, env) ||
       (config.fallbackProvider ? isProviderConfigured(config.fallbackProvider, env) : false)
@@ -236,9 +218,9 @@ function buildAiRedrawAvailability(config, env) {
 }
 
 function aiRedrawMaxImageInputBytes(config, env) {
+  if (config?.primaryProvider === AIVENE_IMAGE_REDRAW_PROVIDER) return aiveneMaxImageInputBytes(env);
   if (config?.primaryProvider === OPENAI_IMAGE_REDRAW_PROVIDER) return openAiMaxImageInputBytes();
-  if (config?.primaryProvider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return openRouterMaxImageInputBytes(env);
-  return Math.max(openAiMaxImageInputBytes(), openRouterMaxImageInputBytes(env));
+  return Math.max(aiveneMaxImageInputBytes(env), openAiMaxImageInputBytes());
 }
 
 function bytesToBase64(bytes) {
@@ -272,15 +254,6 @@ function parseDataUrl(value) {
     mimeType: match[1] || 'application/octet-stream',
     bytes: base64ToBytes(match[2])
   };
-}
-
-async function fileToDataUrl(file) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  return `data:${file.type || 'application/octet-stream'};base64,${bytesToBase64(bytes)}`;
-}
-
-function guessOpenRouterModalities(model = '') {
-  return /gemini|image-preview|gpt-5-image|gpt-image-1|recraft|mai-image|nano-banana/i.test(model) ? ['image', 'text'] : ['image'];
 }
 
 function inferAiRedrawArtworkType(settings = {}) {
@@ -444,18 +417,6 @@ export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   return parts.join(' ');
 }
 
-function buildOpenRouterHeaders(env) {
-  const headers = {
-    Authorization: `Bearer ${requireEnvValue(env, 'OPENROUTER_API_KEY')}`,
-    'Content-Type': 'application/json'
-  };
-  const siteUrl = openRouterSiteUrl(env);
-  if (siteUrl) headers['HTTP-Referer'] = siteUrl;
-  const appName = openRouterAppName(env);
-  if (appName) headers['X-Title'] = appName;
-  return headers;
-}
-
 async function parseJsonResponse(response) {
   const text = await response.text();
   if (!text) return null;
@@ -466,16 +427,11 @@ async function parseJsonResponse(response) {
   }
 }
 
-function extractOpenRouterImageUrl(data) {
-  const imageEntry = data?.choices?.[0]?.message?.images?.[0];
-  return imageEntry?.image_url?.url || imageEntry?.imageUrl?.url || '';
-}
-
 function dataUrlFromBase64(data, mimeType = 'image/png') {
   return `data:${mimeType};base64,${String(data || '').trim()}`;
 }
 
-function extractOpenAiImageUrl(data) {
+function extractCompatibleImageUrl(data) {
   const imageData = data?.data?.[0]?.b64_json;
   if (imageData) {
     return dataUrlFromBase64(imageData, data?.data?.[0]?.mime_type || 'image/png');
@@ -1168,14 +1124,14 @@ function handleHealth(env) {
     config: {
       supabaseUrl: hasEnvValue(env, 'SUPABASE_URL'),
       supabaseServiceRoleKey: hasEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY'),
+      aiveneConfigured: redrawAvailability.aiveneConfigured,
       openAiConfigured: redrawAvailability.openAiConfigured,
-      openRouterConfigured: redrawAvailability.openRouterConfigured,
       midtransConfigured: isMidtransConfigured(env),
       midtransIsProduction: isMidtransProduction(env),
       interactiveQrisConfigured: isInteractiveQrisConfigured(env),
       aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
       defaultAiRedrawModel,
-      redrawPipeline: 'worker_auth_credit_to_openai_primary_with_openrouter_fallback'
+      redrawPipeline: 'worker_auth_credit_to_aivene_primary_with_openai_fallback'
     },
     endpoints: [
       'GET /api/app-config',
@@ -2074,7 +2030,7 @@ async function handleAiRedraw(env, request) {
   const aiModelConfig = await getAiRedrawModelConfig(env);
   const availability = buildAiRedrawAvailability(aiModelConfig, env);
   if (!availability.aiRedrawAvailable) {
-    throw new Error('AI redraw belum diaktifkan di deploy ini. Isi secret OpenAI atau OpenRouter di Worker.');
+    throw new Error('AI redraw belum diaktifkan di deploy ini. Isi secret AIVENE_API_KEY atau OPENAI_API_KEY di Worker.');
   }
   const pricing = await getPricing(env);
   await ensureCredit(env, profile, pricing.ai_redraw);
@@ -2142,20 +2098,19 @@ function buildAiRedrawMetadata(aiModelConfig, image, extra = {}) {
     fallbackAttempted: extra.fallbackAttempted === true,
     fallbackReason: extra.fallbackReason || '',
     model: extra.model || '',
+    aiveneImageModel: aiModelConfig.aiveneImageModel || '',
     openAiImageModel: aiModelConfig.openAiImageModel || '',
-    openRouterGenerationModel: aiModelConfig.generationModel || '',
-    openRouterFallbackModel: aiModelConfig.fallbackModel || '',
     promptProfile: aiModelConfig.promptProfile,
     imageSize: aiModelConfig.imageSize,
     generationQuality: aiModelConfig.generationQuality,
-    inputFidelity: extra.inputFidelity || '',
+    inputFidelity: extra.inputFidelity || aiModelConfig.inputFidelity || '',
+    inputMaxEdge: aiModelConfig.inputMaxEdge || 1080,
     reasoningEffort: aiModelConfig.reasoningEffort || '',
     backgroundMode: aiModelConfig.backgroundMode || '',
     preset: aiModelConfig.preset || aiModelConfig.mode || '',
     preprocess: aiModelConfig.preprocess || '',
     persistPrompt: aiModelConfig.persistPrompt !== false,
     safetyEnabled: aiModelConfig.safetyEnabled !== false,
-    safetyModel: aiModelConfig.safetyModel || '',
     sourceContentType: image.type || 'application/octet-stream',
     sourceFileName: image.name || 'upload.png',
     ...extra,
@@ -2200,37 +2155,45 @@ export async function requestAiRetouchedImage(env, image, settings, aiModelConfi
 }
 
 async function requestProviderRetouchedImage(env, image, settings, aiModelConfig, routing) {
+  if (routing.provider === AIVENE_IMAGE_REDRAW_PROVIDER) {
+    return requestAiveneRetouchedImage(env, image, settings, aiModelConfig, routing);
+  }
   if (routing.provider === OPENAI_IMAGE_REDRAW_PROVIDER) {
     return requestOpenAiRetouchedImage(env, image, settings, aiModelConfig, routing);
-  }
-  if (routing.provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) {
-    return requestOpenRouterRetouchedImage(env, image, settings, aiModelConfig, routing);
   }
   throw new Error(`Provider AI redraw tidak didukung: ${routing.provider}`);
 }
 
-async function requestOpenAiRetouchedImage(env, image, settings, aiModelConfig, routing) {
+function resolveCompatibleImageModel(provider, aiModelConfig = {}) {
+  if (provider === AIVENE_IMAGE_REDRAW_PROVIDER) {
+    return aiModelConfig.aiveneImageModel || aiModelConfig.openAiImageModel || 'gpt-image-1.5';
+  }
+  return aiModelConfig.openAiImageModel || aiModelConfig.aiveneImageModel || 'gpt-image-1.5';
+}
+
+async function requestCompatibleRetouchedImage(env, image, settings, aiModelConfig, routing, options) {
+  const { provider, providerName, baseUrl, headers, mapError, model } = options;
   const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
-  const inputFidelity = resolveOpenAiInputFidelity();
+  const inputFidelity = resolveOpenAiInputFidelity(aiModelConfig);
   const imageQuality = resolveOpenAiImageQuality(aiModelConfig);
-  const imageSize = resolveOpenAiImageSize();
+  const imageSize = resolveOpenAiImageSize(aiModelConfig, settings);
   let response;
   try {
     const form = new FormData();
-    form.append('model', aiModelConfig.openAiImageModel || 'gpt-image-1.5');
+    form.append('model', model);
     form.append('image[]', image, image.name || 'source-image.png');
     form.append('prompt', prompt);
     form.append('quality', imageQuality);
     form.append('size', imageSize);
     form.append('input_fidelity', inputFidelity);
     form.append('output_format', 'png');
-    response = await fetch(`${openAiBaseUrl(env)}/images/edits`, {
+    response = await fetch(`${baseUrl}/images/edits`, {
       method: 'POST',
-      headers: buildOpenAiHeaders(env),
+      headers,
       body: form
     });
   } catch (error) {
-    throw createProviderError(OPENAI_IMAGE_REDRAW_PROVIDER, 'OpenAI tidak dapat dihubungi.', {
+    throw createProviderError(provider, `${providerName} tidak dapat dihubungi.`, {
       statusCode: 502,
       responseData: { cause: error instanceof Error ? error.message : String(error || '') },
       fallbackReason: 'upstream_unavailable'
@@ -2240,12 +2203,12 @@ async function requestOpenAiRetouchedImage(env, image, settings, aiModelConfig, 
   const data = await parseJsonResponse(response);
 
   if (!response.ok) {
-    throw mapOpenAiError(response, data);
+    throw mapError(response, data);
   }
 
-  const imageUrl = extractOpenAiImageUrl(data);
+  const imageUrl = extractCompatibleImageUrl(data);
   if (!imageUrl) {
-    throw createProviderError(OPENAI_IMAGE_REDRAW_PROVIDER, 'OpenAI tidak mengembalikan gambar.', {
+    throw createProviderError(provider, `${providerName} tidak mengembalikan gambar.`, {
       statusCode: 502,
       responseData: data
     });
@@ -2259,12 +2222,17 @@ async function requestOpenAiRetouchedImage(env, image, settings, aiModelConfig, 
     statusText: imageResponse.statusText,
     headers: imageResponse.headers,
     metadata: buildAiRedrawMetadata(aiModelConfig, image, {
-      providerUsed: OPENAI_IMAGE_REDRAW_PROVIDER,
-      model: aiModelConfig.openAiImageModel || 'gpt-image-1.5',
+      providerUsed: provider,
+      model,
       inputFidelity,
       generationQuality: imageQuality,
       imageSize,
       outputFormat: 'png',
+      sourceDimensions: settings?.aiInput?.sourceDimensions || null,
+      sourceBytes: Number(settings?.aiInput?.sourceBytes) || image.size,
+      preparedDimensions: settings?.aiInput?.preparedDimensions || null,
+      preparedBytes: image.size,
+      preparedFormat: image.type || 'application/octet-stream',
       revisedPrompt: data?.data?.[0]?.revised_prompt || '',
       fallbackAttempted: routing.fallbackAttempted,
       fallbackReason: routing.fallbackReason,
@@ -2273,8 +2241,37 @@ async function requestOpenAiRetouchedImage(env, image, settings, aiModelConfig, 
   };
 }
 
-function resolveOpenAiImageSize() {
-  return 'auto';
+async function requestAiveneRetouchedImage(env, image, settings, aiModelConfig, routing) {
+  return requestCompatibleRetouchedImage(env, image, settings, aiModelConfig, routing, {
+    provider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    providerName: 'AIVene',
+    baseUrl: aiveneBaseUrl(env),
+    headers: buildAiveneHeaders(env),
+    mapError: mapAiveneError,
+    model: resolveCompatibleImageModel(AIVENE_IMAGE_REDRAW_PROVIDER, aiModelConfig)
+  });
+}
+
+async function requestOpenAiRetouchedImage(env, image, settings, aiModelConfig, routing) {
+  return requestCompatibleRetouchedImage(env, image, settings, aiModelConfig, routing, {
+    provider: OPENAI_IMAGE_REDRAW_PROVIDER,
+    providerName: 'OpenAI',
+    baseUrl: openAiBaseUrl(env),
+    headers: buildOpenAiHeaders(env),
+    mapError: mapOpenAiError,
+    model: resolveCompatibleImageModel(OPENAI_IMAGE_REDRAW_PROVIDER, aiModelConfig)
+  });
+}
+
+export function resolveOpenAiImageSize(aiModelConfig = {}, settings = {}) {
+  if (String(aiModelConfig.imageSize || '1K').toUpperCase() !== '1K') return 'auto';
+  const width = Number(settings?.aiInput?.preparedDimensions?.width);
+  const height = Number(settings?.aiInput?.preparedDimensions?.height);
+  if (!(width > 0 && height > 0)) return '1024x1024';
+  const ratio = width / height;
+  if (ratio > 1.15) return '1536x1024';
+  if (ratio < 1 / 1.15) return '1024x1536';
+  return '1024x1024';
 }
 
 function resolveOpenAiImageQuality(aiModelConfig = {}) {
@@ -2284,100 +2281,8 @@ function resolveOpenAiImageQuality(aiModelConfig = {}) {
   return 'medium';
 }
 
-function resolveOpenAiInputFidelity() {
-  return 'high';
-}
-
-async function requestOpenRouterRetouchedImage(env, image, settings, aiModelConfig, routing) {
-  const imageDataUrl = await fileToDataUrl(image);
-  const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
-  const availableModels = [aiModelConfig.generationModel, aiModelConfig.fallbackModel].filter((value, index, list) => value && list.indexOf(value) === index);
-  const modelSequence = availableModels.length > 0 ? availableModels : [aiModelConfig.generationModel].filter(Boolean);
-  let lastError = null;
-
-  for (const [index, model] of modelSequence.entries()) {
-    try {
-      const payload = {
-        model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: prompt
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageDataUrl
-                }
-              }
-            ]
-          }
-        ],
-        modalities: guessOpenRouterModalities(model),
-        stream: false
-      };
-
-      if (aiModelConfig.imageSize) {
-        payload.image_config = {
-          image_size: aiModelConfig.imageSize
-        };
-      }
-
-      let response;
-      try {
-        response = await fetch(`${openRouterBaseUrl(env)}/chat/completions`, {
-          method: 'POST',
-          headers: buildOpenRouterHeaders(env),
-          body: JSON.stringify(payload)
-        });
-      } catch (error) {
-        throw createProviderError(OPENROUTER_IMAGE_REDRAW_PROVIDER, 'OpenRouter tidak dapat dihubungi.', {
-          statusCode: 502,
-          responseData: { cause: error instanceof Error ? error.message : String(error || '') },
-          fallbackReason: 'upstream_unavailable'
-        });
-      }
-      const data = await parseJsonResponse(response);
-
-      if (!response.ok) {
-        throw mapOpenRouterError(response, data);
-      }
-
-      const imageUrl = extractOpenRouterImageUrl(data);
-      if (!imageUrl) {
-        throw createProviderError(OPENROUTER_IMAGE_REDRAW_PROVIDER, 'OpenRouter tidak mengembalikan gambar.', {
-          statusCode: 502,
-          responseData: data
-        });
-      }
-
-      const imageResponse = await downloadGeneratedImage(imageUrl);
-      const metadata = buildAiRedrawMetadata(aiModelConfig, image, {
-        providerUsed: OPENROUTER_IMAGE_REDRAW_PROVIDER,
-        model,
-        fallbackModelUsed: index > 0,
-        generatedImageCount: Array.isArray(data?.choices?.[0]?.message?.images) ? data.choices[0].message.images.length : 1,
-        fallbackAttempted: routing.fallbackAttempted,
-        fallbackReason: routing.fallbackReason,
-        finalTechnicalPrompt: prompt
-      });
-
-      return {
-        body: imageResponse.body,
-        status: imageResponse.status,
-        statusText: imageResponse.statusText,
-        headers: imageResponse.headers,
-        metadata
-      };
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw lastError || createProviderError(OPENROUTER_IMAGE_REDRAW_PROVIDER, 'Gambar ulang OpenRouter gagal diproses.', { statusCode: 502 });
+function resolveOpenAiInputFidelity(aiModelConfig = {}) {
+  return aiModelConfig.inputFidelity === 'high' ? 'high' : 'low';
 }
 
 export function getAiRedrawModelPresets() {
@@ -3046,8 +2951,8 @@ async function handleAppConfig(env, request) {
       aiRedrawAvailable: redrawAvailability.aiRedrawAvailable,
       aiRedrawPrimaryProvider: aiRedrawModel.primaryProvider,
       aiRedrawFallbackProvider: aiRedrawModel.fallbackProvider || '',
+      aiveneConfigured: redrawAvailability.aiveneConfigured,
       openAiConfigured: redrawAvailability.openAiConfigured,
-      openRouterConfigured: redrawAvailability.openRouterConfigured,
       midtransAvailable: isMidtransConfigured(env),
       midtransIsProduction: isMidtransProduction(env),
       midtransMinimumAmountIdr: MIDTRANS_MIN_AMOUNT_IDR,

@@ -1,40 +1,42 @@
 # Hybrid Redraw Policy
 
-Design Mudah uses an OpenAI-first redraw architecture with OpenRouter fallback:
+Design Mudah now uses an AIVene-first redraw architecture with OpenAI fallback:
 
-- `OpenAI image redraw = primary sketch/trace redraw`
-- `gpt-image-1.5 = default OpenAI image model`
-- `OpenRouter = secondary provider and automatic fallback`
-- `Riverflow V2 Fast = optional fallback image model inside the OpenRouter path when its primary model is unavailable`
+- `AIVene image redraw = primary sketch/trace redraw`
+- `gpt-image-1.5 = default image model for both AIVene primary and OpenAI fallback`
+- `OpenAI = secondary provider and automatic fallback`
 - deterministic browser trace, vector, cutline, film, PDF, and ZIP stay outside AI
 
 ## Pipeline
 
-1. Cloudflare Worker verifies login and credit through the embedded SaaS logic.
-2. For AI redraw, the Worker sends the upload to OpenAI `POST /images/edits` first.
-3. If OpenAI fails because of quota, billing, model-unavailable, timeout, network, or 5xx conditions, the Worker falls back automatically to OpenRouter.
-4. Inside the OpenRouter path, the Worker retries once with `OPENROUTER_IMAGE_MODEL_FALLBACK` when the primary OpenRouter model is unavailable or returns no image.
-5. The resulting PNG returns to the browser trace and separation flow.
-6. Ready Trace mode skips remote generation and runs the same deterministic browser processor directly.
+1. The browser creates a dedicated AI input with a maximum 1080 px longest edge while preserving the source aspect ratio and never upscaling smaller images.
+2. Opaque inputs are encoded as WebP at 85% quality; images with transparency remain PNG. Preprocessing must finish before the credit check and debit flow.
+3. Cloudflare Worker verifies login and credit through the embedded SaaS logic.
+4. For AI redraw, the Worker sends the prepared upload to AIVene `POST /images/edits` first.
+5. If AIVene fails because of quota, billing, model-unavailable, timeout, network, or 5xx conditions, the Worker sends the same prepared file once to OpenAI.
+6. The resulting PNG returns to the browser trace and separation flow. Ready Trace skips remote generation entirely.
 7. The browser processor exports SVG/PDF/ZIP artifacts, registration marks, spot-color metadata, prepress quality warnings, and a 1 px choked underbase film when enabled.
 
 ## Invariants
 
 - Ready trace mode must stay local browser trace only and must not call any remote image generation provider.
-- OpenAI model IDs and OpenRouter model IDs must stay env-editable.
-- Default deploy should use OpenAI as primary provider.
+- AIVene and OpenAI model IDs must stay env-editable.
+- Default deploy should use AIVene as primary provider.
+- Default deploy uses preset `standard`, `input_fidelity=low`, `inputMaxEdge=1080`, output quality `medium`, and output size `1K` matched to source orientation.
+- Presets `quality` and `premium` may use `input_fidelity=high` for small text and thin details; all presets keep the 1080 px input cap.
+- Low-confidence retries stay disabled. Provider fallback remains limited to quota, billing, model-unavailable, timeout, network, and 5xx failures.
 - Persist redraw metadata to the job manifest:
   - configured primary provider
   - actual provider used
+  - AIVene image model
   - OpenAI image model
-  - OpenRouter generation model
-  - OpenRouter fallback model and fallback-used flag
   - fallback reason
-  - safety model
   - prompt profile
   - image size
-  - reasoning effort
-  - background mode
+  - input fidelity and maximum input edge
+  - source and prepared dimensions
+  - source and prepared byte size
+  - prepared file format
   - preset
   - preprocess mode
   - final technical prompt
@@ -44,4 +46,4 @@ Design Mudah uses an OpenAI-first redraw architecture with OpenRouter fallback:
 ## Admin Setting
 
 The active pipeline config lives in `app_settings.ai_redraw_model`.
-Saved settings normalize into the `openai_image | openrouter_image` config shape, while older `litellm_image` and `gemini_direct_image` rows upgrade into OpenAI-primary and older legacy OpenRouter rows keep their OpenRouter semantics without losing fallback model values.
+Saved settings normalize into the `aivene_image | openai_image` config shape, while older direct or proxy-based rows upgrade into the new AIVene-primary default.

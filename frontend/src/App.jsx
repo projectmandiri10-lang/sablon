@@ -10,7 +10,7 @@ import ResultPreview from './components/ResultPreview.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
 import UploadBox from './components/UploadBox.jsx';
 import { commitJob, deleteCloudJob, getAppConfig, getBalance, listExampleJobs, quoteJob, requestImageRetouch, toUserApiError, uploadExampleArtifacts } from './lib/api.js';
-import { createNormalizedImagePreviewBlob } from './lib/imagePreview.js';
+import { createNormalizedImagePreviewBlob, prepareAiRedrawInput } from './lib/imagePreview.js';
 import { deleteHistoryJob, loadHistoryJobs, releaseHistoryJobs, saveHistoryJob } from './lib/localHistoryStore.js';
 import { parseMidtransReturnParams, stripMidtransReturnParams } from './lib/billingPanelState.js';
 import { loadStoredLocale, localeTag, resolveInitialLocale, saveStoredLocale } from './lib/locale.js';
@@ -724,6 +724,10 @@ export default function App() {
       } catch (_previewError) {
         sourcePreviewBlob = file;
       }
+      let preparedAiInput = null;
+      if (settings.inputMode === INPUT_MODE_RETOUCH) {
+        preparedAiInput = await prepareAiRedrawInput(file);
+      }
       await ensureCanRun(settings.separateColors ? 1 : 0);
       let processingFile = file;
       let retouchLedgerId = '';
@@ -733,7 +737,11 @@ export default function App() {
 
       if (settings.inputMode === INPUT_MODE_RETOUCH) {
         setJob(statusJob('processing_image', copy.messages.processingRetouch, 25));
-        const retouchResult = await requestImageRetouch(file, settings, session.access_token);
+        const retouchResult = await requestImageRetouch(
+          preparedAiInput.file,
+          { ...settings, aiInput: preparedAiInput.metadata },
+          session.access_token
+        );
         processingFile = retouchResult.file;
         retouchLedgerId = retouchResult.retouchLedgerId;
         aiRedrawMetadata = retouchResult.aiRedrawMetadata || null;

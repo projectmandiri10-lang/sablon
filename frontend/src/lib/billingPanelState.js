@@ -13,8 +13,8 @@ export const DEFAULT_INTERACTIVE_QRIS_UNIQUE_DIGITS = 2;
 export const DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS = 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.';
 
 export function billingProviderLabel(provider) {
+  if (provider === 'aivene_image') return 'AIVene';
   if (provider === 'openai_image') return 'OpenAI';
-  if (provider === 'openrouter_image') return 'OpenRouter';
   return provider || '';
 }
 

@@ -23,8 +23,8 @@ import {
 } from '../lib/api.js';
 import AdminFinancePanel from './AdminFinancePanel.jsx';
 import {
+  AIVENE_IMAGE_REDRAW_PROVIDER,
   OPENAI_IMAGE_REDRAW_PROVIDER,
-  OPENROUTER_IMAGE_REDRAW_PROVIDER,
   listHybridRedrawPresets,
   normalizeHybridRedrawConfig
 } from '../../../shared/hybridRedrawConfig.js';
@@ -54,14 +54,14 @@ function estimatedIdr(usd) {
 }
 
 function providerLabel(provider) {
+  if (provider === AIVENE_IMAGE_REDRAW_PROVIDER) return 'AIVene';
   if (provider === OPENAI_IMAGE_REDRAW_PROVIDER) return 'OpenAI';
-  if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return 'OpenRouter';
   return provider || '-';
 }
 
 function providerModelLabel(provider, config = {}) {
+  if (provider === AIVENE_IMAGE_REDRAW_PROVIDER) return config.aiveneImageModel || '-';
   if (provider === OPENAI_IMAGE_REDRAW_PROVIDER) return config.openAiImageModel || '-';
-  if (provider === OPENROUTER_IMAGE_REDRAW_PROVIDER) return config.generationModel || '-';
   return '-';
 }
 
@@ -933,6 +933,7 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                     }
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
+                    <option value={AIVENE_IMAGE_REDRAW_PROVIDER}>AIVene</option>
                     <option value={OPENAI_IMAGE_REDRAW_PROVIDER}>OpenAI</option>
                   </select>
                 </label>
@@ -952,7 +953,8 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
                     <option value="">Tanpa fallback</option>
-                    <option value={OPENROUTER_IMAGE_REDRAW_PROVIDER}>OpenRouter</option>
+                    <option value={OPENAI_IMAGE_REDRAW_PROVIDER}>OpenAI</option>
+                    <option value={AIVENE_IMAGE_REDRAW_PROVIDER}>AIVene</option>
                   </select>
                 </label>
                 <label className="block">
@@ -964,7 +966,15 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                   />
                 </label>
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-4">
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar AIVene</span>
+                  <input
+                    value={aiModelDraft.aiveneImageModel || ''}
+                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', aiveneImageModel: event.target.value }))}
+                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                  />
+                </label>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar OpenAI</span>
                   <input
@@ -974,45 +984,11 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Model analisis OpenRouter opsional</span>
-                  <input
-                    value={aiModelDraft.analysisModel}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', analysisModel: event.target.value }))}
-                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Kontrak OpenAI</span>
-                  <input value="Direct /images/edits" readOnly className="w-full border border-line bg-panel px-3 py-2.5 text-sm text-gray-700" />
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Kontrak edit image</span>
+                  <input value="OpenAI-compatible /images/edits" readOnly className="w-full border border-line bg-panel px-3 py-2.5 text-sm text-gray-700" />
                 </label>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar OpenRouter</span>
-                  <input
-                    value={aiModelDraft.generationModel}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', generationModel: event.target.value }))}
-                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Model fallback OpenRouter</span>
-                  <input
-                    value={aiModelDraft.fallbackModel || ''}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', fallbackModel: event.target.value }))}
-                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Model safety OpenRouter</span>
-                  <input
-                    value={aiModelDraft.safetyModel}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', safetyModel: event.target.value }))}
-                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                  />
-                </label>
-              </div>
-              <div className="grid gap-3 md:grid-cols-4">
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Quality gambar</span>
                   <select
@@ -1038,41 +1014,34 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                   </select>
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Reasoning</span>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Fidelity input</span>
                   <select
-                    value={aiModelDraft.reasoningEffort || 'medium'}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', reasoningEffort: event.target.value }))}
+                    value={aiModelDraft.inputFidelity || 'low'}
+                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', inputFidelity: event.target.value }))}
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="xhigh">XHigh</option>
+                    <option value="low">Low - hemat token</option>
+                    <option value="high">High - detail maksimal</option>
                   </select>
+                  <span className="mt-1 block text-xs text-gray-600">Low untuk pemakaian normal; high untuk teks kecil atau garis sangat tipis.</span>
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Background</span>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Prompt profile</span>
                   <select
-                    value={aiModelDraft.backgroundMode || 'transparent'}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', backgroundMode: event.target.value }))}
+                    value={aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
+                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', promptProfile: event.target.value }))}
                     className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                   >
-                    <option value="transparent">Transparent</option>
-                    <option value="original">Original</option>
-                    <option value="solid">Solid</option>
+                    <option value="logo_photo_cleanup_short">Logo cleanup short</option>
+                    <option value="photo_logo_cleanup">Photo logo cleanup</option>
+                    <option value="stylized_redraw">Stylized redraw</option>
+                    <option value="generic_trace_clone">Generic trace clone</option>
+                    <option value="sourceful_trace_clone">Sourceful trace clone</option>
+                    <option value="gemini_trace_clone">Gemini trace clone</option>
                   </select>
                 </label>
-                <label className="flex items-center gap-2 pt-7 text-sm font-medium text-ink">
-                  <input
-                    type="checkbox"
-                    checked={aiModelDraft.safetyEnabled !== false}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', safetyEnabled: event.target.checked }))}
-                    className="h-4 w-4 accent-spruce"
-                  />
-                  Safety gate
-                </label>
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Estimasi USD/gambar</span>
                   <input
@@ -1105,19 +1074,8 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                   <input value={aiModelDraft.preprocess} readOnly className="w-full border border-line bg-panel px-3 py-2.5 text-sm text-gray-700" />
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">Prompt profile</span>
-                  <select
-                    value={aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', promptProfile: event.target.value }))}
-                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                  >
-                    <option value="logo_photo_cleanup_short">Logo cleanup short</option>
-                    <option value="photo_logo_cleanup">Photo logo cleanup</option>
-                    <option value="stylized_redraw">Stylized redraw</option>
-                    <option value="generic_trace_clone">Generic trace clone</option>
-                    <option value="sourceful_trace_clone">Sourceful trace clone</option>
-                    <option value="gemini_trace_clone">Gemini trace clone</option>
-                  </select>
+                  <span className="mb-1.5 block text-sm font-medium text-ink">Batas input AI</span>
+                  <input value={`${aiModelDraft.inputMaxEdge || 1080}px sisi terpanjang`} readOnly className="w-full border border-line bg-panel px-3 py-2.5 text-sm text-gray-700" />
                 </label>
               </div>
               <div className="border border-line bg-white p-3 text-sm leading-6 text-gray-700">
@@ -1134,13 +1092,10 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                     : 'Tanpa provider fallback tambahan.'}
                 </p>
                 <p>
-                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | prompt {aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
+                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | input {aiModelDraft.inputFidelity || 'low'} / {aiModelDraft.inputMaxEdge || 1080}px | prompt {aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
                 </p>
                 <p>
-                  OpenAI model: {aiModelDraft.openAiImageModel || '-'} | OpenRouter model: {aiModelDraft.generationModel || '-'} | OpenRouter fallback model: {aiModelDraft.fallbackModel || '-'}
-                </p>
-                <p>
-                  Reasoning effort: {aiModelDraft.reasoningEffort || 'low'} | safety {aiModelDraft.safetyEnabled === false ? 'mati' : 'aktif'} | background {aiModelDraft.backgroundMode || 'transparent'}
+                  AIVene model: {aiModelDraft.aiveneImageModel || '-'} | OpenAI model: {aiModelDraft.openAiImageModel || '-'}
                 </p>
                 <p>{aiRedrawModelPresets.find((preset) => preset.mode === aiModelDraft.mode)?.note || 'Mode custom untuk eksperimen pipeline hybrid.'}</p>
                 <p>
