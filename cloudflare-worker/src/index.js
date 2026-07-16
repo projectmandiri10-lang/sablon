@@ -279,23 +279,41 @@ function inferAiRedrawArtworkType(settings = {}) {
 export function buildAiRedrawPrompt(settings = {}, aiModelConfig = {}) {
   const profile = String(aiModelConfig.promptProfile || 'logo_photo_cleanup_short');
   const artworkType = inferAiRedrawArtworkType(settings);
+  const productionType = String(settings.productionType || '').toLowerCase();
 
   if (profile === 'logo_photo_cleanup_short' && artworkType === 'logo') {
-    const parts = [
-      'Bersihkan logo ini dan gambar ulang sangat mirip dengan aslinya.',
-      'Pertahankan komposisi, teks, warna, dan bentuk asli.',
-      'Perbaiki blur, cacat, gigi pixel, bagian patah, noise foto, dan tepi bergerigi.',
-      'Buat hasil seperti master logo digital baru yang bersih, tajam, rata, dan siap trace sablon.',
-      'Jangan redesign.',
-      'Jangan tambah elemen baru.',
-      'Jangan ubah tulisan.',
-      'Keep the background solid black.',
-      'Keep colors flat and solid.',
-      'Avoid anti-aliasing whenever possible.',
-      'Avoid semi-transparent pixels.'
-    ];
+    const parts =
+      productionType === 'sablon'
+        ? [
+            'Jiplak gambar referensi ini sepresisi mungkin dengan mempertahankan bentuk asli.',
+            'Pertahankan persis layout, posisi, jarak, sudut, proporsi, warna, ruang negatif, simbol, lengkungan, dan bentuk visual setiap huruf.',
+            'Perlakukan semua tulisan sebagai bentuk gambar: jangan gunakan OCR, jangan mengenali atau mengganti font, jangan mengetik ulang, dan jangan membuat ulang teks.',
+            'Jangan ubah tulisan.',
+            'Jangan menyederhanakan, menata ulang, menafsirkan, menambah, atau menghapus elemen apa pun.',
+            'Perbaiki hanya blur, noise foto, gigi pixel, bagian patah, isian kotor, tepi bergerigi, serta kontur luar yang penyok atau tidak rata akibat cacat.',
+            'Rapikan cacat kontur luar tanpa mengubah asimetri yang disengaja pada swoosh, simbol, atau bentuk huruf.',
+            'Buat hasil seperti master logo digital baru yang bersih, tajam, rata, dan siap trace sablon.',
+            'Jangan redesign.',
+            'Keep the background solid black.',
+            'Keep colors flat and solid.',
+            'Avoid anti-aliasing whenever possible.',
+            'Avoid semi-transparent pixels.'
+          ]
+        : [
+            'Bersihkan logo ini dan gambar ulang sangat mirip dengan aslinya.',
+            'Pertahankan komposisi, teks, warna, dan bentuk asli.',
+            'Perbaiki blur, cacat, gigi pixel, bagian patah, noise foto, dan tepi bergerigi.',
+            'Buat hasil seperti master logo digital baru yang bersih, tajam, rata, dan siap trace sablon.',
+            'Jangan redesign.',
+            'Jangan tambah elemen baru.',
+            'Jangan ubah tulisan.',
+            'Keep the background solid black.',
+            'Keep colors flat and solid.',
+            'Avoid anti-aliasing whenever possible.',
+            'Avoid semi-transparent pixels.'
+          ];
 
-    if (String(settings.productionType || '').toLowerCase() === 'sablon') {
+    if (productionType === 'sablon') {
       parts.push('The final image will be used for screen printing and vector tracing.');
       parts.push('Edges must be perfectly clean.');
       parts.push('Shapes must be easy to trace.');

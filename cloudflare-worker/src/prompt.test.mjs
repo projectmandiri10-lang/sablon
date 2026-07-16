@@ -141,7 +141,7 @@ test('explicit fallback provider still works when project defaults are AIVene-fi
   assert.equal(normalized.fallbackProvider, 'openai_image');
 });
 
-test('sablon redraw prompt preserves original colors automatically and improves trace quality', () => {
+test('sablon logo prompt requires an exact visual trace without OCR or font replacement', () => {
   const prompt = buildAiRedrawPrompt(
     {
       projectName: 'Logo Sobat',
@@ -154,15 +154,36 @@ test('sablon redraw prompt preserves original colors automatically and improves 
     { promptProfile: 'logo_photo_cleanup_short' }
   );
 
-  assert.match(prompt, /Bersihkan logo ini dan gambar ulang sangat mirip dengan aslinya/);
-  assert.match(prompt, /Pertahankan komposisi, teks, warna, dan bentuk asli/);
-  assert.match(prompt, /Perbaiki blur, cacat, gigi pixel, bagian patah, noise foto, dan tepi bergerigi/);
+  assert.match(prompt, /Jiplak gambar referensi ini sepresisi mungkin dengan mempertahankan bentuk asli/);
+  assert.match(prompt, /Pertahankan persis layout, posisi, jarak, sudut, proporsi, warna, ruang negatif, simbol, lengkungan, dan bentuk visual setiap huruf/);
+  assert.match(prompt, /jangan gunakan OCR/);
+  assert.match(prompt, /jangan mengenali atau mengganti font/);
+  assert.match(prompt, /jangan mengetik ulang, dan jangan membuat ulang teks/);
+  assert.match(prompt, /Jangan menyederhanakan, menata ulang, menafsirkan, menambah, atau menghapus elemen apa pun/);
+  assert.match(prompt, /Perbaiki hanya blur, noise foto, gigi pixel, bagian patah, isian kotor, tepi bergerigi/);
+  assert.match(prompt, /kontur luar yang penyok atau tidak rata akibat cacat/);
+  assert.match(prompt, /tanpa mengubah asimetri yang disengaja pada swoosh, simbol, atau bentuk huruf/);
   assert.match(prompt, /Buat hasil seperti master logo digital baru yang bersih, tajam, rata, dan siap trace sablon/);
   assert.match(prompt, /Keep the background solid black/);
   assert.match(prompt, /Keep colors flat and solid/);
   assert.match(prompt, /The final image will be used for screen printing and vector tracing/);
   assert.match(prompt, /Avoid anti-aliasing whenever possible/);
+  assert.doesNotMatch(prompt, /gambar ulang sangat mirip/);
   assert.doesNotMatch(prompt, /professional logo restoration and vector preparation artist/);
+});
+
+test('strict exact-trace instructions stay scoped to sablon logos', () => {
+  const prompt = buildAiRedrawPrompt(
+    {
+      projectName: 'Logo Merchandise',
+      productionType: 'merchandise'
+    },
+    { promptProfile: 'logo_photo_cleanup_short' }
+  );
+
+  assert.match(prompt, /Bersihkan logo ini dan gambar ulang sangat mirip dengan aslinya/);
+  assert.doesNotMatch(prompt, /Jiplak gambar referensi ini sepresisi mungkin/);
+  assert.doesNotMatch(prompt, /jangan gunakan OCR/);
 });
 
 test('sticker redraw prompt asks for a clean sticker-ready palette even without color separation mode', () => {
