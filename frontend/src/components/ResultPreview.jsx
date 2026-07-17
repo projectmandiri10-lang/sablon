@@ -139,40 +139,16 @@ export default function ResultPreview({
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {canRetrace && isAiRetrace && (
+        {canRetrace && (
           <button
             type="button"
-            onClick={() => onRetrace(2)}
-            disabled={isRetracing}
-            className="inline-flex min-h-10 items-center justify-center gap-2 border border-spruce bg-white px-3 py-2 text-sm font-semibold text-spruce transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
-            title={isId ? 'Trace ulang dari PNG mentah AI dan ganti semua hasil trace lama' : 'Retrace from the raw AI PNG and replace every previous trace artifact'}
-          >
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            <span>{isRetracing ? (isId ? 'Memproses trace ulang…' : 'Retracing…') : isId ? 'Trace Ulang 2×' : 'Retrace 2×'}</span>
-          </button>
-        )}
-        {canRetrace && isAiRetrace && (
-          <button
-            type="button"
-            onClick={() => onRetrace(3)}
+            onClick={() => onRetrace()}
             disabled={isRetracing}
             className="inline-flex min-h-10 items-center justify-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-            title={isId ? 'Trace ulang 3×; dimensi otomatis dibatasi agar browser tetap aman' : 'Retrace at 3×; dimensions are capped automatically for browser safety'}
+            title={isId ? 'Trace ulang satu tahap dari sumber mentah dan ganti semua hasil trace lama' : 'Run one retrace pass from the raw source and replace every previous trace artifact'}
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            <span>{isRetracing ? (isId ? 'Memproses trace ulang…' : 'Retracing…') : isId ? 'Trace Ulang 3×' : 'Retrace 3×'}</span>
-          </button>
-        )}
-        {canRetrace && !isAiRetrace && (
-          <button
-            type="button"
-            onClick={() => onRetrace(1)}
-            disabled={isRetracing}
-            className="inline-flex min-h-10 items-center justify-center gap-2 border border-spruce bg-white px-3 py-2 text-sm font-semibold text-spruce transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
-            title={isId ? 'Jalankan ulang trace lokal dari gambar sumber dan ganti semua hasil trace lama' : 'Run the local trace again from the source image and replace every previous trace artifact'}
-          >
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            <span>{isRetracing ? (isId ? 'Memproses trace ulang…' : 'Retracing…') : isId ? 'Trace Ulang' : 'Retrace'}</span>
+            <span>{isRetracing ? (isId ? 'Memproses trace ulang…' : 'Retracing…') : isAiRetrace ? isId ? 'Trace Ulang 3,15×' : 'Retrace 3.15×' : isId ? 'Trace Ulang' : 'Retrace'}</span>
           </button>
         )}
         {!isVectorReadyMode && (

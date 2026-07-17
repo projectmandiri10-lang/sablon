@@ -5,10 +5,12 @@ import { test } from 'node:test';
 const appSource = await readFile(new URL('../App.jsx', import.meta.url), 'utf8');
 const previewSource = await readFile(new URL('../components/ResultPreview.jsx', import.meta.url), 'utf8');
 const processorSource = await readFile(new URL('./localProcessor.js', import.meta.url), 'utf8');
+const historySource = await readFile(new URL('./localHistoryStore.js', import.meta.url), 'utf8');
 
-test('history exposes 2x and 3x AI retrace controls that replace previous artifacts', () => {
-  assert.match(previewSource, /Trace Ulang 2×/);
-  assert.match(previewSource, /Trace Ulang 3×/);
+test('history exposes one retrace control that replaces previous artifacts', () => {
+  assert.match(previewSource, /Trace Ulang 3,15×/);
+  assert.doesNotMatch(previewSource, /Trace Ulang 2×/);
+  assert.doesNotMatch(previewSource, /Trace Ulang 3×/);
   assert.match(previewSource, /film separasi, dan cutline lama akan diganti seluruhnya/);
 });
 
@@ -17,13 +19,23 @@ test('retrace starts from stored local input and never requests another AI redra
   const handlerEnd = appSource.indexOf('\n  const currentPathname', handlerStart);
   const handlerSource = appSource.slice(handlerStart, handlerEnd);
 
-  assert.match(handlerSource, /processImageLocally\(traceFile, traceSettings\)/);
+  assert.match(handlerSource, /processImageLocallyWithFallback\(traceFile, traceSettings\)/);
+  assert.match(handlerSource, /analyzeRasterForUpscale/);
   assert.match(handlerSource, /saveHistoryJob/);
   assert.doesNotMatch(handlerSource, /requestImageRetouch/);
 });
 
 test('AI local trace uses Pica upscale with a 4096px safety cap', () => {
   assert.match(processorSource, /const MAX_CANVAS_EDGE = 4096/);
+  assert.match(processorSource, /DEFAULT_TRACE_UPSCALE_FACTOR = 3\.15/);
   assert.match(processorSource, /await import\('pica'\)/);
   assert.match(processorSource, /filter: 'mks2013'/);
+  assert.match(processorSource, /traceUpscaleAnalysis/);
+  assert.match(processorSource, /traceUpscaleApplied/);
+});
+
+test('ready trace history keeps the original raster for future retries', () => {
+  assert.match(appSource, /sourceRasterBlob: file/);
+  assert.match(historySource, /sourceRasterBlob/);
+  assert.match(historySource, /sourceRasterUrl/);
 });

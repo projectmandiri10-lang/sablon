@@ -14,7 +14,7 @@ import { createNormalizedImagePreviewBlob, prepareAiRedrawInput } from './lib/im
 import { deleteHistoryJob, loadHistoryJobs, releaseHistoryJobs, saveHistoryJob } from './lib/localHistoryStore.js';
 import { parseMidtransReturnParams, stripMidtransReturnParams } from './lib/billingPanelState.js';
 import { loadStoredLocale, localeTag, resolveInitialLocale, saveStoredLocale } from './lib/locale.js';
-import { normalizeLocalTraceSettings, processImageLocally } from './lib/localProcessor.js';
+import { analyzeRasterForUpscale, normalizeLocalTraceSettings, processImageLocallyWithFallback } from './lib/localProcessor.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from './lib/modes.js';
 import { IMAGE_RETOUCH_PRICE_IDR, calculateJobPrice, formatRupiah } from './lib/pricing.js';
 import { isSupabaseConfigured, supabase } from './lib/supabase.js';
@@ -743,6 +743,7 @@ export default function App() {
       let aiRedrawMetadata = null;
       let readyTraceMetadata = null;
       let aiRawPngBlob = null;
+      let traceInputSettings = settings;
 
       if (settings.inputMode === INPUT_MODE_RETOUCH) {
         setJob(statusJob('processing_image', copy.messages.processingRetouch, 25));
@@ -757,10 +758,28 @@ export default function App() {
         aiRawPngBlob = retouchResult.aiRawPngBlob || null;
       } else {
         setJob(statusJob('processing_image', copy.messages.processingReadyTrace, 30));
+        let upscaleAnalysis;
+        try {
+          upscaleAnalysis = await analyzeRasterForUpscale(file);
+        } catch (_analysisError) {
+          upscaleAnalysis = {
+            shouldUpscale: false,
+            requestedFactor: 1,
+            reason: 'analysis_failed'
+          };
+        }
         readyTraceMetadata = {
           processor: 'browser_local_trace',
           vectorEngine: 'canvas_boundary_trace',
-          noRemoteGeneration: true
+          noRemoteGeneration: true,
+          upscaleApplied: Boolean(upscaleAnalysis.shouldUpscale),
+          upscaleReason: upscaleAnalysis.reason,
+          upscaleAnalysis
+        };
+        traceInputSettings = {
+          ...settings,
+          traceUpscaleEnabled: Boolean(upscaleAnalysis.shouldUpscale),
+          traceUpscaleAnalysis: upscaleAnalysis
         };
       }
 
@@ -771,8 +790,8 @@ export default function App() {
           60
         )
       );
-      const traceSettings = normalizeLocalTraceSettings(settings);
-      const tracedResult = await processImageLocally(processingFile, traceSettings);
+      const traceSettings = normalizeLocalTraceSettings(traceInputSettings);
+      const tracedResult = await processImageLocallyWithFallback(processingFile, traceSettings);
       const localResult = aiRawPngBlob
         ? {
             ...tracedResult,
@@ -796,7 +815,14 @@ export default function App() {
               traceEngine: 'processImageLocally'
             }
           : {}),
-        readyTrace: readyTraceMetadata || localResult.manifest?.readyTrace || null
+        readyTrace: readyTraceMetadata
+          ? {
+              ...readyTraceMetadata,
+              upscaleApplied: localResult.manifest?.traceUpscaleApplied ?? readyTraceMetadata.upscaleApplied,
+              effectiveFactor: localResult.manifest?.traceUpscaleFactor || readyTraceMetadata.upscaleAnalysis?.requestedFactor || 1,
+              fallback: Boolean(localResult.manifest?.traceUpscaleFallback)
+            }
+          : localResult.manifest?.readyTrace || null
       };
       const finalPrice = calculateJobPrice({
         inputMode: settings.inputMode,
@@ -811,7 +837,7 @@ export default function App() {
           productionType: settings.productionType,
           projectName: settings.projectName || 'Project Vector',
           separationFilmCount: localResult.separationFilmCount,
-          settings: traceSettings,
+          settings: tracedResult.settings || traceSettings,
           manifest,
           aiLedgerId: retouchLedgerId,
           priceIdr: finalPrice
@@ -834,6 +860,7 @@ export default function App() {
           ownerId: session.user.id,
           ownerEmail: session.user.email || '',
           sourcePreviewBlob,
+          sourceRasterBlob: file,
           sourceFileName: file.name,
           job: completedJob
         });
@@ -933,15 +960,15 @@ export default function App() {
     }
   }
 
-  async function handleRetraceLibraryJob(item, factor = 2) {
+  async function handleRetraceLibraryJob(item) {
     if (!item?.localRecordId || retracingLibraryJobId) return;
     const isAiJob = Boolean(item.job?.files?.aiRawPng) || item.inputMode === INPUT_MODE_RETOUCH || item.job?.settings?.inputMode === INPUT_MODE_RETOUCH;
-    const sourceUrl = isAiJob ? item.job?.files?.aiRawPng : item.sourcePreviewUrl;
+    const sourceUrl = isAiJob ? item.job?.files?.aiRawPng : item.sourceRasterUrl || item.sourcePreviewUrl;
     if (!sourceUrl) return;
     const activeId = item.id || item.jobId || item.localRecordId;
     setRetracingLibraryJobId(activeId);
     setHistoryError('');
-    setHistoryNotice(isId ? `Trace ulang ${factor}× sedang diproses lokal di browser…` : `Local ${factor}× retrace is running in the browser…`);
+    setHistoryNotice(isId ? 'Trace ulang sedang diproses lokal di browser…' : 'Local retrace is running in the browser…');
 
     try {
       const sourceBlob = await blobFromObjectUrl(
@@ -951,24 +978,27 @@ export default function App() {
       const sourcePreviewBlob = item.sourcePreviewUrl
         ? await blobFromObjectUrl(item.sourcePreviewUrl, isId ? 'Preview sumber tidak tersedia.' : 'The source preview is unavailable.')
         : sourceBlob;
-      const traceSettings = normalizeLocalTraceSettings({
+      let traceSettings = normalizeLocalTraceSettings({
         ...(item.job.settings || {}),
-        inputMode: isAiJob ? INPUT_MODE_RETOUCH : INPUT_MODE_READY,
-        ...(isAiJob ? { traceUpscaleFactor: factor } : {})
+        inputMode: isAiJob ? INPUT_MODE_RETOUCH : INPUT_MODE_READY
       });
-      const traceFile = new File([sourceBlob], isAiJob ? 'hasil-ai-mentah.png' : item.sourceFileName || 'gambar-awal.png', { type: sourceBlob.type || 'image/png' });
-      let effectiveFactor = isAiJob ? factor : 1;
-      let retraced;
-      try {
-        retraced = await processImageLocally(traceFile, traceSettings);
-      } catch (traceError) {
-        if (!isAiJob || factor !== 3) throw traceError;
-        effectiveFactor = 2;
-        retraced = await processImageLocally(
-          traceFile,
-          normalizeLocalTraceSettings({ ...traceSettings, traceUpscaleFactor: effectiveFactor })
-        );
+      if (!isAiJob) {
+        let upscaleAnalysis;
+        try {
+          upscaleAnalysis = await analyzeRasterForUpscale(sourceBlob);
+        } catch (_analysisError) {
+          upscaleAnalysis = { shouldUpscale: false, requestedFactor: 1, reason: 'analysis_failed' };
+        }
+        traceSettings = normalizeLocalTraceSettings({
+          ...traceSettings,
+          traceUpscaleEnabled: Boolean(upscaleAnalysis.shouldUpscale),
+          traceUpscaleAnalysis: upscaleAnalysis
+        });
       }
+      const traceFile = new File([sourceBlob], isAiJob ? 'hasil-ai-mentah.png' : item.sourceFileName || 'gambar-awal.png', { type: sourceBlob.type || 'image/png' });
+      const requestedFactor = traceSettings.traceUpscaleFactor || 1;
+      const retraced = await processImageLocallyWithFallback(traceFile, traceSettings);
+      const effectiveFactor = retraced.manifest?.traceUpscaleFactor || 1;
       const updatedAt = new Date().toISOString();
       const updatedJob = {
         ...item.job,
@@ -977,7 +1007,12 @@ export default function App() {
         createdAt: item.job.createdAt || retraced.createdAt,
         updatedAt,
         priceIdr: item.job.priceIdr || retraced.priceIdr,
-        settings: normalizeLocalTraceSettings({ ...traceSettings, traceUpscaleFactor: effectiveFactor }),
+        settings: normalizeLocalTraceSettings({
+          ...traceSettings,
+          traceUpscaleFactor: effectiveFactor,
+          traceUpscaleEnabled: effectiveFactor > 1,
+          allowTraceUpscaleOverride: effectiveFactor <= 1
+        }),
         files: {
           ...(retraced.files || {}),
           ...(isAiJob ? { aiRawPng: item.job.files.aiRawPng } : {})
@@ -992,7 +1027,7 @@ export default function App() {
           source: isAiJob ? 'ai_raw_png' : 'source_raster',
           processor: 'browser_local_trace',
           traceEngine: 'processImageLocally',
-          requestedTraceUpscaleFactor: factor,
+          requestedTraceUpscaleFactor: requestedFactor,
           effectiveTraceUpscaleFactor: effectiveFactor,
           retracedAt: updatedAt
         }
@@ -1002,6 +1037,7 @@ export default function App() {
         ownerId: session.user.id,
         ownerEmail: session.user.email || '',
         sourcePreviewBlob,
+        sourceRasterBlob: isAiJob ? null : sourceBlob,
         sourceFileName: item.sourceFileName || 'gambar-awal.png',
         job: updatedJob
       });
@@ -1009,8 +1045,8 @@ export default function App() {
       setHistorySelectedKey(updatedJob.jobId);
       setHistoryNotice(
         isId
-          ? `Trace ulang ${effectiveFactor}× selesai. Seluruh PNG trace, SVG, PDF, ZIP, separasi warna, dan cutline lama sudah diganti.`
-          : `${effectiveFactor}× retrace finished. Every previous traced PNG, SVG, PDF, ZIP, color separation, and cutline was replaced.`
+          ? `Trace ulang selesai pada faktor ${effectiveFactor}×. Seluruh PNG trace, SVG, PDF, ZIP, separasi warna, dan cutline lama sudah diganti.`
+          : `Retrace finished at ${effectiveFactor}×. Every previous traced PNG, SVG, PDF, ZIP, color separation, and cutline was replaced.`
       );
     } catch (error) {
       setHistoryError(error instanceof Error ? error.message : isId ? 'Trace ulang gagal diproses.' : 'Retrace failed.');

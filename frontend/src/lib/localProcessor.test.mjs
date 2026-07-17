@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   enforcePrintableColorLimit,
+  decideRasterUpscaleEligibility,
   normalizeLocalTraceSettings,
   normalizeTraceUpscaleFactor,
   refineAssignmentsForTraceForTest,
@@ -115,14 +116,21 @@ test('spot color handling stays active for sablon separation', () => {
 test('AI redraw always enables browser color separation', () => {
   const settings = normalizeLocalTraceSettings({ inputMode: 'ai_redraw', productionType: 'sticker', separateColors: false });
   assert.equal(settings.separateColors, true);
-  assert.equal(settings.traceUpscaleFactor, 2);
+  assert.equal(settings.traceUpscaleFactor, 3.15);
 });
 
-test('AI redraw trace upscale defaults to 2x and caps manual retry at 3x', () => {
-  assert.equal(normalizeTraceUpscaleFactor(undefined), 2);
-  assert.equal(normalizeTraceUpscaleFactor(3), 3);
-  assert.equal(normalizeTraceUpscaleFactor(9), 3);
+test('trace upscale keeps the 3.15x default without integer truncation', () => {
+  assert.equal(normalizeTraceUpscaleFactor(undefined), 3.15);
+  assert.equal(normalizeTraceUpscaleFactor(3.15), 3.15);
+  assert.equal(normalizeTraceUpscaleFactor(9), 3.15);
   assert.equal(normalizeTraceUpscaleFactor(0), 1);
+});
+
+test('ready trace upscale eligibility follows resolution and quality thresholds', () => {
+  assert.equal(decideRasterUpscaleEligibility({ width: 1200, height: 900, edgeDensity: 0.4, sharpnessScore: 0.9 }).shouldUpscale, true);
+  assert.equal(decideRasterUpscaleEligibility({ width: 2048, height: 1200, edgeDensity: 0.02, sharpnessScore: 0.01 }).shouldUpscale, false);
+  assert.equal(decideRasterUpscaleEligibility({ width: 1800, height: 1200, edgeDensity: 0.2, sharpnessScore: 0.8 }).shouldUpscale, false);
+  assert.equal(decideRasterUpscaleEligibility({ width: 1800, height: 1200, edgeDensity: 0.02, sharpnessScore: 0.8 }).shouldUpscale, true);
 });
 
 test('lineart trace smooths jagged AI redraw boundaries into fewer curve commands', () => {

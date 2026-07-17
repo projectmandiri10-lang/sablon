@@ -3,8 +3,13 @@ import { buildPrintLayout, createArtworkRegistrationMarks } from './localPrint.j
 import { calculateJobPrice } from './pricing.js';
 
 const MAX_CANVAS_EDGE = 4096;
-const DEFAULT_TRACE_UPSCALE_FACTOR = 2;
-const MAX_TRACE_UPSCALE_FACTOR = 3;
+const DEFAULT_TRACE_UPSCALE_FACTOR = 3.15;
+const MAX_TRACE_UPSCALE_FACTOR = 3.15;
+const READY_TRACE_ANALYSIS_MAX_EDGE = 256;
+const READY_TRACE_MIN_EDGE = 1536;
+const READY_TRACE_TARGET_EDGE = 2048;
+const READY_TRACE_SHARPNESS_THRESHOLD = 0.35;
+const READY_TRACE_EDGE_DENSITY_THRESHOLD = 0.08;
 const BIN_SIZE = 24;
 const AUTO_SPOT_COLOR_LIMIT = 8;
 const LINEART_POLISH_MIN_RETAIN_RATIO = 0.62;
@@ -1259,22 +1264,97 @@ export function normalizeLocalTraceSettings(settings = {}) {
     ? {
         ...settings,
         separateColors: true,
-        traceUpscaleFactor: normalizeTraceUpscaleFactor(settings.traceUpscaleFactor)
+        traceUpscaleFactor: settings.allowTraceUpscaleOverride
+          ? normalizeTraceUpscaleFactor(settings.traceUpscaleFactor)
+          : DEFAULT_TRACE_UPSCALE_FACTOR,
+        traceUpscaleEnabled: true
       }
     : settings.inputMode === 'ready_trace'
       ? {
           ...settings,
           makeVector: true,
           separateColors: settings.productionType === 'sablon' ? true : settings.separateColors,
-          stickerCutlineEnabled: settings.productionType === 'sticker' ? true : settings.stickerCutlineEnabled
+          stickerCutlineEnabled: settings.productionType === 'sticker' ? true : settings.stickerCutlineEnabled,
+          traceUpscaleFactor: settings.traceUpscaleEnabled ? DEFAULT_TRACE_UPSCALE_FACTOR : 1
         }
       : settings;
 }
 
 export function normalizeTraceUpscaleFactor(value) {
-  const parsed = Number.parseInt(value, 10);
+  const parsed = Number.parseFloat(value);
   if (!Number.isFinite(parsed)) return DEFAULT_TRACE_UPSCALE_FACTOR;
   return clamp(parsed, 1, MAX_TRACE_UPSCALE_FACTOR);
+}
+
+function analyzeRasterMetrics(imageData) {
+  const { data, width, height } = imageData;
+  const grayscale = new Float32Array(width * height);
+  for (let index = 0, pixel = 0; index < data.length; index += 4, pixel += 1) {
+    grayscale[pixel] = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+  }
+
+  let edgePixels = 0;
+  let laplacianSum = 0;
+  let laplacianSquaredSum = 0;
+  let samples = 0;
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = y * width + x;
+      const gradient = Math.abs(grayscale[index] - grayscale[index + 1]) + Math.abs(grayscale[index] - grayscale[index + width]);
+      if (gradient >= 32) edgePixels += 1;
+      const laplacian = 4 * grayscale[index] - grayscale[index - 1] - grayscale[index + 1] - grayscale[index - width] - grayscale[index + width];
+      laplacianSum += laplacian;
+      laplacianSquaredSum += laplacian * laplacian;
+      samples += 1;
+    }
+  }
+  const laplacianMean = samples > 0 ? laplacianSum / samples : 0;
+  const laplacianVariance = samples > 0 ? Math.max(0, laplacianSquaredSum / samples - laplacianMean ** 2) : 0;
+  return {
+    edgeDensity: samples > 0 ? edgePixels / samples : 0,
+    sharpnessScore: clamp(laplacianVariance / 4096, 0, 1)
+  };
+}
+
+export function decideRasterUpscaleEligibility({ width, height, edgeDensity = 0, sharpnessScore = 0 } = {}) {
+  const maxEdge = Math.max(Number(width) || 0, Number(height) || 0);
+  if (maxEdge >= READY_TRACE_TARGET_EDGE) {
+    return { shouldUpscale: false, reason: 'already_large' };
+  }
+  if (maxEdge < READY_TRACE_MIN_EDGE) {
+    return { shouldUpscale: true, reason: 'low_resolution' };
+  }
+  const lowQuality = sharpnessScore < READY_TRACE_SHARPNESS_THRESHOLD || edgeDensity < READY_TRACE_EDGE_DENSITY_THRESHOLD;
+  return { shouldUpscale: lowQuality, reason: lowQuality ? 'low_quality' : 'already_sharp' };
+}
+
+export async function analyzeRasterForUpscale(file) {
+  const bitmap = await loadBitmap(file);
+  try {
+    const sourceWidth = bitmap.width;
+    const sourceHeight = bitmap.height;
+    const previewScale = Math.min(1, READY_TRACE_ANALYSIS_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * previewScale));
+    const height = Math.max(1, Math.round(sourceHeight * previewScale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(bitmap, 0, 0, width, height);
+    const metrics = analyzeRasterMetrics(context.getImageData(0, 0, width, height));
+    const decision = decideRasterUpscaleEligibility({ width: sourceWidth, height: sourceHeight, ...metrics });
+    return {
+      sourceWidth,
+      sourceHeight,
+      previewWidth: width,
+      previewHeight: height,
+      ...metrics,
+      ...decision,
+      requestedFactor: decision.shouldUpscale ? DEFAULT_TRACE_UPSCALE_FACTOR : 1
+    };
+  } finally {
+    if (typeof bitmap.close === 'function') bitmap.close();
+  }
 }
 
 async function upscaleRasterForTrace(file, settings = {}) {
@@ -1346,7 +1426,8 @@ async function upscaleRasterForTrace(file, settings = {}) {
 export async function processImageLocally(file, settings) {
   const { default: JSZip } = await import('jszip');
   const effectiveSettings = normalizeLocalTraceSettings(settings);
-  const traceInput = effectiveSettings.inputMode === 'ai_redraw' ? await upscaleRasterForTrace(file, effectiveSettings) : null;
+  const shouldUpscale = effectiveSettings.inputMode === 'ai_redraw' || (effectiveSettings.inputMode === 'ready_trace' && effectiveSettings.traceUpscaleEnabled === true);
+  const traceInput = shouldUpscale ? await upscaleRasterForTrace(file, effectiveSettings) : null;
   const bitmap = traceInput ? await loadBitmap(traceInput.file) : await loadBitmap(file);
   const processedSourceWidth = bitmap.width;
   const processedSourceHeight = bitmap.height;
@@ -1528,6 +1609,8 @@ export async function processImageLocally(file, settings) {
       height,
       traceUpscaleFactor: traceInput ? traceInput.factor : 1,
       traceUpscaleMethod: traceInput?.method || 'none',
+      traceUpscaleApplied: Boolean(traceInput && traceInput.factor > 1),
+      traceUpscaleAnalysis: effectiveSettings.traceUpscaleAnalysis || null,
       traceInput: traceInput
         ? {
             sourceWidth: traceInput.sourceWidth,
@@ -1562,4 +1645,29 @@ export async function processImageLocally(file, settings) {
       ].filter(Boolean)
     }
   };
+}
+
+export async function processImageLocallyWithFallback(file, settings) {
+  const normalizedSettings = normalizeLocalTraceSettings(settings);
+  try {
+    return await processImageLocally(file, normalizedSettings);
+  } catch (error) {
+    if ((normalizedSettings.traceUpscaleFactor || 1) <= 1) throw error;
+    const fallbackSettings = normalizeLocalTraceSettings({
+      ...normalizedSettings,
+      traceUpscaleFactor: 1,
+      traceUpscaleEnabled: false,
+      allowTraceUpscaleOverride: true
+    });
+    const fallbackResult = await processImageLocally(file, fallbackSettings);
+    return {
+      ...fallbackResult,
+      settings: fallbackSettings,
+      manifest: {
+        ...(fallbackResult.manifest || {}),
+        traceUpscaleFallback: true,
+        traceUpscaleFallbackReason: 'canvas_or_trace_resource_limit'
+      }
+    };
+  }
 }

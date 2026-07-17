@@ -106,7 +106,7 @@ function hydrateArtifacts(record, objectUrls) {
   };
 }
 
-function toStorageRecord({ ownerId, ownerEmail, sourcePreviewBlob, sourceFileName, job }) {
+function toStorageRecord({ ownerId, ownerEmail, sourcePreviewBlob, sourceRasterBlob, sourceFileName, job }) {
   return {
     id: job.jobId,
     ownerId,
@@ -122,6 +122,7 @@ function toStorageRecord({ ownerId, ownerEmail, sourcePreviewBlob, sourceFileNam
     settings: job.settings || {},
     sourceFileName: sourceFileName || '',
     sourcePreviewBlob: sourcePreviewBlob || null,
+    sourceRasterBlob: sourceRasterBlob || null,
     artifacts: serializeArtifacts(job)
   };
 }
@@ -157,6 +158,7 @@ function hydrateRecord(record) {
     id: record.id,
     sourceFileName: record.sourceFileName || '',
     sourcePreviewUrl: makeObjectUrl(record.sourcePreviewBlob, objectUrls),
+    sourceRasterUrl: makeObjectUrl(record.sourceRasterBlob, objectUrls),
     projectName: record.settings?.projectName || 'Project Vector',
     productionType: record.settings?.productionType || 'sticker',
     inputMode: record.settings?.inputMode || 'ready_trace',
@@ -181,12 +183,12 @@ function hydrateRecord(record) {
   };
 }
 
-export async function saveHistoryJob({ ownerId, ownerEmail, sourcePreviewBlob, sourceFileName, job }) {
+export async function saveHistoryJob({ ownerId, ownerEmail, sourcePreviewBlob, sourceRasterBlob, sourceFileName, job }) {
   if (!isIndexedDbAvailable()) return;
 
   const database = await openDatabase();
   try {
-    const record = toStorageRecord({ ownerId, ownerEmail, sourcePreviewBlob, sourceFileName, job });
+    const record = toStorageRecord({ ownerId, ownerEmail, sourcePreviewBlob, sourceRasterBlob, sourceFileName, job });
     const transaction = database.transaction(STORE_NAME, 'readwrite');
     transaction.objectStore(STORE_NAME).put(record);
     await transactionToPromise(transaction);
