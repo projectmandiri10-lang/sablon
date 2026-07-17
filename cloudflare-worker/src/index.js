@@ -1920,6 +1920,10 @@ async function handleAiRedraw(env, request) {
   try {
     const upstream = await requestAiRetouchedImage(env, image, settings, aiModelConfig);
     const aiRawPng = new Uint8Array(await new Response(upstream.body).arrayBuffer());
+    // potrace-wasm contains an Emscripten Node branch that references __dirname
+    // when nodejs_compat exposes process in the Worker bundle. Its wasm binary
+    // is embedded, so an empty directory is the correct Worker-side fallback.
+    if (typeof globalThis.__dirname === 'undefined') globalThis.__dirname = '';
     const { traceAiPngArtifacts } = await import('./ai-trace.js');
     const traced = await traceAiPngArtifacts(aiRawPng, settings);
     const responseHeaders = {
