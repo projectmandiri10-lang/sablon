@@ -17,6 +17,9 @@ test('landing removes free-credit copy and advertises AI redraw at Rp10.000 with
 
 test('upload box explains AI redraw already includes color separation', () => {
   assert.match(uploadBoxSource, /Rp10\.000 per gambar sudah termasuk pecah warna/);
+  assert.match(uploadBoxSource, /Contoh foto sumber yang baik/);
+  assert.match(uploadBoxSource, /setSelectedGuideExample/);
+  assert.match(appSource, /exampleJobs=\{exampleJobs\}/);
 });
 
 test('app exposes a dedicated Contoh hasil button for published superadmin examples', () => {

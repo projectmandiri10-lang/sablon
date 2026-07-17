@@ -1,4 +1,4 @@
-import { ImagePlus, UploadCloud, X } from 'lucide-react';
+import { ImagePlus, UploadCloud, X, ZoomIn } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from '../lib/modes.js';
 import { formatRupiah, IMAGE_RETOUCH_PRICE_IDR, READY_PROCESS_PRICE_IDR } from '../lib/pricing.js';
@@ -40,17 +40,31 @@ function getModeOptions(locale) {
   ];
 }
 
-export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, onInputModeChange, onFileChange, disabled }) {
+export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, onInputModeChange, onFileChange, disabled, exampleJobs = [] }) {
   const [previewFailed, setPreviewFailed] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [selectedGuideExample, setSelectedGuideExample] = useState(null);
   const hasPreview = Boolean(file && previewUrl);
   const isId = locale === 'id';
   const modeOptions = useMemo(() => getModeOptions(locale), [locale]);
   const activeOption = useMemo(() => modeOptions.find((option) => option.value === inputMode) || modeOptions[0], [inputMode, modeOptions]);
+  const guideExamples = useMemo(
+    () => (exampleJobs || []).filter((example) => example?.sourcePreviewUrl).slice(0, 6),
+    [exampleJobs]
+  );
 
   useEffect(() => {
     setUploadError('');
   }, [inputMode]);
+
+  useEffect(() => {
+    if (!selectedGuideExample) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setSelectedGuideExample(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedGuideExample]);
 
   function getExtension(name = '') {
     const lastDot = name.lastIndexOf('.');
@@ -225,31 +239,63 @@ export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, 
       </div>
 
       {showRasterGuidelines && (
-        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.9fr)]">
-          <div className="border border-amber-200 bg-amber-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">{isId ? 'Saran foto untuk AI redraw' : 'Photo tips for AI redraw'}</p>
-            <ul className="mt-2 space-y-1 text-xs leading-5 text-amber-900">
-              {isId ? (
-                <>
-                  <li>Kamera Android minimal 16 MP.</li>
-                  <li>Ambil foto di tempat dengan cahaya cukup dan tanpa bayangan di area logo.</li>
-                  <li>Pastikan gambar tidak blur dan logo terlihat jelas.</li>
-                  <li>Jangan gunakan efek, filter, atau mode beautify kamera.</li>
-                  <li>Jangan gunakan zoom optik atau zoom digital saat memotret logo.</li>
-                </>
-              ) : (
-                <>
-                  <li>Use an Android camera with at least 16 MP.</li>
-                  <li>Take the photo in good lighting without shadows over the logo area.</li>
-                  <li>Make sure the image is not blurry and the logo is clearly visible.</li>
-                  <li>Do not use filters, effects, or beautify mode.</li>
-                  <li>Avoid optical or digital zoom when photographing the logo.</li>
-                </>
-              )}
-            </ul>
-          </div>
+        <>
+          {guideExamples.length > 0 && (
+            <div className="mb-4 border border-spruce/30 bg-primary/5 p-3">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-spruce">{isId ? 'Contoh foto sumber yang baik' : 'Good source photo examples'}</p>
+                  <p className="mt-1 text-xs leading-5 text-gray-700">
+                    {isId ? 'Contoh ini berasal dari hasil admin. Klik gambar untuk melihat ukuran besar dan meniru pencahayaan, jarak, serta ketajamannya.' : 'These examples come from admin results. Click an image to view it larger and follow its lighting, distance, and sharpness.'}
+                  </p>
+                </div>
+                <ZoomIn className="mt-0.5 h-5 w-5 shrink-0 text-spruce" aria-hidden="true" />
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                {guideExamples.map((example) => (
+                  <button
+                    key={example.jobId || example.sourcePreviewUrl}
+                    type="button"
+                    onClick={() => setSelectedGuideExample(example)}
+                    className="group overflow-hidden border border-line bg-white text-left transition hover:border-spruce hover:shadow-sm"
+                    title={isId ? 'Klik untuk melihat gambar sumber besar' : 'Click to view the large source image'}
+                  >
+                    <div className="checkerboard flex h-24 items-center justify-center overflow-hidden p-1 sm:h-28">
+                      <img className="h-full w-full object-contain transition group-hover:scale-105" src={example.sourcePreviewUrl} alt={isId ? `Contoh sumber ${example.projectName || ''}` : `Source example ${example.projectName || ''}`} loading="lazy" />
+                    </div>
+                    <span className="block truncate border-t border-line px-2 py-1.5 text-[11px] font-semibold text-ink">{example.projectName || (isId ? 'Contoh admin' : 'Admin example')}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.9fr)]">
+            <div className="border border-amber-200 bg-amber-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">{isId ? 'Saran foto untuk AI redraw' : 'Photo tips for AI redraw'}</p>
+              <ul className="mt-2 space-y-1 text-xs leading-5 text-amber-900">
+                {isId ? (
+                  <>
+                    <li>Kamera Android minimal 16 MP.</li>
+                    <li>Ambil foto di tempat dengan cahaya cukup dan tanpa bayangan di area logo.</li>
+                    <li>Pastikan gambar tidak blur dan logo terlihat jelas.</li>
+                    <li>Jangan gunakan efek, filter, atau mode beautify kamera.</li>
+                    <li>Jangan gunakan zoom optik atau zoom digital saat memotret logo.</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Use an Android camera with at least 16 MP.</li>
+                    <li>Take the photo in good lighting without shadows over the logo area.</li>
+                    <li>Make sure the image is not blurry and the logo is clearly visible.</li>
+                    <li>Do not use filters, effects, or beautify mode.</li>
+                    <li>Avoid optical or digital zoom when photographing the logo.</li>
+                  </>
+                )}
+              </ul>
+            </div>
           {uploadZone}
-        </div>
+          </div>
+        </>
       )}
 
       {!showRasterGuidelines && uploadZone}
@@ -261,6 +307,29 @@ export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, 
           ? isId ? 'Vector Siap Proses dipakai untuk file vector murni yang akan dipisah warna dan dibuat contour sticker.' : 'Production-Ready Vector is meant for pure vector files that will be separated by color and used to create sticker cutlines.'
           : isId ? 'AI Redraw seharga Rp10.000 per gambar sudah termasuk pecah warna. Jika foto terlalu gelap, blur, atau banyak bayangan, hasil redraw bisa tetap meleset dan perlu upload ulang.' : 'AI Redraw costs Rp10,000 per image and includes screen-print color separation. If the photo is too dark, blurry, or heavily shadowed, the redraw can still miss details and may need a re-upload.'}
       </p>
+
+      {selectedGuideExample && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4"
+          role="presentation"
+          onClick={() => setSelectedGuideExample(null)}
+        >
+          <div className="relative max-h-[92vh] w-full max-w-5xl border border-white/30 bg-white p-3 shadow-2xl" role="dialog" aria-modal="true" aria-label={isId ? 'Contoh gambar sumber besar' : 'Large source image example'} onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setSelectedGuideExample(null)}
+              className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center border border-line bg-white text-ink shadow-sm hover:border-tomato hover:text-tomato"
+              title={isId ? 'Tutup preview besar' : 'Close large preview'}
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <div className="checkerboard flex max-h-[80vh] min-h-64 items-center justify-center overflow-auto p-3">
+              <img className="max-h-[78vh] max-w-full object-contain" src={selectedGuideExample.sourcePreviewUrl} alt={isId ? 'Gambar sumber contoh admin' : 'Admin source example'} />
+            </div>
+            <p className="px-1 pt-3 text-sm font-semibold text-ink">{selectedGuideExample.projectName || (isId ? 'Contoh gambar sumber admin' : 'Admin source example')}</p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

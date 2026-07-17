@@ -1236,6 +1236,7 @@ export default function App() {
                   }}
                   onFileChange={setFile}
                   disabled={isBusy}
+                  exampleJobs={exampleJobs}
                 />
                 <JobStatus
                   locale={locale}
