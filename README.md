@@ -21,7 +21,7 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 - `VITE_API_BASE_URL` mengarah ke Worker baru.
 - `VITE_GOOGLE_OAUTH_REDIRECT_TO` mengarah ke domain Pages baru.
 - AI redraw sekarang berjalan lewat `AIVene` sebagai jalur utama dengan `OpenAI` sebagai fallback otomatis.
-- Default copy ini disetel ke preset hemat `standard`: input AI maksimal 1080 px pada sisi terpanjang, `input_fidelity=high`, output `medium` 1K, dan tanpa retry low-confidence.
+- Default copy ini disetel ke preset hemat `standard`: input AI maksimal 1080 px pada sisi terpanjang, `input_fidelity=low`, output `medium` 1K, dan tanpa retry low-confidence.
 - Browser mengirim salinan WebP terkompresi untuk foto biasa atau PNG untuk gambar transparan; file upload asli tetap tersedia untuk preview dan proses lokal.
 - Jika secret `AIVENE_API_KEY` dan `OPENAI_API_KEY` belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai lewat proses lokal browser.
 
@@ -43,5 +43,5 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 ## Catatan
 
 - Folder `landing/` dan `backend/` sengaja tidak ikut ke copy ini karena bukan target Cloudflare free tier.
-- Jalur AI redraw tidak mengirim token provider AI ke browser atau Supabase. Worker menerima upload dari browser, memanggil AIVene GPT Image 2 dengan fidelity low, lalu mengembalikan PNG mentah AI. Browser menjalankan trace lokal untuk menghasilkan PNG, vector, film sablon, PDF, dan ZIP.
+- Jalur AI redraw tidak mengirim token provider AI ke browser atau Supabase. Worker menerima upload dari browser, memanggil AIVene GPT Image 2 dengan fidelity low, lalu mengembalikan PNG mentah AI. Browser meng-upscale PNG mentah secara lokal dengan Pica (default 2×, opsi trace ulang 3× dengan batas aman 4096 px), lalu menjalankan trace lokal untuk menghasilkan PNG, vector, film sablon, PDF, dan ZIP. Trace ulang selalu memakai PNG mentah AI dan mengganti seluruh artefak trace lama tanpa memanggil AI lagi.
 - Untuk pembayaran otomatis biaya rendah tanpa Open API berbayar, gunakan jalur `interactive_qris` yang didokumentasikan di `INTERACTIVE_QRIS_NOTIFICATION_FORWARDER.md`. Jika Android 16 menolak NotificationForwarder, gunakan paket MacroDroid di `MACRODROID_INTERACTIVE_QRIS_IMPORT.md`.

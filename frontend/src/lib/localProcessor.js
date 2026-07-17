@@ -2,7 +2,9 @@ import { INPUT_MODE_RETOUCH } from './modes.js';
 import { buildPrintLayout, createArtworkRegistrationMarks } from './localPrint.js';
 import { calculateJobPrice } from './pricing.js';
 
-const MAX_CANVAS_EDGE = 2048;
+const MAX_CANVAS_EDGE = 4096;
+const DEFAULT_TRACE_UPSCALE_FACTOR = 2;
+const MAX_TRACE_UPSCALE_FACTOR = 3;
 const BIN_SIZE = 24;
 const AUTO_SPOT_COLOR_LIMIT = 8;
 const LINEART_POLISH_MIN_RETAIN_RATIO = 0.62;
@@ -1256,7 +1258,8 @@ export function normalizeLocalTraceSettings(settings = {}) {
   return settings.inputMode === 'ai_redraw'
     ? {
         ...settings,
-        separateColors: true
+        separateColors: true,
+        traceUpscaleFactor: normalizeTraceUpscaleFactor(settings.traceUpscaleFactor)
       }
     : settings.inputMode === 'ready_trace'
       ? {
@@ -1268,10 +1271,85 @@ export function normalizeLocalTraceSettings(settings = {}) {
       : settings;
 }
 
+export function normalizeTraceUpscaleFactor(value) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_TRACE_UPSCALE_FACTOR;
+  return clamp(parsed, 1, MAX_TRACE_UPSCALE_FACTOR);
+}
+
+async function upscaleRasterForTrace(file, settings = {}) {
+  const factor = normalizeTraceUpscaleFactor(settings.traceUpscaleFactor);
+  const sourceBitmap = await loadBitmap(file);
+  const sourceWidth = sourceBitmap.width;
+  const sourceHeight = sourceBitmap.height;
+  if (factor <= 1) {
+    if (typeof sourceBitmap.close === 'function') sourceBitmap.close();
+    return { file, sourceWidth, sourceHeight, width: sourceWidth, height: sourceHeight, factor: 1, method: 'none' };
+  }
+
+  const requestedWidth = Math.max(1, Math.round(sourceWidth * factor));
+  const requestedHeight = Math.max(1, Math.round(sourceHeight * factor));
+  const scale = Math.min(1, MAX_CANVAS_EDGE / Math.max(requestedWidth, requestedHeight));
+  const width = Math.max(1, Math.round(requestedWidth * scale));
+  const height = Math.max(1, Math.round(requestedHeight * scale));
+  const sourceCanvas = document.createElement('canvas');
+  sourceCanvas.width = sourceWidth;
+  sourceCanvas.height = sourceHeight;
+  const sourceContext = sourceCanvas.getContext('2d');
+  sourceContext.imageSmoothingEnabled = true;
+  sourceContext.imageSmoothingQuality = 'high';
+  sourceContext.drawImage(sourceBitmap, 0, 0, sourceWidth, sourceHeight);
+  if (typeof sourceBitmap.close === 'function') sourceBitmap.close();
+
+  try {
+    const { default: createPica } = await import('pica');
+    const pica = createPica();
+    const targetCanvas = document.createElement('canvas');
+    targetCanvas.width = width;
+    targetCanvas.height = height;
+    await pica.resize(sourceCanvas, targetCanvas, { filter: 'mks2013' });
+    const blob = await pica.toBlob(targetCanvas, 'image/png');
+    if (blob) {
+      return {
+        file: new File([blob], file.name || 'ai-redraw.png', { type: 'image/png' }),
+        sourceWidth,
+        sourceHeight,
+        width,
+        height,
+        factor: width === requestedWidth && height === requestedHeight ? factor : Number((width / sourceWidth).toFixed(2)),
+        method: 'pica_mks2013'
+      };
+    }
+  } catch (_error) {
+    // Fall back to the browser's high-quality canvas scaler on older devices.
+  }
+
+  const fallbackCanvas = document.createElement('canvas');
+  fallbackCanvas.width = width;
+  fallbackCanvas.height = height;
+  const fallbackContext = fallbackCanvas.getContext('2d');
+  fallbackContext.imageSmoothingEnabled = true;
+  fallbackContext.imageSmoothingQuality = 'high';
+  fallbackContext.drawImage(sourceCanvas, 0, 0, width, height);
+  const fallbackBlob = await canvasToBlob(fallbackCanvas);
+  return {
+    file: fallbackBlob ? new File([fallbackBlob], file.name || 'ai-redraw.png', { type: 'image/png' }) : file,
+    sourceWidth,
+    sourceHeight,
+    width,
+    height,
+    factor: width === requestedWidth && height === requestedHeight ? factor : Number((width / sourceWidth).toFixed(2)),
+    method: 'canvas_high_quality'
+  };
+}
+
 export async function processImageLocally(file, settings) {
   const { default: JSZip } = await import('jszip');
   const effectiveSettings = normalizeLocalTraceSettings(settings);
-  const bitmap = await loadBitmap(file);
+  const traceInput = effectiveSettings.inputMode === 'ai_redraw' ? await upscaleRasterForTrace(file, effectiveSettings) : null;
+  const bitmap = traceInput ? await loadBitmap(traceInput.file) : await loadBitmap(file);
+  const processedSourceWidth = bitmap.width;
+  const processedSourceHeight = bitmap.height;
   const scale = Math.min(1, MAX_CANVAS_EDGE / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));
@@ -1282,6 +1360,7 @@ export async function processImageLocally(file, settings) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(bitmap, 0, 0, width, height);
+  if (typeof bitmap.close === 'function') bitmap.close();
 
   const imageData = ctx.getImageData(0, 0, width, height);
   const palette = buildPalette(imageData, effectiveSettings);
@@ -1385,8 +1464,8 @@ export async function processImageLocally(file, settings) {
   const separationZipBlob = separations.length > 0 ? await separationZip.generateAsync({ type: 'blob' }) : null;
   const separationFilmCount = separations.length;
   const prepressQuality = buildPrepressQualityAssessment({
-    sourceWidth: bitmap.width,
-    sourceHeight: bitmap.height,
+    sourceWidth: processedSourceWidth,
+    sourceHeight: processedSourceHeight,
     width,
     height,
     bounds,
@@ -1447,6 +1526,19 @@ export async function processImageLocally(file, settings) {
     manifest: {
       width,
       height,
+      traceUpscaleFactor: traceInput ? traceInput.factor : 1,
+      traceUpscaleMethod: traceInput?.method || 'none',
+      traceInput: traceInput
+        ? {
+            sourceWidth: traceInput.sourceWidth,
+            sourceHeight: traceInput.sourceHeight,
+            width: traceInput.width,
+            height: traceInput.height,
+            requestedFactor: normalizeTraceUpscaleFactor(effectiveSettings.traceUpscaleFactor),
+            effectiveFactor: traceInput.factor,
+            method: traceInput.method
+          }
+        : null,
       palette: outputColors,
       prepressQuality,
       separationFilmCount,

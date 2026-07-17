@@ -118,6 +118,7 @@ function toStorageRecord({ ownerId, ownerEmail, sourcePreviewBlob, sourceFileNam
     priceIdr: job.priceIdr || 0,
     separationFilmCount: job.separationFilmCount || 0,
     prepressQuality: job.prepressQuality || job.manifest?.prepressQuality || null,
+    manifest: job.manifest || {},
     settings: job.settings || {},
     sourceFileName: sourceFileName || '',
     sourcePreviewBlob: sourcePreviewBlob || null,
@@ -169,7 +170,10 @@ function hydrateRecord(record) {
       priceIdr: record.priceIdr || 0,
       separationFilmCount: record.separationFilmCount || 0,
       prepressQuality: record.prepressQuality || null,
-      manifest: record.prepressQuality ? { prepressQuality: record.prepressQuality } : {},
+      manifest: {
+        ...(record.manifest || {}),
+        ...(record.prepressQuality ? { prepressQuality: record.prepressQuality } : {})
+      },
       settings: record.settings || {},
       files: hydrateArtifacts(record, objectUrls)
     },

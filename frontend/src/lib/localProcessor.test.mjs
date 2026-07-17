@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   enforcePrintableColorLimit,
   normalizeLocalTraceSettings,
+  normalizeTraceUpscaleFactor,
   refineAssignmentsForTraceForTest,
   requestedSpotColorLimit,
   shouldUseHardSpotColors,
@@ -114,6 +115,14 @@ test('spot color handling stays active for sablon separation', () => {
 test('AI redraw always enables browser color separation', () => {
   const settings = normalizeLocalTraceSettings({ inputMode: 'ai_redraw', productionType: 'sticker', separateColors: false });
   assert.equal(settings.separateColors, true);
+  assert.equal(settings.traceUpscaleFactor, 2);
+});
+
+test('AI redraw trace upscale defaults to 2x and caps manual retry at 3x', () => {
+  assert.equal(normalizeTraceUpscaleFactor(undefined), 2);
+  assert.equal(normalizeTraceUpscaleFactor(3), 3);
+  assert.equal(normalizeTraceUpscaleFactor(9), 3);
+  assert.equal(normalizeTraceUpscaleFactor(0), 1);
 });
 
 test('lineart trace smooths jagged AI redraw boundaries into fewer curve commands', () => {

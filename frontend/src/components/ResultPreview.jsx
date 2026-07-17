@@ -1,4 +1,4 @@
-import { Archive, Download, FileImage, FileText, Layers, Palette, Scissors, Trash2 } from 'lucide-react';
+import { Archive, Download, FileImage, FileText, Layers, Palette, RotateCcw, Scissors, Trash2 } from 'lucide-react';
 import { absoluteUrl } from '../lib/api.js';
 import { INPUT_MODE_READY } from '../lib/modes.js';
 
@@ -41,6 +41,8 @@ export default function ResultPreview({
   heading = 'Download hasil',
   subheading = '',
   onDelete,
+  onRetrace,
+  isRetracing = false,
   isDeleting = false,
   showDelete = true,
   historyView = false
@@ -55,6 +57,8 @@ export default function ResultPreview({
   const showSeparationPreviewTitle = historyView && isVectorReadyMode && settings.productionType === 'sablon';
   const prepressQuality = job.prepressQuality || job.manifest?.prepressQuality || null;
   const tracedPng = files.tracedPng || files.fullPng;
+  const canRetrace = Boolean((files.aiRawPng || sourcePreviewUrl) && typeof onRetrace === 'function');
+  const isAiRetrace = Boolean(files.aiRawPng);
 
   return (
     <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
@@ -135,6 +139,42 @@ export default function ResultPreview({
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
+        {canRetrace && isAiRetrace && (
+          <button
+            type="button"
+            onClick={() => onRetrace(2)}
+            disabled={isRetracing}
+            className="inline-flex min-h-10 items-center justify-center gap-2 border border-spruce bg-white px-3 py-2 text-sm font-semibold text-spruce transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+            title={isId ? 'Trace ulang dari PNG mentah AI dan ganti semua hasil trace lama' : 'Retrace from the raw AI PNG and replace every previous trace artifact'}
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            <span>{isRetracing ? (isId ? 'Memproses trace ulang…' : 'Retracing…') : isId ? 'Trace Ulang 2×' : 'Retrace 2×'}</span>
+          </button>
+        )}
+        {canRetrace && isAiRetrace && (
+          <button
+            type="button"
+            onClick={() => onRetrace(3)}
+            disabled={isRetracing}
+            className="inline-flex min-h-10 items-center justify-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+            title={isId ? 'Trace ulang 3×; dimensi otomatis dibatasi agar browser tetap aman' : 'Retrace at 3×; dimensions are capped automatically for browser safety'}
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            <span>{isRetracing ? (isId ? 'Memproses trace ulang…' : 'Retracing…') : isId ? 'Trace Ulang 3×' : 'Retrace 3×'}</span>
+          </button>
+        )}
+        {canRetrace && !isAiRetrace && (
+          <button
+            type="button"
+            onClick={() => onRetrace(1)}
+            disabled={isRetracing}
+            className="inline-flex min-h-10 items-center justify-center gap-2 border border-spruce bg-white px-3 py-2 text-sm font-semibold text-spruce transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+            title={isId ? 'Jalankan ulang trace lokal dari gambar sumber dan ganti semua hasil trace lama' : 'Run the local trace again from the source image and replace every previous trace artifact'}
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            <span>{isRetracing ? (isId ? 'Memproses trace ulang…' : 'Retracing…') : isId ? 'Trace Ulang' : 'Retrace'}</span>
+          </button>
+        )}
         {!isVectorReadyMode && (
           <DownloadButton href={files.aiRawPng} filename="hasil-ai-mentah.png" icon={FileImage}>
             {isId ? 'Download PNG Mentah AI' : 'Download Raw AI PNG'}
@@ -179,6 +219,14 @@ export default function ResultPreview({
           </button>
         )}
       </div>
+
+      {canRetrace && (
+        <p className="mt-2 text-xs leading-5 text-gray-600">
+          {isId
+            ? `${isAiRetrace ? 'Trace ulang selalu memakai PNG mentah AI' : 'Trace ulang memakai gambar sumber lokal'}. PNG trace, SVG, PDF, ZIP, film separasi, dan cutline lama akan diganti seluruhnya tanpa memanggil AI lagi.`
+            : `${isAiRetrace ? 'Retrace always starts from the raw AI PNG' : 'Retrace uses the local source image'}. It replaces the traced PNG, SVG, PDF, ZIP, separation films, and cutline without calling AI again.`}
+        </p>
+      )}
 
       {files.separations?.length > 0 && (
         <div className="mt-6">

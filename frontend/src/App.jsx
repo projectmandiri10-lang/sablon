@@ -209,6 +209,13 @@ function appendFileIfPresent(formData, key, blob, filename) {
   }
 }
 
+async function blobFromObjectUrl(url, fallbackMessage) {
+  if (!url) throw new Error(fallbackMessage);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(fallbackMessage);
+  return response.blob();
+}
+
 function buildExampleArtifactsFormData({ sourcePreviewBlob, sourceFileName, job }) {
   const artifacts = job.artifactBlobs || {};
   const formData = new FormData();
@@ -370,6 +377,7 @@ export default function App() {
   const [exampleJobs, setExampleJobs] = useState([]);
   const [exampleError, setExampleError] = useState('');
   const [deletingLibraryJobId, setDeletingLibraryJobId] = useState('');
+  const [retracingLibraryJobId, setRetracingLibraryJobId] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
   const [publicRoute, setPublicRoute] = useState(() => getPublicRouteFromPathname(window.location.pathname || '/'));
   const [midtransReturnState, setMidtransReturnState] = useState(() => parseMidtransReturnParams(window.location.search || ''));
@@ -672,6 +680,7 @@ export default function App() {
     setExampleJobs([]);
     setExampleError('');
     setDeletingLibraryJobId('');
+    setRetracingLibraryJobId('');
   }
 
   function openExampleResults() {
@@ -924,6 +933,93 @@ export default function App() {
     }
   }
 
+  async function handleRetraceLibraryJob(item, factor = 2) {
+    if (!item?.localRecordId || retracingLibraryJobId) return;
+    const isAiJob = Boolean(item.job?.files?.aiRawPng) || item.inputMode === INPUT_MODE_RETOUCH || item.job?.settings?.inputMode === INPUT_MODE_RETOUCH;
+    const sourceUrl = isAiJob ? item.job?.files?.aiRawPng : item.sourcePreviewUrl;
+    if (!sourceUrl) return;
+    const activeId = item.id || item.jobId || item.localRecordId;
+    setRetracingLibraryJobId(activeId);
+    setHistoryError('');
+    setHistoryNotice(isId ? `Trace ulang ${factor}× sedang diproses lokal di browser…` : `Local ${factor}× retrace is running in the browser…`);
+
+    try {
+      const sourceBlob = await blobFromObjectUrl(
+        sourceUrl,
+        isId ? (isAiJob ? 'PNG mentah AI tidak tersedia untuk trace ulang.' : 'Gambar sumber tidak tersedia untuk trace ulang.') : isAiJob ? 'The raw AI PNG is not available for retracing.' : 'The source image is unavailable for retracing.'
+      );
+      const sourcePreviewBlob = item.sourcePreviewUrl
+        ? await blobFromObjectUrl(item.sourcePreviewUrl, isId ? 'Preview sumber tidak tersedia.' : 'The source preview is unavailable.')
+        : sourceBlob;
+      const traceSettings = normalizeLocalTraceSettings({
+        ...(item.job.settings || {}),
+        inputMode: isAiJob ? INPUT_MODE_RETOUCH : INPUT_MODE_READY,
+        ...(isAiJob ? { traceUpscaleFactor: factor } : {})
+      });
+      const traceFile = new File([sourceBlob], isAiJob ? 'hasil-ai-mentah.png' : item.sourceFileName || 'gambar-awal.png', { type: sourceBlob.type || 'image/png' });
+      let effectiveFactor = isAiJob ? factor : 1;
+      let retraced;
+      try {
+        retraced = await processImageLocally(traceFile, traceSettings);
+      } catch (traceError) {
+        if (!isAiJob || factor !== 3) throw traceError;
+        effectiveFactor = 2;
+        retraced = await processImageLocally(
+          traceFile,
+          normalizeLocalTraceSettings({ ...traceSettings, traceUpscaleFactor: effectiveFactor })
+        );
+      }
+      const updatedAt = new Date().toISOString();
+      const updatedJob = {
+        ...item.job,
+        ...retraced,
+        jobId: item.jobId || item.job.jobId,
+        createdAt: item.job.createdAt || retraced.createdAt,
+        updatedAt,
+        priceIdr: item.job.priceIdr || retraced.priceIdr,
+        settings: normalizeLocalTraceSettings({ ...traceSettings, traceUpscaleFactor: effectiveFactor }),
+        files: {
+          ...(retraced.files || {}),
+          ...(isAiJob ? { aiRawPng: item.job.files.aiRawPng } : {})
+        },
+        artifactBlobs: {
+          ...(retraced.artifactBlobs || {}),
+          ...(isAiJob ? { aiRawPng: sourceBlob } : {})
+        },
+        manifest: {
+          ...(item.job.manifest || {}),
+          ...(retraced.manifest || {}),
+          source: isAiJob ? 'ai_raw_png' : 'source_raster',
+          processor: 'browser_local_trace',
+          traceEngine: 'processImageLocally',
+          requestedTraceUpscaleFactor: factor,
+          effectiveTraceUpscaleFactor: effectiveFactor,
+          retracedAt: updatedAt
+        }
+      };
+
+      await saveHistoryJob({
+        ownerId: session.user.id,
+        ownerEmail: session.user.email || '',
+        sourcePreviewBlob,
+        sourceFileName: item.sourceFileName || 'gambar-awal.png',
+        job: updatedJob
+      });
+      await refreshHistory();
+      setHistorySelectedKey(updatedJob.jobId);
+      setHistoryNotice(
+        isId
+          ? `Trace ulang ${effectiveFactor}× selesai. Seluruh PNG trace, SVG, PDF, ZIP, separasi warna, dan cutline lama sudah diganti.`
+          : `${effectiveFactor}× retrace finished. Every previous traced PNG, SVG, PDF, ZIP, color separation, and cutline was replaced.`
+      );
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : isId ? 'Trace ulang gagal diproses.' : 'Retrace failed.');
+      setHistoryNotice('');
+    } finally {
+      setRetracingLibraryJobId('');
+    }
+  }
+
   const currentPathname = normalizePathname(window.location.pathname || '/');
   if (LEGAL_PATHS.has(currentPathname)) {
     if (publicRoute === 'privacy') return <PrivacyPage locale={locale} onNavigate={navigatePublicPath} />;
@@ -1138,6 +1234,8 @@ export default function App() {
                   historyError={historyError}
                   exampleError={exampleError}
                   onDeleteJob={handleDeleteLibraryJob}
+                  onRetraceJob={handleRetraceLibraryJob}
+                  retracingJobId={retracingLibraryJobId}
                   deletingJobId={deletingLibraryJobId}
                   currentUserId={session.user.id}
                   selectedKey={historySelectedKey}

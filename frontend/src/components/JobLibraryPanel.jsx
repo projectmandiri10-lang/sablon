@@ -213,6 +213,8 @@ export default function JobLibraryPanel({
   historyError = '',
   exampleError = '',
   onDeleteJob,
+  onRetraceJob,
+  retracingJobId = '',
   deletingJobId = '',
   currentUserId = '',
   selectedKey: controlledSelectedKey,
@@ -307,6 +309,8 @@ export default function JobLibraryPanel({
             subheading={`${productionLabels[selectedItem.productionType] || selectedItem.productionType} - ${inputModeLabels[selectedItem.inputMode] || selectedItem.inputMode}`}
             showDelete={selectedItem.canDelete}
             onDelete={selectedItem.canDelete ? () => onDeleteJob(selectedItem) : undefined}
+            onRetrace={selectedItem.localRecordId && onRetraceJob ? (factor) => onRetraceJob(selectedItem, factor) : undefined}
+            isRetracing={retracingJobId === selectedItem.id || retracingJobId === selectedItem.jobId}
             isDeleting={deletingJobId === selectedItem.id || deletingJobId === selectedItem.jobId}
           />
         </div>
