@@ -1475,9 +1475,9 @@ export async function processImageLocally(file, settings) {
   const tracePathOptions = pathOptionsForSettings(effectiveSettings, width, height);
   const filmPlan = createFilmPlan(outputColors, width, height, effectiveSettings);
   const printable = filmPlan.colors;
-  const exportColors = effectiveSettings.removeBackground === true && effectiveSettings.includeBackgroundInFilmSize !== true ? printable : outputColors;
+  const fullColorPalette = outputColors;
   const bounds = filmPlan.bounds;
-  const fullSvg = buildFullSvg({ colors: exportColors, assignments, width, height, settings: effectiveSettings });
+  const fullSvg = buildFullSvg({ colors: fullColorPalette, assignments, width, height, settings: effectiveSettings });
   const zip = new JSZip();
   const separationZip = new JSZip();
   const fullSvgPdf = await addSvgPdf(zip, 'full-vector', fullSvg, width, height);
@@ -1488,7 +1488,7 @@ export async function processImageLocally(file, settings) {
     maxHeight: 4096
   });
   zip.file('preview-full-color.png', previewBlob);
-  zip.file('palette.json', JSON.stringify(exportColors, null, 2));
+  zip.file('palette.json', JSON.stringify(fullColorPalette, null, 2));
 
   const separations = [];
   if (effectiveSettings.separateColors) {
@@ -1593,7 +1593,7 @@ export async function processImageLocally(file, settings) {
     priceIdr,
     separationFilmCount,
     prepressQuality,
-    palette: exportColors,
+    palette: fullColorPalette,
     settings: effectiveSettings,
     files: {
       fullPng: fileUrl(previewBlob),
