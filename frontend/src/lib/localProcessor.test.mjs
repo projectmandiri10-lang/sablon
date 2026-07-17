@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   enforcePrintableColorLimit,
   decideRasterUpscaleEligibility,
+  isVectorImageFile,
   normalizeLocalTraceSettings,
   normalizeTraceUpscaleFactor,
   refineAssignmentsForTraceForTest,
@@ -131,6 +132,12 @@ test('ready trace upscale eligibility follows resolution and quality thresholds'
   assert.equal(decideRasterUpscaleEligibility({ width: 2048, height: 1200, edgeDensity: 0.02, sharpnessScore: 0.01 }).shouldUpscale, false);
   assert.equal(decideRasterUpscaleEligibility({ width: 1800, height: 1200, edgeDensity: 0.2, sharpnessScore: 0.8 }).shouldUpscale, false);
   assert.equal(decideRasterUpscaleEligibility({ width: 1800, height: 1200, edgeDensity: 0.02, sharpnessScore: 0.8 }).shouldUpscale, true);
+});
+
+test('ready trace recognizes SVG sources and skips raster upscale', () => {
+  assert.equal(isVectorImageFile({ type: 'image/svg+xml', name: 'logo.svg' }), true);
+  assert.equal(isVectorImageFile({ type: '', name: 'logo.svg' }), true);
+  assert.equal(isVectorImageFile({ type: 'image/png', name: 'logo.png' }), false);
 });
 
 test('lineart trace smooths jagged AI redraw boundaries into fewer curve commands', () => {

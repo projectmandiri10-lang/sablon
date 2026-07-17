@@ -983,9 +983,10 @@ export default function App() {
         inputMode: isAiJob ? INPUT_MODE_RETOUCH : INPUT_MODE_READY
       });
       if (!isAiJob) {
+        const analysisFile = new File([sourceBlob], item.sourceFileName || 'gambar-awal.png', { type: sourceBlob.type || 'image/png' });
         let upscaleAnalysis;
         try {
-          upscaleAnalysis = await analyzeRasterForUpscale(sourceBlob);
+          upscaleAnalysis = await analyzeRasterForUpscale(analysisFile);
         } catch (_analysisError) {
           upscaleAnalysis = { shouldUpscale: false, requestedFactor: 1, reason: 'analysis_failed' };
         }

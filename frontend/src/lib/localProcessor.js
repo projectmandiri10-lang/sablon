@@ -1316,6 +1316,12 @@ function analyzeRasterMetrics(imageData) {
   };
 }
 
+export function isVectorImageFile(file) {
+  const mimeType = String(file?.type || '').toLowerCase();
+  const fileName = String(file?.name || '').toLowerCase();
+  return mimeType === 'image/svg+xml' || fileName.endsWith('.svg');
+}
+
 export function decideRasterUpscaleEligibility({ width, height, edgeDensity = 0, sharpnessScore = 0 } = {}) {
   const maxEdge = Math.max(Number(width) || 0, Number(height) || 0);
   if (maxEdge >= READY_TRACE_TARGET_EDGE) {
@@ -1333,6 +1339,20 @@ export async function analyzeRasterForUpscale(file) {
   try {
     const sourceWidth = bitmap.width;
     const sourceHeight = bitmap.height;
+    if (isVectorImageFile(file)) {
+      return {
+        sourceWidth,
+        sourceHeight,
+        previewWidth: sourceWidth,
+        previewHeight: sourceHeight,
+        edgeDensity: null,
+        sharpnessScore: null,
+        shouldUpscale: false,
+        reason: 'vector_source',
+        sourceType: 'vector',
+        requestedFactor: 1
+      };
+    }
     const previewScale = Math.min(1, READY_TRACE_ANALYSIS_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
     const width = Math.max(1, Math.round(sourceWidth * previewScale));
     const height = Math.max(1, Math.round(sourceHeight * previewScale));
@@ -1350,6 +1370,7 @@ export async function analyzeRasterForUpscale(file) {
       previewHeight: height,
       ...metrics,
       ...decision,
+      sourceType: 'raster',
       requestedFactor: decision.shouldUpscale ? DEFAULT_TRACE_UPSCALE_FACTOR : 1
     };
   } finally {

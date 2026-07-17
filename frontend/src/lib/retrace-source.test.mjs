@@ -32,6 +32,7 @@ test('AI local trace uses Pica upscale with a 4096px safety cap', () => {
   assert.match(processorSource, /filter: 'mks2013'/);
   assert.match(processorSource, /traceUpscaleAnalysis/);
   assert.match(processorSource, /traceUpscaleApplied/);
+  assert.match(processorSource, /reason: 'vector_source'/);
 });
 
 test('ready trace history keeps the original raster for future retries', () => {
