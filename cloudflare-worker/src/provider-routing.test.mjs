@@ -40,6 +40,7 @@ test('AIVene primary returns image bytes and metadata', async () => {
     if (url === 'https://api.aivene.com/v1/images/edits') {
       const form = init.body;
       assert.equal(form.get('model'), 'gpt-image-1.5');
+      assert.equal(form.get('prompt'), 'bersihkan gambar');
       assert.ok(form.get('image[]') instanceof File);
       assert.equal(form.get('size'), '1536x1024');
       assert.equal(form.get('quality'), 'medium');
