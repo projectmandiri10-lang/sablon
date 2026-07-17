@@ -12,8 +12,8 @@ test('AI redraw model presets expose AIVene primary with OpenAI fallback', () =>
   assert.equal(presets.budget.openAiImageModel, 'gpt-image-1.5');
   assert.equal(presets.budget.promptProfile, 'logo_photo_cleanup_short');
   assert.equal(presets.budget.generationQuality, 'low');
-  assert.equal(presets.budget.inputFidelity, 'low');
-  assert.equal(presets.standard.inputFidelity, 'low');
+  assert.equal(presets.budget.inputFidelity, 'high');
+  assert.equal(presets.standard.inputFidelity, 'high');
   assert.equal(presets.standard.inputMaxEdge, 1080);
   assert.equal(presets.quality.aiveneImageModel, 'gpt-image-1.5');
   assert.equal(presets.quality.inputFidelity, 'high');
@@ -24,12 +24,12 @@ test('AI redraw model presets expose AIVene primary with OpenAI fallback', () =>
   assert.equal(Object.keys(presets).length, 4);
 });
 
-test('unspecified redraw config defaults to the standard low-fidelity preset', () => {
+test('unspecified redraw config defaults to high-fidelity input', () => {
   const normalized = normalizeAiRedrawModelConfig();
   assert.equal(normalized.mode, 'standard');
   assert.equal(normalized.generationQuality, 'medium');
   assert.equal(normalized.imageSize, '1K');
-  assert.equal(normalized.inputFidelity, 'low');
+  assert.equal(normalized.inputFidelity, 'high');
   assert.equal(normalized.inputMaxEdge, 1080);
 });
 

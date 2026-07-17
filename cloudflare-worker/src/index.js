@@ -690,7 +690,10 @@ function calculateDynamicJobPrice({ inputMode = 'ready_trace', separationFilmCou
 }
 
 export function normalizeAiRedrawModelConfig(value = {}, env = {}) {
-  return normalizeHybridRedrawConfig(value, env);
+  return {
+    ...normalizeHybridRedrawConfig(value, env),
+    inputFidelity: 'high'
+  };
 }
 
 function examplePublicUrl(env, path) {
@@ -1916,15 +1919,22 @@ async function handleAiRedraw(env, request) {
 
   try {
     const upstream = await requestAiRetouchedImage(env, image, settings, aiModelConfig);
-    const responseHeaders = new Headers(upstream.headers);
-    Object.entries(corsHeaders).forEach(([key, value]) => responseHeaders.set(key, value));
-    responseHeaders.set('X-AI-Ledger-Id', ledger?.id || '');
-    responseHeaders.set('X-AI-Redraw-Metadata', encodeBase64UrlJson(upstream.metadata || {}));
-    return new Response(upstream.body, {
-      status: upstream.status || 200,
-      statusText: upstream.statusText || 'OK',
-      headers: responseHeaders
-    });
+    const aiRawPng = new Uint8Array(await new Response(upstream.body).arrayBuffer());
+    const { traceAiPngArtifacts } = await import('./ai-trace.js');
+    const traced = await traceAiPngArtifacts(aiRawPng, settings);
+    const responseHeaders = {
+      'X-AI-Ledger-Id': ledger?.id || '',
+      'X-AI-Redraw-Metadata': encodeBase64UrlJson(upstream.metadata || {})
+    };
+    return json({
+      ...traced,
+      retouchLedgerId: ledger?.id || '',
+      aiRedrawMetadata: upstream.metadata || {},
+      manifest: {
+        ...(traced.manifest || {}),
+        aiRedraw: upstream.metadata || {}
+      }
+    }, 200, responseHeaders);
   } catch (error) {
     if (ledger?.id) {
       await insertLedger(env, {
@@ -2163,11 +2173,13 @@ function resolveOpenAiImageQuality(aiModelConfig = {}) {
 }
 
 function resolveOpenAiInputFidelity(aiModelConfig = {}) {
-  return aiModelConfig.inputFidelity === 'high' ? 'high' : 'low';
+  return 'high';
 }
 
 export function getAiRedrawModelPresets() {
-  return HYBRID_REDRAW_PRESETS;
+  return Object.fromEntries(
+    Object.entries(HYBRID_REDRAW_PRESETS).map(([key, preset]) => [key, { ...preset, inputFidelity: 'high' }])
+  );
 }
 
 async function handleJobArtifactsUpload(env, request, jobId) {

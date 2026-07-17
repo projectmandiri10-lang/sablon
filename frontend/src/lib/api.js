@@ -64,6 +64,8 @@ function blobUrl(blob) {
 
 function hydrateBackendRetouchResult(data, settings) {
   const artifacts = data.artifacts || {};
+  const aiRawPngBlob = artifactToBlob(artifacts.aiRawPng);
+  const tracedPngBlob = artifactToBlob(artifacts.tracedPng);
   const fullPngBlob = artifactToBlob(artifacts.fullPng);
   const fullSvgBlob = artifactToBlob(artifacts.fullSvg);
   const fullPdfBlob = artifactToBlob(artifacts.fullPdf);
@@ -92,6 +94,8 @@ function hydrateBackendRetouchResult(data, settings) {
   });
 
   const artifactBlobs = {
+    aiRawPng: aiRawPngBlob,
+    tracedPng: tracedPngBlob,
     fullPng: fullPngBlob,
     fullSvg: fullSvgBlob,
     fullPdf: fullPdfBlob,
@@ -116,7 +120,9 @@ function hydrateBackendRetouchResult(data, settings) {
     palette: data.palette || [],
     settings: data.settings || settings,
     files: {
-      fullPng: blobUrl(fullPngBlob),
+      aiRawPng: blobUrl(aiRawPngBlob),
+      tracedPng: blobUrl(tracedPngBlob || fullPngBlob),
+      fullPng: blobUrl(fullPngBlob || tracedPngBlob),
       fullSvg: blobUrl(fullSvgBlob),
       fullPdf: blobUrl(fullPdfBlob),
       stickerCutlineSvg: blobUrl(stickerCutlineSvgBlob),
@@ -129,8 +135,9 @@ function hydrateBackendRetouchResult(data, settings) {
     manifest: data.manifest || {}
   };
 
-  const pngFile = fullPngBlob
-    ? new File([fullPngBlob], artifacts.fullPng?.filename || 'gambar-ulang.png', { type: fullPngBlob.type || 'image/png' })
+  const outputPngBlob = tracedPngBlob || fullPngBlob;
+  const pngFile = outputPngBlob
+    ? new File([outputPngBlob], artifacts.tracedPng?.filename || artifacts.fullPng?.filename || 'hasil-trace.png', { type: outputPngBlob.type || 'image/png' })
     : null;
 
   return { localResult, pngFile };

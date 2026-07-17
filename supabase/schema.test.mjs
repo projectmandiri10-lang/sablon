@@ -25,6 +25,7 @@ const interactiveQrisClosedHoursMigration = fs.readFileSync(path.join(import.met
 const mediumOpenAiQualityMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260712103000_set_openai_redraw_medium_quality.sql'), 'utf8');
 const aivenePrimaryMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260716110000_switch_ai_redraw_to_aivene_primary_openai_fallback.sql'), 'utf8');
 const inputTokenOptimizationMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260716120000_optimize_ai_redraw_input_tokens.sql'), 'utf8');
+const highInputFidelityMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260716130000_force_ai_redraw_high_input_fidelity.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -154,13 +155,19 @@ test('latest AIVene migration moves redraw defaults to AIVene primary with OpenA
   assert.match(aivenePrimaryMigration, /Pipeline AIVene primary \+ OpenAI fallback untuk AI redraw/);
 });
 
-test('latest redraw optimization defaults to 1080px low-fidelity input', () => {
+test('historical redraw optimization migration recorded the old low-fidelity input', () => {
   assert.match(inputTokenOptimizationMigration, /'mode', 'standard'/);
   assert.match(inputTokenOptimizationMigration, /'inputFidelity', 'low'/);
   assert.match(inputTokenOptimizationMigration, /'inputMaxEdge', 1080/);
   assert.match(inputTokenOptimizationMigration, /'retryOnLowConfidence', false/);
-  assert.match(bootstrapSql, /"inputFidelity":"low"/);
+  assert.match(bootstrapSql, /"inputFidelity":"high"/);
   assert.match(bootstrapSql, /"inputMaxEdge":1080/);
+});
+
+test('latest redraw migration forces high input fidelity', () => {
+  assert.match(highInputFidelityMigration, /jsonb_set/);
+  assert.match(highInputFidelityMigration, /inputFidelity/);
+  assert.match(highInputFidelityMigration, /high/);
 });
 
 test('bootstrap sql hardens helper functions and policy indexes', () => {

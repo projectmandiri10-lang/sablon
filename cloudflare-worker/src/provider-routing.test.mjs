@@ -44,7 +44,7 @@ test('AIVene primary returns image bytes and metadata', async () => {
       assert.ok(form.get('image[]') instanceof File);
       assert.equal(form.get('size'), '1536x1024');
       assert.equal(form.get('quality'), 'medium');
-      assert.equal(form.get('input_fidelity'), 'low');
+      assert.equal(form.get('input_fidelity'), 'high');
       assert.equal(form.get('output_format'), 'png');
       return new Response(
         JSON.stringify({
@@ -90,7 +90,7 @@ test('AIVene primary returns image bytes and metadata', async () => {
     assert.equal(result.metadata.model, 'gpt-image-1.5');
     assert.equal(result.metadata.aiveneImageModel, 'gpt-image-1.5');
     assert.equal(result.metadata.openAiImageModel, 'gpt-image-1.5');
-    assert.equal(result.metadata.inputFidelity, 'low');
+    assert.equal(result.metadata.inputFidelity, 'high');
     assert.equal(result.metadata.imageSize, '1536x1024');
     assert.deepEqual(result.metadata.sourceDimensions, { width: 4000, height: 2000 });
     assert.deepEqual(result.metadata.preparedDimensions, { width: 1080, height: 540 });

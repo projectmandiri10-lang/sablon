@@ -1016,14 +1016,13 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Fidelity input</span>
                   <select
-                    value={aiModelDraft.inputFidelity || 'low'}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', inputFidelity: event.target.value }))}
-                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                    value="high"
+                    disabled
+                    className="w-full border border-line bg-panel px-3 py-2.5 text-sm outline-none"
                   >
-                    <option value="low">Low - hemat token</option>
                     <option value="high">High - detail maksimal</option>
                   </select>
-                  <span className="mt-1 block text-xs text-gray-600">Low untuk pemakaian normal; high untuk teks kecil atau garis sangat tipis.</span>
+                  <span className="mt-1 block text-xs text-gray-600">Worker selalu memakai fidelity high agar detail input tetap dipertahankan.</span>
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Prompt profile</span>
@@ -1092,7 +1091,7 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                     : 'Tanpa provider fallback tambahan.'}
                 </p>
                 <p>
-                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | input {aiModelDraft.inputFidelity || 'low'} / {aiModelDraft.inputMaxEdge || 1080}px | prompt {aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
+                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | input high / {aiModelDraft.inputMaxEdge || 1080}px | prompt {aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
                 </p>
                 <p>
                   AIVene model: {aiModelDraft.aiveneImageModel || '-'} | OpenAI model: {aiModelDraft.openAiImageModel || '-'}

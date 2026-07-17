@@ -2,12 +2,12 @@ import { Archive, Download, FileImage, FileText, Layers, Palette, Scissors, Tras
 import { absoluteUrl } from '../lib/api.js';
 import { INPUT_MODE_READY } from '../lib/modes.js';
 
-function DownloadButton({ href, children, icon: Icon }) {
+function DownloadButton({ href, filename, children, icon: Icon }) {
   if (!href) return null;
   return (
     <a
       href={absoluteUrl(href)}
-      download
+      download={filename || true}
       className="inline-flex min-h-10 items-center justify-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary/90"
     >
       <Icon className="h-4 w-4" aria-hidden="true" />
@@ -54,6 +54,7 @@ export default function ResultPreview({
   const showStickerCutlinePreview = historyView && isVectorReadyMode && settings.productionType === 'sticker';
   const showSeparationPreviewTitle = historyView && isVectorReadyMode && settings.productionType === 'sablon';
   const prepressQuality = job.prepressQuality || job.manifest?.prepressQuality || null;
+  const tracedPng = files.tracedPng || files.fullPng;
 
   return (
     <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
@@ -84,10 +85,16 @@ export default function ResultPreview({
         <div className="grid gap-4 xl:grid-cols-3">
           <PreviewCard title={sourcePreviewLabel} icon={FileImage} src={sourcePreviewUrl} alt={sourcePreviewLabel} />
           <PreviewCard
-            title={isId ? 'Preview PNG hasil jadi' : 'PNG output preview'}
+            title={isId ? 'Preview PNG mentah AI' : 'Raw AI PNG preview'}
             icon={FileImage}
-            src={files.fullPng}
-            alt={isId ? 'Preview PNG hasil jadi' : 'PNG output preview'}
+            src={files.aiRawPng}
+            alt={isId ? 'PNG mentah hasil AI redraw' : 'Raw AI redraw PNG'}
+          />
+          <PreviewCard
+            title={isId ? 'Preview PNG hasil trace' : 'Traced PNG preview'}
+            icon={FileImage}
+            src={tracedPng}
+            alt={isId ? 'PNG hasil trace Worker' : 'Worker traced PNG'}
             notice={
               settings.removeBackground && settings.includeBackgroundInFilmSize !== true
                 ? isId
@@ -128,9 +135,14 @@ export default function ResultPreview({
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
+        {!isVectorReadyMode && (
+          <DownloadButton href={files.aiRawPng} filename="hasil-ai-mentah.png" icon={FileImage}>
+            {isId ? 'Download PNG Mentah AI' : 'Download Raw AI PNG'}
+          </DownloadButton>
+        )}
         {showFullColorDownloads && (
-          <DownloadButton href={files.fullPng} icon={FileImage}>
-            {isId ? 'Download PNG' : 'Download PNG'}
+          <DownloadButton href={tracedPng} filename="hasil-trace.png" icon={FileImage}>
+            {isId ? 'Download PNG Hasil Trace' : 'Download Traced PNG'}
           </DownloadButton>
         )}
         {showFullColorDownloads && (

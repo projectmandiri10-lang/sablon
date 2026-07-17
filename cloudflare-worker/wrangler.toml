@@ -1,6 +1,7 @@
 name = "sablon"
 main = "src/index.js"
 compatibility_date = "2026-06-13"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 APP_BASE_URL = "https://sablon-5gx.pages.dev"
@@ -14,7 +15,7 @@ OPENAI_IMAGE_MODEL = "gpt-image-1.5"
 AI_REDRAW_PROMPT_PROFILE = "logo_photo_cleanup_short"
 AI_REDRAW_IMAGE_QUALITY = "medium"
 AI_REDRAW_IMAGE_SIZE = "1K"
-AI_REDRAW_INPUT_FIDELITY = "low"
+AI_REDRAW_INPUT_FIDELITY = "high"
 AI_REDRAW_INPUT_MAX_EDGE = "1080"
 AI_REDRAW_PRESET = "standard"
 AI_REDRAW_PRIMARY_PROVIDER = "aivene_image"

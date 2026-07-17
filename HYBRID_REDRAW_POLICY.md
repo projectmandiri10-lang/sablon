@@ -5,7 +5,7 @@ Design Mudah now uses an AIVene-first redraw architecture with OpenAI fallback:
 - `AIVene image redraw = primary sketch/trace redraw`
 - `gpt-image-1.5 = default image model for both AIVene primary and OpenAI fallback`
 - `OpenAI = secondary provider and automatic fallback`
-- deterministic browser trace, vector, cutline, film, PDF, and ZIP stay outside AI
+- deterministic Worker trace, vector, cutline, film, PDF, and ZIP stay outside AI
 
 ## Pipeline
 
@@ -14,16 +14,16 @@ Design Mudah now uses an AIVene-first redraw architecture with OpenAI fallback:
 3. Cloudflare Worker verifies login and credit through the embedded SaaS logic.
 4. For AI redraw, the Worker sends the prepared upload to AIVene `POST /images/edits` first.
 5. If AIVene fails because of quota, billing, model-unavailable, timeout, network, or 5xx conditions, the Worker sends the same prepared file once to OpenAI.
-6. The resulting PNG returns to the browser trace and separation flow. Ready Trace skips remote generation entirely.
-7. The browser processor exports SVG/PDF/ZIP artifacts, registration marks, spot-color metadata, prepress quality warnings, and a 1 px choked underbase film when enabled.
+6. The Worker keeps the raw AI PNG, traces the same bytes with Potrace WASM, and renders traced PNG/SVG/PDF/ZIP artifacts. Ready Trace skips remote generation entirely.
+7. The frontend downloads both raw AI PNG and traced PNG, while Worker-generated SVG/PDF/ZIP artifacts remain available for production.
 
 ## Invariants
 
 - Ready trace mode must stay local browser trace only and must not call any remote image generation provider.
 - AIVene and OpenAI model IDs must stay env-editable.
 - Default deploy should use AIVene as primary provider.
-- Default deploy uses preset `standard`, `input_fidelity=low`, `inputMaxEdge=1080`, output quality `medium`, and output size `1K` matched to source orientation.
-- Presets `quality` and `premium` may use `input_fidelity=high` for small text and thin details; all presets keep the 1080 px input cap.
+- Default deploy uses preset `standard`, `input_fidelity=high`, `inputMaxEdge=1080`, output quality `medium`, and output size `1K` matched to source orientation.
+- Worker forces `input_fidelity=high` for every preset and ignores stale low-fidelity values from legacy settings.
 - Low-confidence retries stay disabled. Provider fallback remains limited to quota, billing, model-unavailable, timeout, network, and 5xx failures.
 - Persist redraw metadata to the job manifest:
   - configured primary provider
@@ -40,7 +40,7 @@ Design Mudah now uses an AIVene-first redraw architecture with OpenAI fallback:
   - preset
   - preprocess mode
   - final technical prompt
-  - prepress quality warnings from the browser processor
+  - Worker trace engine and traced artifact metadata
 - Keep user-facing redraw pricing flat unless pricing policy is explicitly changed.
 
 ## Admin Setting

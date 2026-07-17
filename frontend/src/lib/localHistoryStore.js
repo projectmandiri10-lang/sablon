@@ -60,6 +60,8 @@ function serializeSeparationArtifacts(separations = []) {
 function serializeArtifacts(job = {}) {
   const artifacts = job.artifactBlobs || {};
   return {
+    aiRawPngBlob: artifacts.aiRawPng || null,
+    tracedPngBlob: artifacts.tracedPng || artifacts.fullPng || null,
     fullPngBlob: artifacts.fullPng || null,
     fullSvgBlob: artifacts.fullSvg || null,
     fullPdfBlob: artifacts.fullPdf || null,
@@ -81,6 +83,8 @@ function makeObjectUrl(blob, objectUrls) {
 function hydrateArtifacts(record, objectUrls) {
   const artifacts = record.artifacts || {};
   return {
+    aiRawPng: makeObjectUrl(artifacts.aiRawPngBlob, objectUrls),
+    tracedPng: makeObjectUrl(artifacts.tracedPngBlob || artifacts.fullPngBlob, objectUrls),
     fullPng: makeObjectUrl(artifacts.fullPngBlob, objectUrls),
     fullSvg: makeObjectUrl(artifacts.fullSvgBlob, objectUrls),
     fullPdf: makeObjectUrl(artifacts.fullPdfBlob, objectUrls),
