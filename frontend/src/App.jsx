@@ -14,7 +14,7 @@ import { createNormalizedImagePreviewBlob, prepareAiRedrawInput } from './lib/im
 import { deleteHistoryJob, loadHistoryJobs, releaseHistoryJobs, saveHistoryJob } from './lib/localHistoryStore.js';
 import { parseMidtransReturnParams, stripMidtransReturnParams } from './lib/billingPanelState.js';
 import { loadStoredLocale, localeTag, resolveInitialLocale, saveStoredLocale } from './lib/locale.js';
-import { processImageLocally } from './lib/localProcessor.js';
+import { normalizeLocalTraceSettings, processImageLocally } from './lib/localProcessor.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from './lib/modes.js';
 import { IMAGE_RETOUCH_PRICE_IDR, calculateJobPrice, formatRupiah } from './lib/pricing.js';
 import { isSupabaseConfigured, supabase } from './lib/supabase.js';
@@ -762,7 +762,8 @@ export default function App() {
           60
         )
       );
-      const tracedResult = await processImageLocally(processingFile, settings);
+      const traceSettings = normalizeLocalTraceSettings(settings);
+      const tracedResult = await processImageLocally(processingFile, traceSettings);
       const localResult = aiRawPngBlob
         ? {
             ...tracedResult,
@@ -801,7 +802,7 @@ export default function App() {
           productionType: settings.productionType,
           projectName: settings.projectName || 'Project Vector',
           separationFilmCount: localResult.separationFilmCount,
-          settings,
+          settings: traceSettings,
           manifest,
           aiLedgerId: retouchLedgerId,
           priceIdr: finalPrice

@@ -1252,10 +1252,13 @@ async function addSvgPdf(zip, name, svg, width, height, options = {}) {
   };
 }
 
-export async function processImageLocally(file, settings) {
-  const { default: JSZip } = await import('jszip');
-  const effectiveSettings =
-    settings.inputMode === 'ready_trace'
+export function normalizeLocalTraceSettings(settings = {}) {
+  return settings.inputMode === 'ai_redraw'
+    ? {
+        ...settings,
+        separateColors: true
+      }
+    : settings.inputMode === 'ready_trace'
       ? {
           ...settings,
           makeVector: true,
@@ -1263,6 +1266,11 @@ export async function processImageLocally(file, settings) {
           stickerCutlineEnabled: settings.productionType === 'sticker' ? true : settings.stickerCutlineEnabled
         }
       : settings;
+}
+
+export async function processImageLocally(file, settings) {
+  const { default: JSZip } = await import('jszip');
+  const effectiveSettings = normalizeLocalTraceSettings(settings);
   const bitmap = await loadBitmap(file);
   const scale = Math.min(1, MAX_CANVAS_EDGE / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
@@ -1286,7 +1294,7 @@ export async function processImageLocally(file, settings) {
   const tracePathOptions = pathOptionsForSettings(effectiveSettings, width, height);
   const filmPlan = createFilmPlan(outputColors, width, height, effectiveSettings);
   const printable = filmPlan.colors;
-  const exportColors = settings.removeBackground === true && settings.includeBackgroundInFilmSize !== true ? printable : outputColors;
+  const exportColors = effectiveSettings.removeBackground === true && effectiveSettings.includeBackgroundInFilmSize !== true ? printable : outputColors;
   const bounds = filmPlan.bounds;
   const fullSvg = buildFullSvg({ colors: exportColors, assignments, width, height, settings: effectiveSettings });
   const zip = new JSZip();
@@ -1302,8 +1310,8 @@ export async function processImageLocally(file, settings) {
   zip.file('palette.json', JSON.stringify(exportColors, null, 2));
 
   const separations = [];
-  if (settings.separateColors) {
-    if (settings.createUnderbaseFilm && printable.length > 0) {
+  if (effectiveSettings.separateColors) {
+    if (effectiveSettings.createUnderbaseFilm && printable.length > 0) {
       const label = 'FILM DASAR - HITAM 100%';
       const underbaseActiveIndexes = new Set(printable.map((color) => color.index - 1));
       const underbaseBinary = new Uint8Array(width * height);
@@ -1368,7 +1376,7 @@ export async function processImageLocally(file, settings) {
   }
 
   let stickerCutline = null;
-  if (settings.productionType === 'sticker' && settings.stickerCutlineEnabled && printable.length > 0) {
+  if (effectiveSettings.productionType === 'sticker' && effectiveSettings.stickerCutlineEnabled && printable.length > 0) {
     const cutlineSvg = buildCutlineSvg({ assignments, colors: printable, width, height, settings: effectiveSettings, bounds });
     stickerCutline = await addSvgPdf(zip, 'sticker-cutline', cutlineSvg, width, height);
   }

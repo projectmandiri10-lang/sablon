@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   enforcePrintableColorLimit,
+  normalizeLocalTraceSettings,
   refineAssignmentsForTraceForTest,
   requestedSpotColorLimit,
   shouldUseHardSpotColors,
@@ -108,6 +109,11 @@ test('manual printable color limit still cuts palette to selected amount', () =>
 test('spot color handling stays active for sablon separation', () => {
   assert.equal(shouldUseHardSpotColors({ productionType: 'sablon', separateColors: false }), true);
   assert.equal(shouldUseHardSpotColors({ productionType: 'sticker', separateColors: false }), false);
+});
+
+test('AI redraw always enables browser color separation', () => {
+  const settings = normalizeLocalTraceSettings({ inputMode: 'ai_redraw', productionType: 'sticker', separateColors: false });
+  assert.equal(settings.separateColors, true);
 });
 
 test('lineart trace smooths jagged AI redraw boundaries into fewer curve commands', () => {
