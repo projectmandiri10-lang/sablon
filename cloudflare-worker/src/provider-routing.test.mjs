@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { normalizeAiRedrawModelConfig, requestAiRetouchedImage, shouldFallbackFromAiveneError } from './index.js';
+import { buildAiRawPngArtifactResponse, normalizeAiRedrawModelConfig, requestAiRetouchedImage, shouldFallbackFromAiveneError } from './index.js';
+
+test('AI response keeps only the raw provider PNG for browser tracing', () => {
+  const response = buildAiRawPngArtifactResponse(new Uint8Array([1, 2, 3]), { model: 'gpt-image-2' }, 'ledger-1');
+  assert.equal(response.retouchLedgerId, 'ledger-1');
+  assert.equal(response.aiRedrawMetadata.model, 'gpt-image-2');
+  assert.equal(response.artifacts.aiRawPng.filename, 'hasil-ai-mentah.png');
+  assert.equal(response.artifacts.aiRawPng.mimeType, 'image/png');
+  assert.equal(response.artifacts.aiRawPng.base64, 'AQID');
+  assert.equal(response.artifacts.tracedPng, undefined);
+  assert.equal(response.manifest.processor, 'browser_local_trace_pending');
+});
 
 test('AIVene fallback policy accepts quota, model unavailable, and upstream unavailable errors', () => {
   assert.equal(
@@ -39,12 +50,12 @@ test('AIVene primary returns image bytes and metadata', async () => {
     const url = String(input);
     if (url === 'https://api.aivene.com/v1/images/edits') {
       const form = init.body;
-      assert.equal(form.get('model'), 'gpt-image-1.5');
+      assert.equal(form.get('model'), 'gpt-image-2');
       assert.equal(form.get('prompt'), 'bersihkan gambar');
       assert.ok(form.get('image[]') instanceof File);
       assert.equal(form.get('size'), '1536x1024');
       assert.equal(form.get('quality'), 'medium');
-      assert.equal(form.get('input_fidelity'), 'high');
+      assert.equal(form.get('input_fidelity'), 'low');
       assert.equal(form.get('output_format'), 'png');
       return new Response(
         JSON.stringify({
@@ -87,10 +98,10 @@ test('AIVene primary returns image bytes and metadata', async () => {
     );
     assert.equal(result.headers.get('Content-Type'), 'image/png');
     assert.equal(result.metadata.providerUsed, 'aivene_image');
-    assert.equal(result.metadata.model, 'gpt-image-1.5');
-    assert.equal(result.metadata.aiveneImageModel, 'gpt-image-1.5');
-    assert.equal(result.metadata.openAiImageModel, 'gpt-image-1.5');
-    assert.equal(result.metadata.inputFidelity, 'high');
+    assert.equal(result.metadata.model, 'gpt-image-2');
+    assert.equal(result.metadata.aiveneImageModel, 'gpt-image-2');
+    assert.equal(result.metadata.openAiImageModel, 'gpt-image-2');
+    assert.equal(result.metadata.inputFidelity, 'low');
     assert.equal(result.metadata.imageSize, '1536x1024');
     assert.deepEqual(result.metadata.sourceDimensions, { width: 4000, height: 2000 });
     assert.deepEqual(result.metadata.preparedDimensions, { width: 1080, height: 540 });

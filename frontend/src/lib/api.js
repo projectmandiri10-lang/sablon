@@ -1,6 +1,6 @@
 import { buildAdminFinanceExportFilename, buildAdminFinanceQuery } from './adminFinance.js';
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+export const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 
 function isNetworkLikeError(message = '') {
   const normalized = String(message).toLowerCase();
@@ -62,7 +62,7 @@ function blobUrl(blob) {
   return blob instanceof Blob ? URL.createObjectURL(blob) : '';
 }
 
-function hydrateBackendRetouchResult(data, settings) {
+export function hydrateBackendRetouchResult(data, settings) {
   const artifacts = data.artifacts || {};
   const aiRawPngBlob = artifactToBlob(artifacts.aiRawPng);
   const tracedPngBlob = artifactToBlob(artifacts.tracedPng);
@@ -136,11 +136,21 @@ function hydrateBackendRetouchResult(data, settings) {
   };
 
   const outputPngBlob = tracedPngBlob || fullPngBlob;
+  const hasBackendTraceArtifacts = Boolean(outputPngBlob || fullSvgBlob || fullPdfBlob || zipBlob || separationZipBlob || separations.length);
+  if (!hasBackendTraceArtifacts && aiRawPngBlob) {
+    return {
+      localResult: null,
+      aiRawPngBlob,
+      pngFile: new File([aiRawPngBlob], artifacts.aiRawPng?.filename || 'hasil-ai-mentah.png', {
+        type: aiRawPngBlob.type || 'image/png'
+      })
+    };
+  }
   const pngFile = outputPngBlob
     ? new File([outputPngBlob], artifacts.tracedPng?.filename || artifacts.fullPng?.filename || 'hasil-trace.png', { type: outputPngBlob.type || 'image/png' })
     : null;
 
-  return { localResult, pngFile };
+  return { localResult, aiRawPngBlob, pngFile };
 }
 
 async function apiFetch(path, { accessToken, method = 'GET', body, headers = {} } = {}) {
@@ -256,7 +266,8 @@ export async function requestImageRetouch(file, settings, accessToken) {
       file: hydrated.pngFile || file,
       retouchLedgerId: data.retouchLedgerId || retouchLedgerId,
       aiRedrawMetadata: data.aiRedrawMetadata || aiRedrawMetadata,
-      localResult: hydrated.localResult
+      localResult: hydrated.localResult,
+      aiRawPngBlob: hydrated.aiRawPngBlob || null
     };
   }
 
@@ -264,7 +275,8 @@ export async function requestImageRetouch(file, settings, accessToken) {
   return {
     file: new File([blob], 'gambar-ulang.png', { type: blob.type || 'image/png' }),
     retouchLedgerId,
-    aiRedrawMetadata
+    aiRedrawMetadata,
+    aiRawPngBlob: blob
   };
 }
 

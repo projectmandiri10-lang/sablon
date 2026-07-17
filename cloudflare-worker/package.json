@@ -10,12 +10,5 @@
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
-  },
-  "dependencies": {
-    "@resvg/resvg-wasm": "^2.6.2",
-    "fast-png": "^7.0.1",
-    "jszip": "^3.10.1",
-    "pdf-lib": "^1.17.1",
-    "potrace-wasm": "^1.0.4"
   }
 }

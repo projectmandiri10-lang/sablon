@@ -3,8 +3,8 @@ export const OPENAI_IMAGE_REDRAW_PROVIDER = 'openai_image';
 export const LEGACY_GEMINI_DIRECT_IMAGE_REDRAW_PROVIDER = 'gemini_direct_image';
 export const HYBRID_REDRAW_PROVIDER = AIVENE_IMAGE_REDRAW_PROVIDER;
 
-export const DEFAULT_AIVENE_IMAGE_MODEL = 'gpt-image-1.5';
-export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-1.5';
+export const DEFAULT_AIVENE_IMAGE_MODEL = 'gpt-image-2';
+export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-2';
 export const DEFAULT_PROMPT_PROFILE = 'logo_photo_cleanup_short';
 
 export const HYBRID_REDRAW_PRESETS = {
@@ -64,7 +64,7 @@ export const HYBRID_REDRAW_PRESETS = {
     promptProfile: DEFAULT_PROMPT_PROFILE,
     generationQuality: 'medium',
     imageSize: '1K',
-    inputFidelity: 'high',
+    inputFidelity: 'low',
     inputMaxEdge: 1080,
     aspectPolicy: 'match_source',
     resolutionPolicy: 'high',
@@ -86,7 +86,7 @@ export const HYBRID_REDRAW_PRESETS = {
     promptProfile: DEFAULT_PROMPT_PROFILE,
     generationQuality: 'high',
     imageSize: '2K',
-    inputFidelity: 'high',
+    inputFidelity: 'low',
     inputMaxEdge: 1080,
     aspectPolicy: 'match_source',
     resolutionPolicy: 'high',
@@ -205,21 +205,15 @@ export function normalizeHybridRedrawConfig(value = {}, env = {}) {
     mode: requestedPresetKey === 'custom' ? 'custom' : preset.mode,
     preset: requestedPresetKey === 'custom' ? 'custom' : preset.mode,
     label: normalizeText(input.label, requestedPresetKey === 'custom' ? 'Custom' : preset.label),
-    provider: primaryProvider,
-    primaryProvider,
-    fallbackProvider,
-    aiveneImageModel: normalizeCompatibleImageModel(
-      input.aiveneImageModel || input.openAiImageModel || input.liteLlmImageModel || input.geminiGenerationModel || input.geminiModel || input.generationModel,
-      normalizeCompatibleImageModel(env.AIVENE_IMAGE_MODEL || env.OPENAI_IMAGE_MODEL, preset.aiveneImageModel)
-    ),
-    openAiImageModel: normalizeCompatibleImageModel(
-      input.openAiImageModel || input.liteLlmImageModel || input.aiveneImageModel || input.geminiGenerationModel || input.geminiModel,
-      normalizeCompatibleImageModel(env.OPENAI_IMAGE_MODEL || env.AIVENE_IMAGE_MODEL, preset.openAiImageModel)
-    ),
+    provider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    primaryProvider: AIVENE_IMAGE_REDRAW_PROVIDER,
+    fallbackProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
+    aiveneImageModel: DEFAULT_AIVENE_IMAGE_MODEL,
+    openAiImageModel: DEFAULT_OPENAI_IMAGE_MODEL,
     promptProfile: normalizePromptProfile(input.promptProfile || env.AI_REDRAW_PROMPT_PROFILE, preset.promptProfile),
     generationQuality: normalizeGenerationQuality(input.generationQuality || env.AI_REDRAW_IMAGE_QUALITY, preset.generationQuality),
     imageSize: normalizeImageSize(input.imageSize || env.AI_REDRAW_IMAGE_SIZE, preset.imageSize),
-    inputFidelity: normalizeInputFidelity(input.inputFidelity || env.AI_REDRAW_INPUT_FIDELITY, preset.inputFidelity),
+    inputFidelity: 'low',
     inputMaxEdge: normalizeInputMaxEdge(input.inputMaxEdge || env.AI_REDRAW_INPUT_MAX_EDGE, preset.inputMaxEdge),
     reasoningEffort: '',
     backgroundMode: normalizeBackgroundMode(input.backgroundMode, 'transparent'),

@@ -94,7 +94,7 @@ export default function ResultPreview({
             title={isId ? 'Preview PNG hasil trace' : 'Traced PNG preview'}
             icon={FileImage}
             src={tracedPng}
-            alt={isId ? 'PNG hasil trace Worker' : 'Worker traced PNG'}
+            alt={isId ? 'PNG hasil trace browser' : 'Browser traced PNG'}
             notice={
               settings.removeBackground && settings.includeBackgroundInFilmSize !== true
                 ? isId

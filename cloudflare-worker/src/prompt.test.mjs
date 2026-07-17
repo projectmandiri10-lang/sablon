@@ -8,15 +8,15 @@ test('AI redraw model presets expose AIVene primary with OpenAI fallback', () =>
   assert.equal(presets.budget.provider, 'aivene_image');
   assert.equal(presets.budget.primaryProvider, 'aivene_image');
   assert.equal(presets.budget.fallbackProvider, 'openai_image');
-  assert.equal(presets.budget.aiveneImageModel, 'gpt-image-1.5');
-  assert.equal(presets.budget.openAiImageModel, 'gpt-image-1.5');
+  assert.equal(presets.budget.aiveneImageModel, 'gpt-image-2');
+  assert.equal(presets.budget.openAiImageModel, 'gpt-image-2');
   assert.equal(presets.budget.promptProfile, 'logo_photo_cleanup_short');
   assert.equal(presets.budget.generationQuality, 'low');
-  assert.equal(presets.budget.inputFidelity, 'high');
-  assert.equal(presets.standard.inputFidelity, 'high');
+  assert.equal(presets.budget.inputFidelity, 'low');
+  assert.equal(presets.standard.inputFidelity, 'low');
   assert.equal(presets.standard.inputMaxEdge, 1080);
-  assert.equal(presets.quality.aiveneImageModel, 'gpt-image-1.5');
-  assert.equal(presets.quality.inputFidelity, 'high');
+  assert.equal(presets.quality.aiveneImageModel, 'gpt-image-2');
+  assert.equal(presets.quality.inputFidelity, 'low');
   assert.equal(presets.standard.generationQuality, 'medium');
   assert.equal(presets.quality.generationQuality, 'medium');
   assert.equal(presets.quality.imageSize, '1K');
@@ -24,12 +24,14 @@ test('AI redraw model presets expose AIVene primary with OpenAI fallback', () =>
   assert.equal(Object.keys(presets).length, 4);
 });
 
-test('unspecified redraw config defaults to high-fidelity input', () => {
+test('unspecified redraw config defaults to GPT Image 2 low-fidelity input', () => {
   const normalized = normalizeAiRedrawModelConfig();
   assert.equal(normalized.mode, 'standard');
   assert.equal(normalized.generationQuality, 'medium');
   assert.equal(normalized.imageSize, '1K');
-  assert.equal(normalized.inputFidelity, 'high');
+  assert.equal(normalized.inputFidelity, 'low');
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-2');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-2');
   assert.equal(normalized.inputMaxEdge, 1080);
 });
 
@@ -54,8 +56,8 @@ test('legacy Gemini direct values normalize into AIVene primary config', () => {
   assert.equal(normalized.provider, 'aivene_image');
   assert.equal(normalized.primaryProvider, 'aivene_image');
   assert.equal(normalized.fallbackProvider, 'openai_image');
-  assert.equal(normalized.aiveneImageModel, 'gpt-image-1.5');
-  assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-2');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-2');
   assert.equal(normalized.promptProfile, 'logo_photo_cleanup_short');
   assert.equal(normalized.imageSize, '2K');
   assert.equal(normalized.resolutionPolicy, 'high');
@@ -74,7 +76,7 @@ test('legacy LiteLLM rows normalize into AIVene direct shape', () => {
   assert.equal(normalized.provider, 'aivene_image');
   assert.equal(normalized.primaryProvider, 'aivene_image');
   assert.equal(normalized.fallbackProvider, 'openai_image');
-  assert.equal(normalized.aiveneImageModel, 'gpt-image-1.5');
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-2');
 });
 
 test('env defaults can activate AIVene primary config', () => {
@@ -93,11 +95,11 @@ test('env defaults can activate AIVene primary config', () => {
 
   assert.equal(normalized.primaryProvider, 'aivene_image');
   assert.equal(normalized.fallbackProvider, 'openai_image');
-  assert.equal(normalized.aiveneImageModel, 'gpt-image-1.5');
-  assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-2');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-2');
 });
 
-test('OpenAI GPT Image 1.5 stays canonical for both AIVene and OpenAI routes', () => {
+test('legacy model values are pinned to GPT Image 2 for both routes', () => {
   const normalized = normalizeAiRedrawModelConfig(
     {
       primaryProvider: 'aivene_image',
@@ -109,11 +111,11 @@ test('OpenAI GPT Image 1.5 stays canonical for both AIVene and OpenAI routes', (
     }
   );
 
-  assert.equal(normalized.aiveneImageModel, 'gpt-image-1.5');
-  assert.equal(normalized.openAiImageModel, 'gpt-image-1.5');
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-2');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-2');
 });
 
-test('explicit OpenAI GPT Image 1 legacy value stays pinned when requested', () => {
+test('explicit legacy GPT Image values cannot lower the active model', () => {
   const normalized = normalizeAiRedrawModelConfig(
     {
       primaryProvider: 'aivene_image',
@@ -124,8 +126,8 @@ test('explicit OpenAI GPT Image 1 legacy value stays pinned when requested', () 
     {}
   );
 
-  assert.equal(normalized.aiveneImageModel, 'gpt-image-1');
-  assert.equal(normalized.openAiImageModel, 'gpt-image-1');
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-2');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-2');
 });
 
 test('explicit fallback provider still works when project defaults are AIVene-first', () => {

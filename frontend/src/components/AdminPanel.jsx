@@ -921,7 +921,8 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Provider utama</span>
                   <select
-                    value={aiModelDraft.primaryProvider}
+                    value={AIVENE_IMAGE_REDRAW_PROVIDER}
+                    disabled
                     onChange={(event) =>
                       setAiModelDraft((current) => ({
                         ...current,
@@ -931,7 +932,7 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                         primaryProvider: event.target.value
                       }))
                     }
-                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                    className="w-full border border-line bg-panel px-3 py-2.5 text-sm outline-none"
                   >
                     <option value={AIVENE_IMAGE_REDRAW_PROVIDER}>AIVene</option>
                     <option value={OPENAI_IMAGE_REDRAW_PROVIDER}>OpenAI</option>
@@ -940,7 +941,8 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Provider fallback</span>
                   <select
-                    value={aiModelDraft.fallbackProvider || ''}
+                    value={OPENAI_IMAGE_REDRAW_PROVIDER}
+                    disabled
                     onChange={(event) =>
                       setAiModelDraft((current) => ({
                         ...current,
@@ -950,7 +952,7 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                         fallbackProvider: event.target.value
                       }))
                     }
-                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                    className="w-full border border-line bg-panel px-3 py-2.5 text-sm outline-none"
                   >
                     <option value="">Tanpa fallback</option>
                     <option value={OPENAI_IMAGE_REDRAW_PROVIDER}>OpenAI</option>
@@ -970,17 +972,17 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar AIVene</span>
                   <input
-                    value={aiModelDraft.aiveneImageModel || ''}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', aiveneImageModel: event.target.value }))}
-                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                    value="gpt-image-2"
+                    readOnly
+                    className="w-full border border-line bg-panel px-3 py-2.5 text-sm text-gray-700 outline-none"
                   />
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar OpenAI</span>
                   <input
-                    value={aiModelDraft.openAiImageModel || ''}
-                    onChange={(event) => setAiModelDraft((current) => ({ ...current, mode: 'custom', preset: 'custom', label: 'Custom', openAiImageModel: event.target.value }))}
-                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                    value="gpt-image-2"
+                    readOnly
+                    className="w-full border border-line bg-panel px-3 py-2.5 text-sm text-gray-700 outline-none"
                   />
                 </label>
                 <label className="block">
@@ -1016,13 +1018,13 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Fidelity input</span>
                   <select
-                    value="high"
+                    value="low"
                     disabled
                     className="w-full border border-line bg-panel px-3 py-2.5 text-sm outline-none"
                   >
-                    <option value="high">High - detail maksimal</option>
+                    <option value="low">Low - biaya input lebih hemat</option>
                   </select>
-                  <span className="mt-1 block text-xs text-gray-600">Worker selalu memakai fidelity high agar detail input tetap dipertahankan.</span>
+                  <span className="mt-1 block text-xs text-gray-600">GPT Image 2 memakai fidelity low; trace dan artefak berjalan lokal di browser.</span>
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Prompt profile</span>

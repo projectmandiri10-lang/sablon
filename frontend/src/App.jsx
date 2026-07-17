@@ -167,9 +167,9 @@ function getAppCopy(locale = 'id') {
           ? `Saldo kurang. Perkiraan biaya ${price}, saldo ${balance}.`
           : `Not enough balance. Estimated cost ${price}, current balance ${balance}.`,
       preparingLocal: isId ? 'Menyiapkan file lokal.' : 'Preparing your local file.',
-      processingRetouch: isId ? 'Menggambar ulang gambar tanpa penyimpanan permanen server.' : 'Redrawing the image without permanent server storage.',
+      processingRetouch: isId ? 'AI sedang menghasilkan PNG mentah.' : 'AI is generating the raw PNG.',
       processingReadyTrace: isId ? 'Menjalankan Vector Siap Proses langsung di browser.' : 'Running Production-Ready Vector directly in the browser.',
-      usingBackendVector: isId ? 'Memakai vector backend berbasis Potrace smoothing.' : 'Using backend vector output with Potrace smoothing.',
+      usingBackendVector: isId ? 'Memakai artefak vector historis dari backend.' : 'Using legacy backend vector artifacts.',
       usingBrowserVector: isId ? 'Membuat vector, cutline, film, PDF, dan ZIP di browser.' : 'Creating vectors, cutlines, films, PDFs, and ZIP files in the browser.',
       commitJob: isId ? 'Mencatat metadata job dan mendebit credit.' : 'Saving job metadata and deducting credits.',
       processFailed: isId ? 'Gagal memproses gambar.' : 'Failed to process the image.',
@@ -733,7 +733,7 @@ export default function App() {
       let retouchLedgerId = '';
       let aiRedrawMetadata = null;
       let readyTraceMetadata = null;
-      let backendVectorResult = null;
+      let aiRawPngBlob = null;
 
       if (settings.inputMode === INPUT_MODE_RETOUCH) {
         setJob(statusJob('processing_image', copy.messages.processingRetouch, 25));
@@ -745,7 +745,7 @@ export default function App() {
         processingFile = retouchResult.file;
         retouchLedgerId = retouchResult.retouchLedgerId;
         aiRedrawMetadata = retouchResult.aiRedrawMetadata || null;
-        backendVectorResult = retouchResult.localResult || null;
+        aiRawPngBlob = retouchResult.aiRawPngBlob || null;
       } else {
         setJob(statusJob('processing_image', copy.messages.processingReadyTrace, 30));
         readyTraceMetadata = {
@@ -758,14 +758,34 @@ export default function App() {
       setJob(
         statusJob(
           'vectorizing',
-          backendVectorResult ? copy.messages.usingBackendVector : copy.messages.usingBrowserVector,
+          copy.messages.usingBrowserVector,
           60
         )
       );
-      const localResult = backendVectorResult || (await processImageLocally(processingFile, settings));
+      const tracedResult = await processImageLocally(processingFile, settings);
+      const localResult = aiRawPngBlob
+        ? {
+            ...tracedResult,
+            files: {
+              ...(tracedResult.files || {}),
+              aiRawPng: URL.createObjectURL(aiRawPngBlob)
+            },
+            artifactBlobs: {
+              ...(tracedResult.artifactBlobs || {}),
+              aiRawPng: aiRawPngBlob
+            }
+          }
+        : tracedResult;
       const manifest = {
         ...(localResult.manifest || {}),
         aiRedraw: aiRedrawMetadata,
+        ...(aiRawPngBlob
+          ? {
+              source: 'ai_raw_png',
+              processor: 'browser_local_trace',
+              traceEngine: 'processImageLocally'
+            }
+          : {}),
         readyTrace: readyTraceMetadata || localResult.manifest?.readyTrace || null
       };
       const finalPrice = calculateJobPrice({

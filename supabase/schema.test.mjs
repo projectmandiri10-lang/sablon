@@ -26,6 +26,8 @@ const mediumOpenAiQualityMigration = fs.readFileSync(path.join(import.meta.dirna
 const aivenePrimaryMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260716110000_switch_ai_redraw_to_aivene_primary_openai_fallback.sql'), 'utf8');
 const inputTokenOptimizationMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260716120000_optimize_ai_redraw_input_tokens.sql'), 'utf8');
 const highInputFidelityMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260716130000_force_ai_redraw_high_input_fidelity.sql'), 'utf8');
+const gptImageTwoLocalTraceMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260717100000_use_gpt_image_2_low_local_trace.sql'), 'utf8');
+const gptImageTwoNoteMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260717101000_update_gpt_image_2_note.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -84,8 +86,8 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   assert.match(bootstrapSql, /"provider":"aivene_image"/);
   assert.match(bootstrapSql, /"primaryProvider":"aivene_image"/);
   assert.match(bootstrapSql, /"fallbackProvider":"openai_image"/);
-  assert.match(bootstrapSql, /"aiveneImageModel":"gpt-image-1\.5"/);
-  assert.match(bootstrapSql, /"openAiImageModel":"gpt-image-1\.5"/);
+  assert.match(bootstrapSql, /"aiveneImageModel":"gpt-image-2"/);
+  assert.match(bootstrapSql, /"openAiImageModel":"gpt-image-2"/);
   assert.match(bootstrapSql, /"promptProfile":"logo_photo_cleanup_short"/);
   assert.match(bootstrapSql, /example-jobs/);
 });
@@ -160,7 +162,7 @@ test('historical redraw optimization migration recorded the old low-fidelity inp
   assert.match(inputTokenOptimizationMigration, /'inputFidelity', 'low'/);
   assert.match(inputTokenOptimizationMigration, /'inputMaxEdge', 1080/);
   assert.match(inputTokenOptimizationMigration, /'retryOnLowConfidence', false/);
-  assert.match(bootstrapSql, /"inputFidelity":"high"/);
+  assert.match(bootstrapSql, /"inputFidelity":"low"/);
   assert.match(bootstrapSql, /"inputMaxEdge":1080/);
 });
 
@@ -168,6 +170,19 @@ test('latest redraw migration forces high input fidelity', () => {
   assert.match(highInputFidelityMigration, /jsonb_set/);
   assert.match(highInputFidelityMigration, /inputFidelity/);
   assert.match(highInputFidelityMigration, /high/);
+});
+
+test('latest redraw migration selects GPT Image 2 low fidelity with browser trace', () => {
+  assert.match(gptImageTwoLocalTraceMigration, /gpt-image-2/);
+  assert.match(gptImageTwoLocalTraceMigration, /inputFidelity/);
+  assert.match(gptImageTwoLocalTraceMigration, /low/);
+  assert.match(gptImageTwoLocalTraceMigration, /browser/);
+});
+
+test('GPT Image 2 migration refreshes the visible admin note', () => {
+  assert.match(gptImageTwoNoteMigration, /GPT Image 2/);
+  assert.match(gptImageTwoNoteMigration, /fidelity low/);
+  assert.match(gptImageTwoNoteMigration, /lokal di browser/);
 });
 
 test('bootstrap sql hardens helper functions and policy indexes', () => {

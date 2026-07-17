@@ -272,6 +272,29 @@ export function buildAiRedrawPrompt() {
   return 'bersihkan gambar';
 }
 
+function artifact(filename, mimeType, bytes) {
+  return {
+    filename,
+    mimeType,
+    base64: bytesToBase64(bytes)
+  };
+}
+
+export function buildAiRawPngArtifactResponse(aiRawPng, metadata = {}, retouchLedgerId = '') {
+  return {
+    artifacts: {
+      aiRawPng: artifact('hasil-ai-mentah.png', 'image/png', aiRawPng)
+    },
+    retouchLedgerId,
+    aiRedrawMetadata: metadata,
+    manifest: {
+      source: 'ai_raw_png',
+      processor: 'browser_local_trace_pending',
+      aiRedraw: metadata
+    }
+  };
+}
+
 async function parseJsonResponse(response) {
   const text = await response.text();
   if (!text) return null;
@@ -690,10 +713,7 @@ function calculateDynamicJobPrice({ inputMode = 'ready_trace', separationFilmCou
 }
 
 export function normalizeAiRedrawModelConfig(value = {}, env = {}) {
-  return {
-    ...normalizeHybridRedrawConfig(value, env),
-    inputFidelity: 'high'
-  };
+  return normalizeHybridRedrawConfig(value, env);
 }
 
 function examplePublicUrl(env, path) {
@@ -1920,25 +1940,11 @@ async function handleAiRedraw(env, request) {
   try {
     const upstream = await requestAiRetouchedImage(env, image, settings, aiModelConfig);
     const aiRawPng = new Uint8Array(await new Response(upstream.body).arrayBuffer());
-    // potrace-wasm contains an Emscripten Node branch that references __dirname
-    // when nodejs_compat exposes process in the Worker bundle. Its wasm binary
-    // is embedded, so an empty directory is the correct Worker-side fallback.
-    if (typeof globalThis.__dirname === 'undefined') globalThis.__dirname = '';
-    const { traceAiPngArtifacts } = await import('./ai-trace.js');
-    const traced = await traceAiPngArtifacts(aiRawPng, settings);
     const responseHeaders = {
       'X-AI-Ledger-Id': ledger?.id || '',
       'X-AI-Redraw-Metadata': encodeBase64UrlJson(upstream.metadata || {})
     };
-    return json({
-      ...traced,
-      retouchLedgerId: ledger?.id || '',
-      aiRedrawMetadata: upstream.metadata || {},
-      manifest: {
-        ...(traced.manifest || {}),
-        aiRedraw: upstream.metadata || {}
-      }
-    }, 200, responseHeaders);
+    return json(buildAiRawPngArtifactResponse(aiRawPng, upstream.metadata || {}, ledger?.id || ''), 200, responseHeaders);
   } catch (error) {
     if (ledger?.id) {
       await insertLedger(env, {
@@ -2061,9 +2067,9 @@ async function requestProviderRetouchedImage(env, image, settings, aiModelConfig
 
 function resolveCompatibleImageModel(provider, aiModelConfig = {}) {
   if (provider === AIVENE_IMAGE_REDRAW_PROVIDER) {
-    return aiModelConfig.aiveneImageModel || aiModelConfig.openAiImageModel || 'gpt-image-1.5';
+    return aiModelConfig.aiveneImageModel || aiModelConfig.openAiImageModel || 'gpt-image-2';
   }
-  return aiModelConfig.openAiImageModel || aiModelConfig.aiveneImageModel || 'gpt-image-1.5';
+  return aiModelConfig.openAiImageModel || aiModelConfig.aiveneImageModel || 'gpt-image-2';
 }
 
 async function requestCompatibleRetouchedImage(env, image, settings, aiModelConfig, routing, options) {
@@ -2177,13 +2183,11 @@ function resolveOpenAiImageQuality(aiModelConfig = {}) {
 }
 
 function resolveOpenAiInputFidelity(aiModelConfig = {}) {
-  return 'high';
+  return 'low';
 }
 
 export function getAiRedrawModelPresets() {
-  return Object.fromEntries(
-    Object.entries(HYBRID_REDRAW_PRESETS).map(([key, preset]) => [key, { ...preset, inputFidelity: 'high' }])
-  );
+  return Object.fromEntries(Object.entries(HYBRID_REDRAW_PRESETS).map(([key, preset]) => [key, { ...preset, inputFidelity: 'low' }]));
 }
 
 async function handleJobArtifactsUpload(env, request, jobId) {
