@@ -155,3 +155,22 @@ test('AI redraw always sends only the simple cleanup prompt', () => {
     assert.equal(buildAiRedrawPrompt(settings, config), 'bersihkan gambar');
   }
 });
+
+test('explicit Admin selection can use AIVene GPT Image 1.5 only', () => {
+  const normalized = normalizeAiRedrawModelConfig({
+    mode: 'custom',
+    aiveneImageModel: 'gpt-image-1.5',
+    openAiImageModel: 'gpt-image-1.5'
+  });
+
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-1.5');
+  assert.equal(normalized.openAiImageModel, 'gpt-image-2');
+});
+
+test('unknown AIVene model selections return to GPT Image 2', () => {
+  for (const model of ['gpt-image-1', 'gpt-image-3', 'openai/gpt-image-1.5', 'typo']) {
+    const normalized = normalizeAiRedrawModelConfig({ mode: 'custom', aiveneImageModel: model });
+    assert.equal(normalized.aiveneImageModel, 'gpt-image-2');
+    assert.equal(normalized.openAiImageModel, 'gpt-image-2');
+  }
+});

@@ -23,11 +23,12 @@ import {
 } from '../lib/api.js';
 import AdminFinancePanel from './AdminFinancePanel.jsx';
 import {
+  AIVENE_IMAGE_MODELS,
   AIVENE_IMAGE_REDRAW_PROVIDER,
   OPENAI_IMAGE_REDRAW_PROVIDER,
-  listHybridRedrawPresets,
-  normalizeHybridRedrawConfig
+  listHybridRedrawPresets
 } from '../../../shared/hybridRedrawConfig.js';
+import { normalizeAiModelDraft, selectAiveneImageModel } from '../lib/aiModelConfig.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from '../lib/modes.js';
 import { formatRupiah } from '../lib/pricing.js';
 import { DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS, normalizeInteractiveQrisClosedHours } from '../../../shared/interactiveQrisClosedHours.js';
@@ -44,10 +45,6 @@ const inputModeLabels = {
 };
 
 const aiRedrawModelPresets = listHybridRedrawPresets();
-
-function normalizeAiModelDraft(value = {}) {
-  return normalizeHybridRedrawConfig(value);
-}
 
 function estimatedIdr(usd) {
   return Math.round((Number(usd) || 0) * 17700);
@@ -971,11 +968,19 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
               <div className="grid gap-3 md:grid-cols-4">
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar AIVene</span>
-                  <input
-                    value="gpt-image-2"
-                    readOnly
-                    className="w-full border border-line bg-panel px-3 py-2.5 text-sm text-gray-700 outline-none"
-                  />
+                  <select
+                    value={aiModelDraft.aiveneImageModel || 'gpt-image-2'}
+                    onChange={(event) =>
+                      setAiModelDraft((current) => selectAiveneImageModel(current, event.target.value))
+                    }
+                    className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                  >
+                    {AIVENE_IMAGE_MODELS.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Model gambar OpenAI</span>
@@ -1024,7 +1029,7 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                   >
                     <option value="low">Low - biaya input lebih hemat</option>
                   </select>
-                  <span className="mt-1 block text-xs text-gray-600">GPT Image 2 memakai fidelity low; trace dan artefak berjalan lokal di browser.</span>
+                  <span className="mt-1 block text-xs text-gray-600">Model AIVene terpilih memakai fidelity low; trace dan artefak berjalan lokal di browser.</span>
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">Prompt profile</span>
@@ -1093,7 +1098,7 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                     : 'Tanpa provider fallback tambahan.'}
                 </p>
                 <p>
-                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | input high / {aiModelDraft.inputMaxEdge || 1080}px | prompt {aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
+                  Provider fallback: {providerLabel(aiModelDraft.fallbackProvider)} | image {aiModelDraft.imageSize || '1K'} | input low / {aiModelDraft.inputMaxEdge || 1080}px | prompt {aiModelDraft.promptProfile || 'logo_photo_cleanup_short'}
                 </p>
                 <p>
                   AIVene model: {aiModelDraft.aiveneImageModel || '-'} | OpenAI model: {aiModelDraft.openAiImageModel || '-'}

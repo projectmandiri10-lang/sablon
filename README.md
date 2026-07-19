@@ -20,7 +20,7 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 - Jalur deploy dipisah dari backend Node/Express lama.
 - `VITE_API_BASE_URL` mengarah ke Worker baru.
 - `VITE_GOOGLE_OAUTH_REDIRECT_TO` mengarah ke domain Pages baru.
-- AI redraw sekarang berjalan lewat `AIVene` sebagai jalur utama dengan `OpenAI` sebagai fallback otomatis.
+- AI redraw sekarang berjalan lewat `AIVene` sebagai jalur utama dengan `OpenAI` sebagai fallback otomatis. Model AIVene default adalah `gpt-image-2`; Admin dapat memilih `gpt-image-1.5` sebagai alternatif tanpa mengubah fallback OpenAI `gpt-image-2`.
 - Default copy ini disetel ke preset hemat `standard`: input AI maksimal 1080 px pada sisi terpanjang, `input_fidelity=low`, output `medium` 1K, dan tanpa retry low-confidence.
 - Browser mengirim salinan WebP terkompresi untuk foto biasa atau PNG untuk gambar transparan; file upload asli tetap tersedia untuk preview dan proses lokal.
 - Jika secret `AIVENE_API_KEY` dan `OPENAI_API_KEY` belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai lewat proses lokal browser.
@@ -43,5 +43,5 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 ## Catatan
 
 - Folder `landing/` dan `backend/` sengaja tidak ikut ke copy ini karena bukan target Cloudflare free tier.
-- Jalur AI redraw tidak mengirim token provider AI ke browser atau Supabase. Worker menerima upload dari browser, memanggil AIVene GPT Image 2 dengan fidelity low, lalu mengembalikan PNG mentah AI. Browser meng-upscale PNG mentah tepat satu tahap dengan Pica pada faktor default 3,15× dan batas aman 4096 px, lalu menjalankan trace lokal untuk menghasilkan PNG, vector, film sablon, PDF, dan ZIP. Ready trace memakai analisis resolusi, ketajaman, dan kepadatan tepi lokal untuk menentukan kebutuhan upscale 3,15×; sumber SVG vector dilewatkan tanpa upscale. Trace ulang selalu dimulai dari sumber mentah dan mengganti seluruh artefak trace lama tanpa memanggil AI lagi.
+- Jalur AI redraw tidak mengirim token provider AI ke browser atau Supabase. Worker menerima upload dari browser, memanggil model AIVene yang dipilih Admin (`gpt-image-2` secara default atau `gpt-image-1.5`) dengan fidelity low, lalu mengembalikan PNG mentah AI. Jika AIVene gagal sesuai kebijakan fallback, OpenAI tetap memakai `gpt-image-2`. Browser meng-upscale PNG mentah tepat satu tahap dengan Pica pada faktor default 3,15× dan batas aman 4096 px, lalu menjalankan trace lokal untuk menghasilkan PNG, vector, film sablon, PDF, dan ZIP. Ready trace memakai analisis resolusi, ketajaman, dan kepadatan tepi lokal untuk menentukan kebutuhan upscale 3,15×; sumber SVG vector dilewatkan tanpa upscale. Trace ulang selalu dimulai dari sumber mentah dan mengganti seluruh artefak trace lama tanpa memanggil AI lagi.
 - Untuk pembayaran otomatis biaya rendah tanpa Open API berbayar, gunakan jalur `interactive_qris` yang didokumentasikan di `INTERACTIVE_QRIS_NOTIFICATION_FORWARDER.md`. Jika Android 16 menolak NotificationForwarder, gunakan paket MacroDroid di `MACRODROID_INTERACTIVE_QRIS_IMPORT.md`.

@@ -5,6 +5,7 @@ export const HYBRID_REDRAW_PROVIDER = AIVENE_IMAGE_REDRAW_PROVIDER;
 
 export const DEFAULT_AIVENE_IMAGE_MODEL = 'gpt-image-2';
 export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-2';
+export const AIVENE_IMAGE_MODELS = Object.freeze(['gpt-image-2', 'gpt-image-1.5']);
 export const DEFAULT_PROMPT_PROFILE = 'logo_photo_cleanup_short';
 
 export const HYBRID_REDRAW_PRESETS = {
@@ -72,7 +73,7 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.05,
-    note: 'Default AIVene GPT Image 1.5 short logo cleanup dengan fallback OpenAI otomatis, quality medium untuk testing.'
+    note: 'AIVene memakai model yang dipilih Admin dengan fallback OpenAI GPT Image 2 otomatis, quality medium untuk testing.'
   },
   premium: {
     mode: 'premium',
@@ -114,15 +115,9 @@ function normalizeText(value, fallback) {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
-function normalizeCompatibleImageModel(value, fallback) {
-  const normalized = normalizeText(value, fallback);
-  const lowered = normalized.toLowerCase();
-
-  if (!lowered) return fallback;
-  if (lowered.startsWith('openai/')) return normalized.slice('openai/'.length);
-  if (lowered === 'chatgpt-image-latest') return 'chatgpt-image-latest';
-  if (/^gpt-image-/i.test(normalized)) return normalized;
-  return fallback;
+function normalizeAiveneImageModel(value) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return AIVENE_IMAGE_MODELS.includes(normalized) ? normalized : DEFAULT_AIVENE_IMAGE_MODEL;
 }
 
 function normalizeGenerationQuality(value, fallback) {
@@ -208,7 +203,7 @@ export function normalizeHybridRedrawConfig(value = {}, env = {}) {
     provider: AIVENE_IMAGE_REDRAW_PROVIDER,
     primaryProvider: AIVENE_IMAGE_REDRAW_PROVIDER,
     fallbackProvider: OPENAI_IMAGE_REDRAW_PROVIDER,
-    aiveneImageModel: DEFAULT_AIVENE_IMAGE_MODEL,
+    aiveneImageModel: normalizeAiveneImageModel(input.aiveneImageModel),
     openAiImageModel: DEFAULT_OPENAI_IMAGE_MODEL,
     promptProfile: normalizePromptProfile(input.promptProfile || env.AI_REDRAW_PROMPT_PROFILE, preset.promptProfile),
     generationQuality: normalizeGenerationQuality(input.generationQuality || env.AI_REDRAW_IMAGE_QUALITY, preset.generationQuality),
