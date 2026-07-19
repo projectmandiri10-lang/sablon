@@ -267,7 +267,7 @@ set email = excluded.email,
 insert into public.pricing_rules (key, amount_idr, description, active)
 values
 ('ready_trace', 2000, 'Vector Siap Proses SVG tanpa AI', true),
-('ai_redraw', 10000, 'AI Redesign Premium image-to-image termasuk pecah warna sablon', true),
+('ai_redraw', 5000, 'Promo perkenalan AI Redraw image-to-image termasuk pecah warna sablon', true),
 ('separation_film', 0, 'Download film separasi gratis', true)
 on conflict (key) do update
 set amount_idr = excluded.amount_idr,

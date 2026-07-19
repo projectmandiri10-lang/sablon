@@ -305,7 +305,7 @@ export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, 
       <p className="mt-3 text-xs text-gray-600">
         {inputMode === INPUT_MODE_READY
           ? isId ? 'Vector Siap Proses dipakai untuk file vector murni yang akan dipisah warna dan dibuat contour sticker.' : 'Production-Ready Vector is meant for pure vector files that will be separated by color and used to create sticker cutlines.'
-          : isId ? 'AI Redraw seharga Rp10.000 per gambar sudah termasuk pecah warna. Jika foto terlalu gelap, blur, atau banyak bayangan, hasil redraw bisa tetap meleset dan perlu upload ulang.' : 'AI Redraw costs Rp10,000 per image and includes screen-print color separation. If the photo is too dark, blurry, or heavily shadowed, the redraw can still miss details and may need a re-upload.'}
+          : isId ? 'Harga promo perkenalan AI Redraw hanya Rp5.000 per gambar, sudah termasuk pecah warna. Jika foto terlalu gelap, blur, atau banyak bayangan, hasil redraw bisa tetap meleset dan perlu upload ulang.' : 'Introductory AI Redraw promo is only Rp5,000 per image and includes screen-print color separation. If the photo is too dark, blurry, or heavily shadowed, the redraw can still miss details and may need a re-upload.'}
       </p>
 
       {selectedGuideExample && (

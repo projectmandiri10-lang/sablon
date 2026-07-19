@@ -124,16 +124,16 @@ const creditPackages = [
     name: 'Paket Basic',
     balanceIdr: 10000,
     price: 10000,
-    callout: 'Cukup untuk 1 AI Redesign yang sudah termasuk pecah warna atau 5 job Vector Siap Proses.',
-    aiRedesign: 1,
+    callout: 'Cukup untuk 2 AI Redesign promo yang sudah termasuk pecah warna atau 5 job Vector Siap Proses.',
+    aiRedesign: 2,
     readyToTrace: 5
   },
   {
     name: 'Paket Standard',
     balanceIdr: 20000,
     price: 20000,
-    callout: 'Cocok untuk 2 AI Redesign termasuk pecah warna atau 10 job vector ringan.',
-    aiRedesign: 2,
+    callout: 'Cocok untuk 4 AI Redesign promo termasuk pecah warna atau 10 job vector ringan.',
+    aiRedesign: 4,
     readyToTrace: 10
   },
   {
@@ -142,7 +142,7 @@ const creditPackages = [
     price: 50000,
     highlight: true,
     callout: 'Paling pas untuk kebutuhan produksi berulang.',
-    aiRedesign: 5,
+    aiRedesign: 10,
     readyToTrace: 25
   }
 ];
@@ -213,7 +213,7 @@ const faqItems = [
 
 const trustBadges = [
   { icon: ShieldCheck, text: 'Tanpa Kartu Kredit', subtext: 'Bayar via Shopee' },
-  { icon: Sparkles, text: 'AI Redraw Rp10.000', subtext: 'Sudah termasuk pecah warna' },
+  { icon: Sparkles, text: 'AI Redraw Promo Rp5.000', subtext: 'Sudah termasuk pecah warna' },
   { icon: Clock, text: 'Daftar 30 Detik', subtext: 'Proses instan' },
   { icon: Zap, text: 'Hasil Instan', subtext: 'Siap dalam hitungan detik' }
 ];
@@ -645,7 +645,7 @@ const faqItemsEn = [
 
 const trustBadgesEn = [
   { icon: ShieldCheck, text: 'No Credit Card', subtext: 'Pay via Shopee or gateway' },
-  { icon: Sparkles, text: 'AI Redraw Rp10,000', subtext: 'Color separation included' },
+  { icon: Sparkles, text: 'AI Redraw Promo Rp5,000', subtext: 'Color separation included' },
   { icon: Clock, text: '30s Signup', subtext: 'Quick access' },
   { icon: Zap, text: 'Fast Results', subtext: 'Ready in seconds' }
 ];
@@ -1372,7 +1372,7 @@ function CtaSection({ locale = 'id', onStart }) {
             </span>
           </h2>
           <p className="mt-5 max-w-xl text-lg text-white/80 sm:text-xl">
-            {isId ? 'Masuk sekarang dan mulai proses logo dengan AI Redraw Rp10.000 yang sudah termasuk pecah warna, atau pilih Vector Siap Proses untuk file SVG murni.' : 'Sign in now and start with AI Redesign at Rp10,000 including color separation, or choose Production-Ready Vector for pure SVG files.'}
+            {isId ? 'Masuk sekarang dan manfaatkan promo perkenalan AI Redraw hanya Rp5.000, sudah termasuk pecah warna, atau pilih Vector Siap Proses untuk file SVG murni.' : 'Sign in now and use the introductory AI Redesign promo at only Rp5,000 including color separation, or choose Production-Ready Vector for pure SVG files.'}
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">

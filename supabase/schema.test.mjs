@@ -28,6 +28,7 @@ const inputTokenOptimizationMigration = fs.readFileSync(path.join(import.meta.di
 const highInputFidelityMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260716130000_force_ai_redraw_high_input_fidelity.sql'), 'utf8');
 const gptImageTwoLocalTraceMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260717100000_use_gpt_image_2_low_local_trace.sql'), 'utf8');
 const gptImageTwoNoteMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260717101000_update_gpt_image_2_note.sql'), 'utf8');
+const aiRedrawPromoMigration = fs.readFileSync(path.join(import.meta.dirname, 'migrations/20260719120000_set_ai_redraw_promo_5000.sql'), 'utf8');
 
 test('migration creates SaaS credit/auth tables', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'pricing_rules']) {
@@ -82,7 +83,7 @@ test('bootstrap sql includes the core tables and settings seed', () => {
   for (const table of ['profiles', 'credit_ledger', 'jobs', 'manual_payments', 'payment_transactions', 'pricing_rules', 'signup_bonus_claims', 'business_finance_entries', 'tax_rules', 'app_settings', 'contact_messages']) {
     assert.match(bootstrapSql, new RegExp(`create table if not exists public\\.${table}`));
   }
-  assert.match(bootstrapSql, /\('ai_redraw', 10000, 'AI Redesign Premium image-to-image termasuk pecah warna sablon', true\)/);
+  assert.match(bootstrapSql, /\('ai_redraw', 5000, 'Promo perkenalan AI Redraw image-to-image termasuk pecah warna sablon', true\)/);
   assert.match(bootstrapSql, /"provider":"aivene_image"/);
   assert.match(bootstrapSql, /"primaryProvider":"aivene_image"/);
   assert.match(bootstrapSql, /"fallbackProvider":"openai_image"/);
@@ -164,6 +165,13 @@ test('historical redraw optimization migration recorded the old low-fidelity inp
   assert.match(inputTokenOptimizationMigration, /'retryOnLowConfidence', false/);
   assert.match(bootstrapSql, /"inputFidelity":"low"/);
   assert.match(bootstrapSql, /"inputMaxEdge":1080/);
+});
+
+test('latest pricing migration sets AI redraw introductory promo to 5000', () => {
+  assert.match(aiRedrawPromoMigration, /amount_idr = 5000/);
+  assert.match(aiRedrawPromoMigration, /select 'ai_redraw', 5000/);
+  assert.match(aiRedrawPromoMigration, /Promo perkenalan AI Redraw/);
+  assert.match(aiRedrawPromoMigration, /termasuk pecah warna sablon/);
 });
 
 test('latest redraw migration forces high input fidelity', () => {

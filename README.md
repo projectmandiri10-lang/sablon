@@ -22,6 +22,7 @@ Folder ini adalah salinan siap deploy untuk Cloudflare Pages + Worker + Supabase
 - `VITE_GOOGLE_OAUTH_REDIRECT_TO` mengarah ke domain Pages baru.
 - AI redraw sekarang berjalan lewat `AIVene` sebagai jalur utama dengan `OpenAI` sebagai fallback otomatis. Model AIVene default adalah `gpt-image-2`; Admin dapat memilih `gpt-image-1.5` sebagai alternatif tanpa mengubah fallback OpenAI `gpt-image-2`.
 - Default copy ini disetel ke preset hemat `standard`: input AI maksimal 1080 px pada sisi terpanjang, `input_fidelity=low`, output `medium` 1K, dan tanpa retry low-confidence.
+- Harga promo perkenalan AI redraw adalah Rp5.000 per gambar dan sudah termasuk pecah warna sablon; harga Vector Siap Proses tetap mengikuti pricing rule terpisah.
 - Browser mengirim salinan WebP terkompresi untuk foto biasa atau PNG untuk gambar transparan; file upload asli tetap tersedia untuk preview dan proses lokal.
 - Jika secret `AIVENE_API_KEY` dan `OPENAI_API_KEY` belum diisi, jalur AI redraw nonaktif tetapi Ready Trace tetap bisa dipakai lewat proses lokal browser.
 
