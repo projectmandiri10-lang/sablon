@@ -887,6 +887,26 @@ async function clearLegacyExampleSettingIfMatches(env, job) {
   return nextExamples;
 }
 
+async function unpublishOtherExampleJobs(env, job) {
+  try {
+    return await supabaseFetch(
+      env,
+      `/rest/v1/jobs?production_type=eq.${encodeURIComponent(job.production_type)}&id=neq.${encodeURIComponent(job.id)}&is_example_public=eq.true&select=id,is_example_public,example_published_at`,
+      {
+        method: 'PATCH',
+        prefer: 'return=representation',
+        body: {
+          is_example_public: false,
+          example_published_at: null
+        }
+      }
+    );
+  } catch (error) {
+    if (isMissingJobsPublishColumnsError(error)) return [];
+    throw error;
+  }
+}
+
 async function listLegacyPublishedExampleJobs(env) {
   const exampleSetting = await getAppSetting(env, 'example_jobs');
   const currentExamples = normalizeExampleJobsSetting(exampleSetting?.value);
@@ -3072,6 +3092,7 @@ async function handleSetExampleJob(env, request, jobId) {
 
   const artifacts = getExampleArtifactsFromManifest(job.manifest);
   const publishedAt = formatDate(new Date());
+  const replacedJobs = await unpublishOtherExampleJobs(env, job);
   const publishResult = await patchJobPublishState(
     env,
     job.id,
@@ -3089,6 +3110,7 @@ async function handleSetExampleJob(env, request, jobId) {
     productionType: updatedJob.production_type,
     isExamplePublic: true,
     examplePublishedAt: updatedJob.example_published_at,
+    replacedJobIds: (replacedJobs || []).map((replacedJob) => replacedJob.id),
     exampleJobs: nextExamples
   });
 }

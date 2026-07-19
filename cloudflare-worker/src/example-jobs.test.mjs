@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { test } from 'node:test';
 import {
   decorateAdminJobs,
@@ -8,6 +10,8 @@ import {
   normalizeExampleJobsSetting,
   updateExampleJobsSetting
 } from './example-jobs.js';
+
+const workerSource = fs.readFileSync(path.join(import.meta.dirname, 'index.js'), 'utf8');
 
 function completeArtifacts(productionType = 'sticker') {
   return {
@@ -189,4 +193,13 @@ test('getExampleArtifactsFromManifest and completeness guard require full sablon
 test('whitelist email still counts as superuser fallback', () => {
   assert.equal(isSuperuserProfile({ role: 'user' }, 'jho.j80@gmail.com'), true);
   assert.equal(isSuperuserProfile({ role: 'user' }, 'other@example.com'), false);
+});
+
+test('publishing a new example replaces the previous job of the same production type', () => {
+  assert.match(workerSource, /async function unpublishOtherExampleJobs/);
+  assert.match(workerSource, /production_type=eq\.\$\{encodeURIComponent\(job\.production_type\)\}/);
+  assert.match(workerSource, /id=neq\.\$\{encodeURIComponent\(job\.id\)\}/);
+  assert.match(workerSource, /is_example_public: false/);
+  assert.match(workerSource, /const replacedJobs = await unpublishOtherExampleJobs\(env, job\)/);
+  assert.match(workerSource, /replacedJobIds/);
 });
