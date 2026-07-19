@@ -109,23 +109,6 @@ test('manual printable color limit still cuts palette to selected amount', () =>
   assert.equal(result.wasColorLimited, true);
 });
 
-test('full-color trace palette stays complete before the film color limit', () => {
-  const assignments = new Int16Array([0, 1, 2, 0, 1, 2]);
-  const settings = {
-    productionType: 'sablon',
-    separateColors: true,
-    colorLimitMode: 'manual',
-    maxColors: 2,
-    edgeRefinement: false
-  };
-  const fullColor = refineAssignmentsForTraceForTest(assignments, testColors(3), 6, 1, settings);
-  const films = enforcePrintableColorLimit(fullColor.assignments, fullColor.colors, settings, 6, 1);
-
-  assert.equal(fullColor.colors.length, 3);
-  assert.equal(films.colors.length, 2);
-  assert.equal(films.wasColorLimited, true);
-});
-
 test('spot color handling stays active for sablon separation', () => {
   assert.equal(shouldUseHardSpotColors({ productionType: 'sablon', separateColors: false }), true);
   assert.equal(shouldUseHardSpotColors({ productionType: 'sticker', separateColors: false }), false);

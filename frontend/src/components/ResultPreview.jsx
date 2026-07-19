@@ -1,5 +1,4 @@
-import { Archive, Download, FileImage, FileText, Layers, Maximize2, Palette, RotateCcw, Scissors, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import { Archive, Download, FileImage, FileText, Layers, Palette, RotateCcw, Scissors, Trash2 } from 'lucide-react';
 import { absoluteUrl } from '../lib/api.js';
 import { INPUT_MODE_READY } from '../lib/modes.js';
 
@@ -17,25 +16,7 @@ function DownloadButton({ href, filename, children, icon: Icon }) {
   );
 }
 
-function PreviewImageButton({ src, alt, onOpen, className = 'max-h-80 max-w-full object-contain' }) {
-  const resolvedSrc = absoluteUrl(src);
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen({ src: resolvedSrc, alt })}
-      className="group relative flex h-full w-full items-center justify-center cursor-zoom-in"
-      aria-label={`Perbesar ${alt}`}
-      title="Klik untuk memperbesar"
-    >
-      <img className={className} src={resolvedSrc} alt={alt} />
-      <span className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center border border-line bg-white/90 text-spruce opacity-0 shadow-sm transition group-hover:opacity-100 group-focus-visible:opacity-100">
-        <Maximize2 className="h-4 w-4" aria-hidden="true" />
-      </span>
-    </button>
-  );
-}
-
-function PreviewCard({ title, icon: Icon, src, alt, notice, onOpen }) {
+function PreviewCard({ title, icon: Icon, src, alt, notice }) {
   if (!src) return null;
 
   return (
@@ -46,7 +27,7 @@ function PreviewCard({ title, icon: Icon, src, alt, notice, onOpen }) {
       </div>
       {notice && <p className="border-b border-line bg-panel px-3 py-2 text-xs text-gray-700">{notice}</p>}
       <div className="checkerboard flex min-h-72 items-center justify-center p-3">
-        <PreviewImageButton src={src} alt={alt} onOpen={onOpen} />
+        <img className="max-h-80 max-w-full object-contain" src={absoluteUrl(src)} alt={alt} />
       </div>
     </div>
   );
@@ -66,7 +47,6 @@ export default function ResultPreview({
   showDelete = true,
   historyView = false
 }) {
-  const [expandedPreview, setExpandedPreview] = useState(null);
   if (!job || job.status !== 'done') return null;
   const isId = locale === 'id';
   const files = job.files || {};
@@ -107,20 +87,18 @@ export default function ResultPreview({
 
       {!isVectorReadyMode && (
         <div className="grid gap-4 xl:grid-cols-3">
-          <PreviewCard title={sourcePreviewLabel} icon={FileImage} src={sourcePreviewUrl} alt={sourcePreviewLabel} onOpen={setExpandedPreview} />
+          <PreviewCard title={sourcePreviewLabel} icon={FileImage} src={sourcePreviewUrl} alt={sourcePreviewLabel} />
           <PreviewCard
             title={isId ? 'Preview PNG mentah AI' : 'Raw AI PNG preview'}
             icon={FileImage}
             src={files.aiRawPng}
             alt={isId ? 'PNG mentah hasil AI redraw' : 'Raw AI redraw PNG'}
-            onOpen={setExpandedPreview}
           />
           <PreviewCard
             title={isId ? 'Preview PNG hasil trace' : 'Traced PNG preview'}
             icon={FileImage}
             src={tracedPng}
             alt={isId ? 'PNG hasil trace browser' : 'Browser traced PNG'}
-            onOpen={setExpandedPreview}
             notice={
               settings.removeBackground && settings.includeBackgroundInFilmSize !== true
                 ? isId
@@ -133,7 +111,7 @@ export default function ResultPreview({
                   : ''
             }
           />
-          <PreviewCard title={isId ? 'Preview SVG full color' : 'Full-color SVG preview'} icon={FileText} src={files.fullSvg} alt={isId ? 'Preview SVG full color' : 'Full-color SVG preview'} onOpen={setExpandedPreview} />
+          <PreviewCard title={isId ? 'Preview SVG full color' : 'Full-color SVG preview'} icon={FileText} src={files.fullSvg} alt={isId ? 'Preview SVG full color' : 'Full-color SVG preview'} />
         </div>
       )}
 
@@ -149,7 +127,6 @@ export default function ResultPreview({
                 icon={Scissors}
                 src={files.stickerCutlineSvg}
                 alt={isId ? 'Preview cutting sticker' : 'Sticker cutline preview'}
-                onOpen={setExpandedPreview}
                 notice={
                   isId
                     ? `Ukuran cetak: area sticker ${settings.actualWidthCm} cm. Kertas ${settings.paperSize} ${settings.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}.`
@@ -255,11 +232,10 @@ export default function ResultPreview({
                 </div>
                 {(film.preview || film.previewPng || film.svg) && (
                   <div className="checkerboard mt-3 flex min-h-52 items-center justify-center border border-line bg-white p-3">
-                    <PreviewImageButton
+                    <img
                       className="max-h-64 max-w-full object-contain"
-                      src={film.preview || film.previewPng || film.svg}
+                      src={absoluteUrl(film.preview || film.previewPng || film.svg)}
                       alt={`Preview ${film.label}`}
-                      onOpen={setExpandedPreview}
                     />
                   </div>
                 )}
@@ -273,30 +249,6 @@ export default function ResultPreview({
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {expandedPreview && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4" role="presentation" onClick={() => setExpandedPreview(null)}>
-          <div
-            className="relative flex max-h-[94vh] w-full max-w-6xl items-center justify-center border border-white/30 bg-white p-4 shadow-2xl"
-            role="dialog"
-            aria-modal="true"
-            aria-label={expandedPreview.alt}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setExpandedPreview(null)}
-              className="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center border border-line bg-white text-ink shadow-sm hover:bg-panel"
-              aria-label={isId ? 'Tutup preview besar' : 'Close enlarged preview'}
-            >
-              <X className="h-5 w-5" aria-hidden="true" />
-            </button>
-            <div className="checkerboard flex max-h-[88vh] w-full items-center justify-center overflow-auto p-3">
-              <img className="max-h-[84vh] max-w-full object-contain" src={expandedPreview.src} alt={expandedPreview.alt} />
-            </div>
           </div>
         </div>
       )}

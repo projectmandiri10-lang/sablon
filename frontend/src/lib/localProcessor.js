@@ -1468,17 +1468,16 @@ export async function processImageLocally(file, settings) {
   const palette = buildPalette(imageData, effectiveSettings);
   const assigned = assignPixels(imageData, palette, effectiveSettings);
   const cleaned = removeEdgeConnectedBackground(assigned.assignments, palette, width, height, effectiveSettings);
-  const refined = refineAssignmentsForTrace(cleaned.assignments, cleaned.colors, width, height, effectiveSettings);
-  const limited = enforcePrintableColorLimit(refined.assignments, refined.colors, effectiveSettings, width, height);
-  const assignments = limited.assignments;
-  const outputColors = limited.colors;
+  const limited = enforcePrintableColorLimit(cleaned.assignments, cleaned.colors, effectiveSettings, width, height);
+  const refined = refineAssignmentsForTrace(limited.assignments, limited.colors, width, height, effectiveSettings);
+  const assignments = refined.assignments;
+  const outputColors = refined.colors;
   const tracePathOptions = pathOptionsForSettings(effectiveSettings, width, height);
   const filmPlan = createFilmPlan(outputColors, width, height, effectiveSettings);
   const printable = filmPlan.colors;
-  const fullColorAssignments = refined.assignments;
-  const fullColorPalette = refined.colors;
+  const fullColorPalette = outputColors;
   const bounds = filmPlan.bounds;
-  const fullSvg = buildFullSvg({ colors: fullColorPalette, assignments: fullColorAssignments, width, height, settings: effectiveSettings });
+  const fullSvg = buildFullSvg({ colors: fullColorPalette, assignments, width, height, settings: effectiveSettings });
   const zip = new JSZip();
   const separationZip = new JSZip();
   const fullSvgPdf = await addSvgPdf(zip, 'full-vector', fullSvg, width, height);
@@ -1644,7 +1643,7 @@ export async function processImageLocally(file, settings) {
             method: traceInput.method
           }
         : null,
-      palette: fullColorPalette,
+      palette: outputColors,
       prepressQuality,
       separationFilmCount,
       hasStickerCutline: Boolean(stickerCutline),

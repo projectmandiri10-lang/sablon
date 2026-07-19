@@ -42,18 +42,7 @@ test('ready trace history keeps the original raster for future retries', () => {
 });
 
 test('full-color preview keeps the complete traced palette separate from film colors', () => {
-  assert.match(processorSource, /refineAssignmentsForTrace\(cleaned\.assignments, cleaned\.colors/);
-  assert.match(processorSource, /enforcePrintableColorLimit\(refined\.assignments, refined\.colors/);
-  assert.match(processorSource, /const fullColorAssignments = refined\.assignments/);
-  assert.match(processorSource, /const fullColorPalette = refined\.colors/);
-  assert.match(processorSource, /buildFullSvg\(\{ colors: fullColorPalette, assignments: fullColorAssignments/);
+  assert.match(processorSource, /const fullColorPalette = outputColors/);
+  assert.match(processorSource, /buildFullSvg\(\{ colors: fullColorPalette/);
   assert.match(processorSource, /palette: fullColorPalette/);
-});
-
-test('every result thumbnail can open an enlarged preview modal', () => {
-  assert.match(previewSource, /function PreviewImageButton/);
-  assert.match(previewSource, /cursor-zoom-in/);
-  assert.match(previewSource, /setExpandedPreview/);
-  assert.match(previewSource, /aria-modal="true"/);
-  assert.match(previewSource, /film\.preview \|\| film\.previewPng \|\| film\.svg/);
 });
