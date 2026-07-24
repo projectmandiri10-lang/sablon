@@ -1,6 +1,11 @@
+export const PAPER_SIZE_OPTIONS = ['A4', 'A3', 'A2', 'A1', 'A0'];
+
 const paperSizes = {
   A4: { widthMm: 210, heightMm: 297 },
-  A3: { widthMm: 297, heightMm: 420 }
+  A3: { widthMm: 297, heightMm: 420 },
+  A2: { widthMm: 420, heightMm: 594 },
+  A1: { widthMm: 594, heightMm: 841 },
+  A0: { widthMm: 841, heightMm: 1189 }
 };
 
 export function getPaperSizeMm(paperSize = 'A4', orientation = 'portrait') {
@@ -37,7 +42,7 @@ export function buildPrintLayout({
   const requiredHeightMm = artworkHeightMm + markClearanceMm * 2 + labelSpaceMm;
 
   if (requiredWidthMm > paperWidthMm || requiredHeightMm > paperHeightMm) {
-    throw new Error(`Ukuran film tidak muat di kertas ${paperSize} ${paperOrientation}. Kecilkan ukuran cm, pilih A3, atau ubah orientasi.`);
+    throw new Error(`Ukuran film tidak muat di kertas ${paperSize} ${paperOrientation}. Kecilkan ukuran cm, pilih kertas lebih besar, atau ubah orientasi.`);
   }
 
   const artworkX = (paperWidthMm - artworkWidthMm) / 2;

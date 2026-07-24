@@ -1,4 +1,5 @@
 import { Check, Palette, SlidersHorizontal } from 'lucide-react';
+import { PAPER_SIZE_OPTIONS } from '../lib/localPrint.js';
 import { INPUT_MODE_READY } from '../lib/modes.js';
 
 function Toggle({ checked, onChange, label, disabled }) {
@@ -223,8 +224,9 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
                       disabled={disabled}
                       className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                     >
-                      <option value="A4">A4</option>
-                      <option value="A3">A3</option>
+                      {PAPER_SIZE_OPTIONS.map((paperSize) => (
+                        <option key={paperSize} value={paperSize}>{paperSize}</option>
+                      ))}
                     </select>
                   </label>
 
@@ -297,8 +299,9 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
                   disabled={disabled}
                   className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
                 >
-                  <option value="A4">A4</option>
-                  <option value="A3">A3</option>
+                  {PAPER_SIZE_OPTIONS.map((paperSize) => (
+                    <option key={paperSize} value={paperSize}>{paperSize}</option>
+                  ))}
                 </select>
               </label>
 
