@@ -361,6 +361,7 @@ export default function App() {
   const [appSection, setAppSection] = useState(initialDashboardState.appSection);
   const [historySelectedKey, setHistorySelectedKey] = useState('');
   const [historyNotice, setHistoryNotice] = useState('');
+  const [processNotice, setProcessNotice] = useState('');
   const [jobError, setJobError] = useState('');
   const [suggestedInputMode, setSuggestedInputMode] = useState('');
   const [authCallbackError, setAuthCallbackError] = useState('');
@@ -674,6 +675,7 @@ export default function App() {
     setAdminTab('overview');
     setHistorySelectedKey('');
     setHistoryNotice('');
+    setProcessNotice('');
     setView('app');
     replaceHistoryJobs([]);
     setHistoryError('');
@@ -685,9 +687,24 @@ export default function App() {
 
   function openExampleResults() {
     setAppSection('history');
+    setProcessNotice('');
     setHistoryNotice('');
     const firstExampleJobId = exampleJobs.find((item) => item?.jobId)?.jobId || '';
     if (firstExampleJobId) setHistorySelectedKey(firstExampleJobId);
+  }
+
+  function handleAutomaticPaymentSuccess() {
+    setProcessNotice(
+      isId
+        ? 'Pembayaran QRIS berhasil. Saldo sudah masuk dan Anda bisa generate gambar sekarang.'
+        : 'QRIS payment successful. Your balance is ready and you can generate an image now.'
+    );
+    setHistoryNotice('');
+    setJobError('');
+    setSuggestedInputMode('');
+    setView('app');
+    setAppSection('process');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function handleMidtransReturnHandled() {
@@ -1163,7 +1180,14 @@ export default function App() {
 
       {session && view === 'billing' && (
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
-          <BillingPanel locale={locale} session={session} returnState={midtransReturnState} onRefreshBalance={refreshBalance} onReturnHandled={handleMidtransReturnHandled} />
+          <BillingPanel
+            locale={locale}
+            session={session}
+            returnState={midtransReturnState}
+            onRefreshBalance={refreshBalance}
+            onReturnHandled={handleMidtransReturnHandled}
+            onAutomaticPaymentSuccess={handleAutomaticPaymentSuccess}
+          />
         </div>
       )}
 
@@ -1189,6 +1213,8 @@ export default function App() {
                       setAppSection(section.key);
                       if (section.key === 'process') {
                         setHistoryNotice('');
+                      } else {
+                        setProcessNotice('');
                       }
                     }}
                     className={`inline-flex min-h-10 items-center justify-center border px-3 py-2 text-sm font-semibold transition ${
@@ -1215,6 +1241,11 @@ export default function App() {
 
             {appSection === 'process' ? (
               <>
+                {processNotice && (
+                  <section className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800 shadow-sm">
+                    {processNotice}
+                  </section>
+                )}
                 <UploadBox
                   locale={locale}
                   file={file}

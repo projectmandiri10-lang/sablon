@@ -34,7 +34,7 @@ function mergePaymentRows(currentRows, nextPayment) {
   return [nextPayment, ...filtered].sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
 }
 
-export default function BillingPanel({ locale = 'id', session, returnState = null, onRefreshBalance, onReturnHandled }) {
+export default function BillingPanel({ locale = 'id', session, returnState = null, onRefreshBalance, onReturnHandled, onAutomaticPaymentSuccess }) {
   const [appConfig, setAppConfig] = useState({ settings: {}, features: {} });
   const [payments, setPayments] = useState([]);
   const [amountInput, setAmountInput] = useState('2000');
@@ -300,6 +300,9 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
           setNotice(copy.autoPaymentSuccess);
           setPaymentError('');
           await onRefreshBalance?.();
+          if (creditedPayment.provider === 'interactive_qris') {
+            onAutomaticPaymentSuccess?.(creditedPayment);
+          }
         }
       } catch {
         if (!cancelled) {
@@ -316,7 +319,7 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [copy.autoPaymentSuccess, onRefreshBalance, session?.access_token, shouldPollAutomaticPayments]);
+  }, [copy.autoPaymentSuccess, onAutomaticPaymentSuccess, onRefreshBalance, session?.access_token, shouldPollAutomaticPayments]);
 
   return (
     <div id="billing" className="space-y-5">
