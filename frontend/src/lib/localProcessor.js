@@ -13,6 +13,8 @@ const READY_TRACE_EDGE_DENSITY_THRESHOLD = 0.08;
 const BIN_SIZE = 24;
 const AUTO_SPOT_COLOR_LIMIT = 8;
 const LINEART_POLISH_MIN_RETAIN_RATIO = 0.62;
+const AI_FIDELITY_PALETTE_LIMIT = 32;
+const AI_FIDELITY_BIN_SIZE = 12;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -35,7 +37,12 @@ function averageChannel({ r, g, b }) {
 }
 
 export function shouldUseHardSpotColors(settings = {}) {
+  if (isAiFidelityTrace(settings)) return false;
   return settings.productionType === 'sablon' || settings.separateColors === true;
+}
+
+function isAiFidelityTrace(settings = {}) {
+  return settings.inputMode === INPUT_MODE_RETOUCH && settings.traceProfile === 'ai_fidelity' && settings.colorProcessingProfile !== 'film';
 }
 
 export function requestedSpotColorLimit(settings = {}) {
@@ -44,6 +51,7 @@ export function requestedSpotColorLimit(settings = {}) {
 }
 
 function canonicalizeSpotPixel(pixel, settings = {}) {
+  if (isAiFidelityTrace(settings)) return pixel;
   if (!shouldUseHardSpotColors(settings)) return pixel;
   if (colorChroma(pixel) <= 32) {
     return averageChannel(pixel) >= 165 ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 };
@@ -77,7 +85,7 @@ function countActivePixels(binary) {
 }
 
 function shouldUseLineartPolish(settings = {}) {
-  return settings.inputMode === INPUT_MODE_RETOUCH && settings.edgeRefinement !== false;
+  return settings.inputMode === INPUT_MODE_RETOUCH && settings.edgeRefinement !== false && !isAiFidelityTrace(settings);
 }
 
 function normalizeSpotName(value) {
@@ -152,7 +160,8 @@ function buildPalette(imageData, settings) {
     };
     if (settings.whiteAsBackground && isNearWhite(pixel)) continue;
     const quantizedPixel = canonicalizeSpotPixel(pixel, settings);
-    const key = `${Math.floor(quantizedPixel.r / BIN_SIZE)}-${Math.floor(quantizedPixel.g / BIN_SIZE)}-${Math.floor(quantizedPixel.b / BIN_SIZE)}`;
+    const binSize = isAiFidelityTrace(settings) ? AI_FIDELITY_BIN_SIZE : BIN_SIZE;
+    const key = `${Math.floor(quantizedPixel.r / binSize)}-${Math.floor(quantizedPixel.g / binSize)}-${Math.floor(quantizedPixel.b / binSize)}`;
     const current = histogram.get(key) || { r: 0, g: 0, b: 0, count: 0 };
     current.r += quantizedPixel.r;
     current.g += quantizedPixel.g;
@@ -163,12 +172,14 @@ function buildPalette(imageData, settings) {
 
   const useHardSpotColors = shouldUseHardSpotColors(settings);
   const requestedMaxColors = requestedSpotColorLimit(settings);
-  const maxColors = useHardSpotColors
+  const maxColors = isAiFidelityTrace(settings)
+    ? AI_FIDELITY_PALETTE_LIMIT
+    : useHardSpotColors
     ? clamp(Math.max(requestedMaxColors + 3, 5), 2, 8)
     : settings.colorLimitMode === 'manual'
       ? requestedMaxColors
       : 6;
-  const mergeDistance = useHardSpotColors ? 150 : 42;
+  const mergeDistance = isAiFidelityTrace(settings) ? 18 : useHardSpotColors ? 150 : 42;
   const candidates = [...histogram.values()]
     .map((bucket) => ({
       r: Math.round(bucket.r / bucket.count),
@@ -178,7 +189,8 @@ function buildPalette(imageData, settings) {
     }))
     .sort((a, b) => b.count - a.count);
 
-  const palette = dropTinySpotColors(mergeSimilarColors(candidates, maxColors, mergeDistance), useHardSpotColors).map((color, index) => ({
+  const mergedPalette = mergeSimilarColors(candidates, maxColors, mergeDistance);
+  const palette = (isAiFidelityTrace(settings) ? mergedPalette : dropTinySpotColors(mergedPalette, useHardSpotColors)).map((color, index) => ({
     index: index + 1,
     hex: rgbToHex(color),
     r: color.r,
@@ -188,6 +200,10 @@ function buildPalette(imageData, settings) {
   }));
 
   return palette.length > 0 ? palette : [{ index: 1, hex: '#000000', r: 0, g: 0, b: 0, pixelCount: 0 }];
+}
+
+export function buildPaletteForTest(imageData, settings = {}) {
+  return buildPalette(imageData, settings);
 }
 
 function remapAssignmentsToSelectedColors(assignments, colors, selectedColors, width, height) {
@@ -845,6 +861,13 @@ function buildPrepressQualityAssessment({ sourceWidth, sourceHeight, width, heig
 }
 
 function pathOptionsForSettings(settings = {}, width = 0, height = 0) {
+  if (isAiFidelityTrace(settings)) {
+    return {
+      smooth: true,
+      tolerance: 1,
+      cornerCos: 0.2
+    };
+  }
   const enabled = shouldUseLineartPolish(settings);
   const tolerance = enabled ? clamp(Math.max(width, height) / 420, 1.1, 4) : 0;
   return {
@@ -1263,6 +1286,7 @@ export function normalizeLocalTraceSettings(settings = {}) {
   return settings.inputMode === 'ai_redraw'
     ? {
         ...settings,
+        traceProfile: 'ai_fidelity',
         separateColors: true,
         traceUpscaleFactor: settings.allowTraceUpscaleOverride
           ? normalizeTraceUpscaleFactor(settings.traceUpscaleFactor)
@@ -1467,17 +1491,22 @@ export async function processImageLocally(file, settings) {
   const imageData = ctx.getImageData(0, 0, width, height);
   const palette = buildPalette(imageData, effectiveSettings);
   const assigned = assignPixels(imageData, palette, effectiveSettings);
-  const cleaned = removeEdgeConnectedBackground(assigned.assignments, palette, width, height, effectiveSettings);
-  const limited = enforcePrintableColorLimit(cleaned.assignments, cleaned.colors, effectiveSettings, width, height);
-  const refined = refineAssignmentsForTrace(limited.assignments, limited.colors, width, height, effectiveSettings);
-  const assignments = refined.assignments;
-  const outputColors = refined.colors;
+  const fidelityTrace = isAiFidelityTrace(effectiveSettings);
+  const fullColorAssignments = assigned.assignments;
+  const fullColorPalette = assigned.colors;
+  const filmSettings = fidelityTrace
+    ? { ...effectiveSettings, colorProcessingProfile: 'film' }
+    : effectiveSettings;
+  const cleaned = removeEdgeConnectedBackground(assigned.assignments, palette, width, height, filmSettings);
+  const limited = enforcePrintableColorLimit(cleaned.assignments, cleaned.colors, filmSettings, width, height);
+  const refined = refineAssignmentsForTrace(limited.assignments, limited.colors, width, height, filmSettings);
+  const filmAssignments = refined.assignments;
+  const filmColors = refined.colors;
   const tracePathOptions = pathOptionsForSettings(effectiveSettings, width, height);
-  const filmPlan = createFilmPlan(outputColors, width, height, effectiveSettings);
+  const filmPlan = createFilmPlan(filmColors, width, height, filmSettings);
   const printable = filmPlan.colors;
-  const fullColorPalette = outputColors;
   const bounds = filmPlan.bounds;
-  const fullSvg = buildFullSvg({ colors: fullColorPalette, assignments, width, height, settings: effectiveSettings });
+  const fullSvg = buildFullSvg({ colors: fullColorPalette, assignments: fullColorAssignments, width, height, settings: effectiveSettings });
   const zip = new JSZip();
   const separationZip = new JSZip();
   const fullSvgPdf = await addSvgPdf(zip, 'full-vector', fullSvg, width, height);
@@ -1496,21 +1525,21 @@ export async function processImageLocally(file, settings) {
       const label = 'FILM DASAR - HITAM 100%';
       const underbaseActiveIndexes = new Set(printable.map((color) => color.index - 1));
       const underbaseBinary = new Uint8Array(width * height);
-      for (let index = 0; index < assignments.length; index += 1) {
-        if (underbaseActiveIndexes.has(assignments[index])) underbaseBinary[index] = 1;
+      for (let index = 0; index < filmAssignments.length; index += 1) {
+        if (underbaseActiveIndexes.has(filmAssignments[index])) underbaseBinary[index] = 1;
       }
       const underbasePath = pathFromBinary(
         chokeBinary(underbaseBinary, width, height, 1),
         width,
         height,
-        pathFromAssignments(assignments, width, height, underbaseActiveIndexes, effectiveSettings),
-        effectiveSettings
+        pathFromAssignments(filmAssignments, width, height, underbaseActiveIndexes, filmSettings),
+        filmSettings
       );
       const film = buildFilmSvg({
-        assignments,
+        assignments: filmAssignments,
         width,
         height,
-        settings: effectiveSettings,
+        settings: filmSettings,
         activeIndexes: underbaseActiveIndexes,
         label,
         bounds: filmPlan.bounds,
@@ -1534,10 +1563,10 @@ export async function processImageLocally(file, settings) {
       const label = `FILM ${index} - ${color.hex}`;
       const spotName = spotNameForColor(color, colorIndex + 1);
       const film = buildFilmSvg({
-        assignments,
+        assignments: filmAssignments,
         width,
         height,
-        settings: effectiveSettings,
+        settings: filmSettings,
         activeIndexes: color.index - 1,
         label,
         bounds: filmPlan.bounds,
@@ -1558,7 +1587,7 @@ export async function processImageLocally(file, settings) {
 
   let stickerCutline = null;
   if (effectiveSettings.productionType === 'sticker' && effectiveSettings.stickerCutlineEnabled && printable.length > 0) {
-    const cutlineSvg = buildCutlineSvg({ assignments, colors: printable, width, height, settings: effectiveSettings, bounds });
+    const cutlineSvg = buildCutlineSvg({ assignments: filmAssignments, colors: printable, width, height, settings: filmSettings, bounds });
     stickerCutline = await addSvgPdf(zip, 'sticker-cutline', cutlineSvg, width, height);
   }
 
@@ -1574,7 +1603,7 @@ export async function processImageLocally(file, settings) {
     printable,
     separationFilmCount,
     wasColorLimited: limited.wasColorLimited,
-    settings: effectiveSettings
+    settings: filmSettings
   });
   const priceIdr = calculateJobPrice({
     inputMode: settings.inputMode,
@@ -1643,7 +1672,15 @@ export async function processImageLocally(file, settings) {
             method: traceInput.method
           }
         : null,
-      palette: outputColors,
+      palette: fullColorPalette,
+      filmPalette: filmColors,
+      traceProfile: fidelityTrace ? 'ai_fidelity' : 'standard',
+      colorProcessing: {
+        sourceColorCount: fullColorPalette.length,
+        filmColorCount: filmColors.length,
+        filmColorLimited: Boolean(limited.wasColorLimited),
+        fullColorSimplified: !fidelityTrace
+      },
       prepressQuality,
       separationFilmCount,
       hasStickerCutline: Boolean(stickerCutline),

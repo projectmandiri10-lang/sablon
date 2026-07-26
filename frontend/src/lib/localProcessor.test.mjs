@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  buildPaletteForTest,
   enforcePrintableColorLimit,
   decideRasterUpscaleEligibility,
   isVectorImageFile,
@@ -118,6 +119,34 @@ test('AI redraw always enables browser color separation', () => {
   const settings = normalizeLocalTraceSettings({ inputMode: 'ai_redraw', productionType: 'sticker', separateColors: false });
   assert.equal(settings.separateColors, true);
   assert.equal(settings.traceUpscaleFactor, 3.15);
+  assert.equal(settings.traceProfile, 'ai_fidelity');
+});
+
+test('AI fidelity palette preserves distinct artwork colors instead of hard spot canonicalization', () => {
+  const colors = [
+    [4, 18, 45], [10, 42, 84], [25, 74, 128], [220, 16, 43], [245, 60, 82],
+    [250, 220, 130], [50, 145, 85], [100, 185, 130], [120, 80, 45], [210, 210, 215]
+  ];
+  const data = new Uint8ClampedArray(colors.flatMap(([r, g, b]) => [r, g, b, 255]));
+  const palette = buildPaletteForTest({ data }, normalizeLocalTraceSettings({ inputMode: 'ai_redraw', productionType: 'sablon' }));
+
+  assert.ok(palette.length >= colors.length);
+  assert.equal(shouldUseHardSpotColors(normalizeLocalTraceSettings({ inputMode: 'ai_redraw', productionType: 'sablon' })), false);
+});
+
+test('AI fidelity keeps full-color processing separate from limited film colors', () => {
+  const fidelitySettings = normalizeLocalTraceSettings({ inputMode: 'ai_redraw', productionType: 'sablon', colorLimitMode: 'manual', maxColors: 4 });
+  const filmSettings = { ...fidelitySettings, colorProcessingProfile: 'film' };
+  const result = enforcePrintableColorLimit(
+    new Int16Array([0, 1, 2, 3, 4, 5]),
+    testColors(6),
+    filmSettings,
+    6,
+    1
+  );
+
+  assert.equal(shouldUseHardSpotColors(filmSettings), true);
+  assert.equal(result.colors.length, 4);
 });
 
 test('trace upscale keeps the 3.15x default without integer truncation', () => {
