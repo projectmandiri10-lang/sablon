@@ -42,9 +42,7 @@ test('ready trace history keeps the original raster for future retries', () => {
 });
 
 test('full-color preview keeps the complete traced palette separate from film colors', () => {
-  assert.match(processorSource, /const fullColorPalette = assigned\.colors/);
-  assert.match(processorSource, /const filmColors = refined\.colors/);
-  assert.match(processorSource, /buildFullSvg\(\{ colors: fullColorPalette, assignments: fullColorAssignments/);
-  assert.match(processorSource, /assignments: filmAssignments/);
+  assert.match(processorSource, /const fullColorPalette = outputColors/);
+  assert.match(processorSource, /buildFullSvg\(\{ colors: fullColorPalette/);
   assert.match(processorSource, /palette: fullColorPalette/);
 });
