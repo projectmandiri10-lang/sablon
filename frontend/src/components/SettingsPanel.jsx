@@ -1,4 +1,4 @@
-import { Check, Palette, SlidersHorizontal } from 'lucide-react';
+import { Check, SlidersHorizontal } from 'lucide-react';
 import { PAPER_SIZE_OPTIONS } from '../lib/localPrint.js';
 import { INPUT_MODE_READY } from '../lib/modes.js';
 
@@ -137,34 +137,11 @@ export default function SettingsPanel({ locale = 'id', settings, inputMode, onCh
           </p>
         </div>
 
-        <div>
-          <span className="mb-2 flex items-center gap-2 text-sm font-medium text-ink">
-            <Palette className="h-4 w-4 text-spruce" aria-hidden="true" />
-            {isId ? 'Jumlah warna' : 'Color count'}
-          </span>
-          <div className="grid gap-2">
-            <Toggle
-              checked={settings.colorLimitMode === 'manual'}
-              onChange={(value) => update('colorLimitMode', value ? 'manual' : 'auto')}
-              label={isId ? 'Batasi jumlah warna' : 'Limit the number of colors'}
-              disabled={disabled}
-            />
-            {settings.colorLimitMode !== 'manual' && (
-              <div className="border border-spruce bg-primary/5 px-3 py-2.5 text-sm font-semibold text-ink">{isId ? 'Otomatis' : 'Automatic'}</div>
-            )}
-          </div>
-          <select
-            value={settings.maxColors}
-            onChange={(event) => update('maxColors', Number(event.target.value))}
-            disabled={disabled || settings.colorLimitMode !== 'manual'}
-            className="mt-2 w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce disabled:bg-gray-100 disabled:text-gray-500"
-          >
-            {[2, 3, 4, 5, 6].map((count) => (
-              <option key={count} value={count}>
-                {count} {isId ? 'warna' : 'colors'}
-              </option>
-            ))}
-          </select>
+        <div className="border border-spruce bg-primary/5 px-3 py-2.5 text-sm text-ink">
+          <p className="font-semibold">{isId ? 'Warna sablon otomatis' : 'Automatic screen-print colors'}</p>
+          <p className="mt-1 text-xs text-gray-700">
+            {isId ? 'Maksimal 6 warna tinta. Film dasar opsional dibuat terpisah, sehingga total maksimal 7 film.' : 'Maximum 6 ink colors. The optional underbase is generated separately, for a maximum of 7 films.'}
+          </p>
         </div>
 
         {settings.productionType === 'sticker' && (

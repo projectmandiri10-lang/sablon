@@ -11,7 +11,9 @@ const READY_TRACE_TARGET_EDGE = 2048;
 const READY_TRACE_SHARPNESS_THRESHOLD = 0.35;
 const READY_TRACE_EDGE_DENSITY_THRESHOLD = 0.08;
 const BIN_SIZE = 24;
-const AUTO_SPOT_COLOR_LIMIT = 8;
+// Manual screen printing supports at most six ink colors. The optional underbase
+// is produced as its own seventh film and is not counted in this palette.
+const AUTO_SPOT_COLOR_LIMIT = 6;
 const LINEART_POLISH_MIN_RETAIN_RATIO = 0.62;
 
 function clamp(value, min, max) {
@@ -39,8 +41,7 @@ export function shouldUseHardSpotColors(settings = {}) {
 }
 
 export function requestedSpotColorLimit(settings = {}) {
-  if (settings.colorLimitMode !== 'manual') return AUTO_SPOT_COLOR_LIMIT;
-  return clamp(Number.parseInt(settings.maxColors || 4, 10), 2, 6);
+  return AUTO_SPOT_COLOR_LIMIT;
 }
 
 function canonicalizeSpotPixel(pixel, settings = {}) {
@@ -165,9 +166,7 @@ function buildPalette(imageData, settings) {
   const requestedMaxColors = requestedSpotColorLimit(settings);
   const maxColors = useHardSpotColors
     ? clamp(Math.max(requestedMaxColors + 3, 5), 2, 8)
-    : settings.colorLimitMode === 'manual'
-      ? requestedMaxColors
-      : 6;
+    : AUTO_SPOT_COLOR_LIMIT;
   const mergeDistance = useHardSpotColors ? 150 : 42;
   const candidates = [...histogram.values()]
     .map((bucket) => ({

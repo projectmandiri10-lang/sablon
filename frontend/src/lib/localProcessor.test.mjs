@@ -49,39 +49,20 @@ function countAssigned(assignments, colorIndex = 0) {
   return count;
 }
 
-test('auto color mode keeps a wider detected spot color limit', () => {
-  assert.equal(
-    requestedSpotColorLimit({
-      productionType: 'sablon',
-      separateColors: true,
-      colorLimitMode: 'auto',
-      maxColors: 4
-    }),
-    8
-  );
+test('screen-print palette is always limited to six ink colors', () => {
+  assert.equal(requestedSpotColorLimit({}), 6);
+  assert.equal(requestedSpotColorLimit({ colorLimitMode: 'manual', maxColors: 2 }), 6);
 });
 
-test('manual color mode keeps the selected spot color limit', () => {
-  assert.equal(
-    requestedSpotColorLimit({
-      productionType: 'sablon',
-      separateColors: true,
-      colorLimitMode: 'manual',
-      maxColors: 4
-    }),
-    4
-  );
-});
-
-test('auto printable color limit does not cut detected palette to default 4', () => {
+test('six detected printable colors are retained', () => {
   const result = enforcePrintableColorLimit(
     new Int16Array([0, 1, 2, 3, 4, 5]),
     testColors(6),
     {
       productionType: 'sablon',
       separateColors: true,
-      colorLimitMode: 'auto',
-      maxColors: 4
+      colorLimitMode: 'manual',
+      maxColors: 2
     },
     6,
     1
@@ -91,21 +72,21 @@ test('auto printable color limit does not cut detected palette to default 4', ()
   assert.equal(result.wasColorLimited, false);
 });
 
-test('manual printable color limit still cuts palette to selected amount', () => {
+test('seven detected colors are reduced to the fixed six-ink limit', () => {
   const result = enforcePrintableColorLimit(
-    new Int16Array([0, 1, 2, 3, 4, 5]),
-    testColors(6),
+    new Int16Array([0, 1, 2, 3, 4, 5, 6]),
+    testColors(7),
     {
       productionType: 'sablon',
       separateColors: true,
       colorLimitMode: 'manual',
-      maxColors: 4
+      maxColors: 2
     },
-    6,
+    7,
     1
   );
 
-  assert.equal(result.colors.length, 4);
+  assert.equal(result.colors.length, 6);
   assert.equal(result.wasColorLimited, true);
 });
 

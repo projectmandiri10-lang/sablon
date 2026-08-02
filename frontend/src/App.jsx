@@ -114,8 +114,6 @@ const initialSettings = {
   inputMode: INPUT_MODE_RETOUCH,
   makeVector: true,
   separateColors: true,
-  colorLimitMode: 'auto',
-  maxColors: 4,
   whiteAsBackground: false,
   removeBackground: true,
   aiQuality: 'standard',
