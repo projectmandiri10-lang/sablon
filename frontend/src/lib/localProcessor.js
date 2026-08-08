@@ -1,0 +1,1693 @@
+import { INPUT_MODE_RETOUCH } from './modes.js';
+import { buildPrintLayout, createArtworkRegistrationMarks } from './localPrint.js';
+import { calculateJobPrice } from './pricing.js';
+
+const MAX_CANVAS_EDGE = 4096;
+const DEFAULT_TRACE_UPSCALE_FACTOR = 3.15;
+const MAX_TRACE_UPSCALE_FACTOR = 3.15;
+const READY_TRACE_ANALYSIS_MAX_EDGE = 256;
+const READY_TRACE_MIN_EDGE = 1536;
+const READY_TRACE_TARGET_EDGE = 2048;
+const READY_TRACE_SHARPNESS_THRESHOLD = 0.35;
+const READY_TRACE_EDGE_DENSITY_THRESHOLD = 0.08;
+const BIN_SIZE = 24;
+// Manual screen printing supports at most six ink colors. The optional underbase
+// is produced as its own seventh film and is not counted in this palette.
+const AUTO_SPOT_COLOR_LIMIT = 6;
+const LINEART_POLISH_MIN_RETAIN_RATIO = 0.62;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function rgbToHex({ r, g, b }) {
+  return `#${[r, g, b].map((value) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+}
+
+function colorDistance(a, b) {
+  return Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2);
+}
+
+function colorChroma({ r, g, b }) {
+  return Math.max(r, g, b) - Math.min(r, g, b);
+}
+
+function averageChannel({ r, g, b }) {
+  return (r + g + b) / 3;
+}
+
+export function shouldUseHardSpotColors(settings = {}) {
+  return settings.productionType === 'sablon' || settings.separateColors === true;
+}
+
+export function requestedSpotColorLimit(settings = {}) {
+  return AUTO_SPOT_COLOR_LIMIT;
+}
+
+function canonicalizeSpotPixel(pixel, settings = {}) {
+  if (!shouldUseHardSpotColors(settings)) return pixel;
+  if (colorChroma(pixel) <= 32) {
+    return averageChannel(pixel) >= 165 ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 };
+  }
+  return pixel;
+}
+
+function isNearWhite({ r, g, b }) {
+  return r >= 242 && g >= 242 && b >= 242;
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function normalizeNumber(value, fallback) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function countActivePixels(binary) {
+  let count = 0;
+  for (let index = 0; index < binary.length; index += 1) {
+    if (binary[index]) count += 1;
+  }
+  return count;
+}
+
+function shouldUseLineartPolish(settings = {}) {
+  return settings.inputMode === INPUT_MODE_RETOUCH && settings.edgeRefinement !== false;
+}
+
+function normalizeSpotName(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 48);
+}
+
+function spotNameForColor(color, fallbackIndex = 1) {
+  const index = String(color?.index || fallbackIndex).padStart(2, '0');
+  return `SPOT_${index}_${normalizeSpotName(color?.hex || '000000').replace(/^#/, '')}`;
+}
+
+async function loadBitmap(file) {
+  if ('createImageBitmap' in window) return createImageBitmap(file);
+
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = reject;
+    image.src = url;
+  });
+}
+
+function canvasToBlob(canvas, type = 'image/png', quality) {
+  return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), type, quality));
+}
+
+function mergeSimilarColors(colors, maxColors, mergeDistance = 42) {
+  const merged = [];
+  for (const color of colors) {
+    const existing = merged.find((candidate) => colorDistance(candidate, color) < mergeDistance);
+    if (existing) {
+      const total = existing.count + color.count;
+      existing.r = Math.round((existing.r * existing.count + color.r * color.count) / total);
+      existing.g = Math.round((existing.g * existing.count + color.g * color.count) / total);
+      existing.b = Math.round((existing.b * existing.count + color.b * color.count) / total);
+      existing.count = total;
+    } else {
+      merged.push({ ...color });
+    }
+    merged.sort((a, b) => b.count - a.count);
+    if (merged.length > maxColors * 3) merged.length = maxColors * 3;
+  }
+
+  return merged.sort((a, b) => b.count - a.count).slice(0, maxColors);
+}
+
+function dropTinySpotColors(colors, enabled) {
+  if (!enabled || colors.length <= 3) return colors;
+  const total = colors.reduce((sum, color) => sum + color.count, 0);
+  const minPixels = Math.max(24, total * 0.001);
+  const filtered = colors.filter((color) => color.count >= minPixels);
+  return filtered.length >= 2 ? filtered : colors;
+}
+
+function buildPalette(imageData, settings) {
+  const histogram = new Map();
+  for (let index = 0; index < imageData.data.length; index += 4) {
+    const alpha = imageData.data[index + 3];
+    if (alpha < 16) continue;
+    const pixel = {
+      r: imageData.data[index],
+      g: imageData.data[index + 1],
+      b: imageData.data[index + 2]
+    };
+    if (settings.whiteAsBackground && isNearWhite(pixel)) continue;
+    const quantizedPixel = canonicalizeSpotPixel(pixel, settings);
+    const key = `${Math.floor(quantizedPixel.r / BIN_SIZE)}-${Math.floor(quantizedPixel.g / BIN_SIZE)}-${Math.floor(quantizedPixel.b / BIN_SIZE)}`;
+    const current = histogram.get(key) || { r: 0, g: 0, b: 0, count: 0 };
+    current.r += quantizedPixel.r;
+    current.g += quantizedPixel.g;
+    current.b += quantizedPixel.b;
+    current.count += 1;
+    histogram.set(key, current);
+  }
+
+  const useHardSpotColors = shouldUseHardSpotColors(settings);
+  const requestedMaxColors = requestedSpotColorLimit(settings);
+  const maxColors = useHardSpotColors
+    ? clamp(Math.max(requestedMaxColors + 3, 5), 2, 8)
+    : AUTO_SPOT_COLOR_LIMIT;
+  const mergeDistance = useHardSpotColors ? 150 : 42;
+  const candidates = [...histogram.values()]
+    .map((bucket) => ({
+      r: Math.round(bucket.r / bucket.count),
+      g: Math.round(bucket.g / bucket.count),
+      b: Math.round(bucket.b / bucket.count),
+      count: bucket.count
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const palette = dropTinySpotColors(mergeSimilarColors(candidates, maxColors, mergeDistance), useHardSpotColors).map((color, index) => ({
+    index: index + 1,
+    hex: rgbToHex(color),
+    r: color.r,
+    g: color.g,
+    b: color.b,
+    pixelCount: color.count
+  }));
+
+  return palette.length > 0 ? palette : [{ index: 1, hex: '#000000', r: 0, g: 0, b: 0, pixelCount: 0 }];
+}
+
+function remapAssignmentsToSelectedColors(assignments, colors, selectedColors, width, height) {
+  if (selectedColors.length === 0) {
+    return { assignments, colors };
+  }
+
+  const kept = selectedColors.map((color, index) => ({
+    ...color,
+    originalAssignmentIndex: color.index - 1,
+    index: index + 1
+  }));
+  const oldToNewIndex = new Map();
+  const remapDroppedIndex = new Map();
+
+  kept.forEach((color, index) => {
+    oldToNewIndex.set(color.originalAssignmentIndex, index);
+  });
+
+  colors.forEach((color) => {
+    if (oldToNewIndex.has(color.index - 1)) return;
+    const nearest = nearestColorIndex(color, kept);
+    remapDroppedIndex.set(color.index - 1, nearest);
+  });
+
+  const output = new Int16Array(assignments.length);
+  output.fill(-1);
+  for (let index = 0; index < assignments.length; index += 1) {
+    const colorIndex = assignments[index];
+    if (colorIndex < 0) continue;
+    output[index] = oldToNewIndex.has(colorIndex) ? oldToNewIndex.get(colorIndex) : remapDroppedIndex.get(colorIndex);
+  }
+
+  const normalizedPalette = kept.map(({ originalAssignmentIndex, ...color }) => color);
+  return {
+    assignments: output,
+    colors: recomputeColors(output, normalizedPalette, width, height)
+  };
+}
+
+export function enforcePrintableColorLimit(assignments, colors, settings, width, height) {
+  if (!shouldUseHardSpotColors(settings)) {
+    return { assignments, colors };
+  }
+
+  const limit = requestedSpotColorLimit(settings);
+  const selectedColors =
+    colors.length <= limit ? colors : [...colors].sort((left, right) => right.count - left.count).slice(0, limit);
+
+  return {
+    ...remapAssignmentsToSelectedColors(assignments, colors, selectedColors, width, height),
+    wasColorLimited: colors.length > selectedColors.length
+  };
+}
+
+function nearestColorIndex(pixel, palette) {
+  let bestIndex = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  palette.forEach((color, index) => {
+    const distance = colorDistance(pixel, color);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  });
+  return bestIndex;
+}
+
+function recomputeColors(assignments, palette, width, height) {
+  const colors = palette.map((color) => ({
+    ...color,
+    count: 0,
+    touchesTop: false,
+    touchesRight: false,
+    touchesBottom: false,
+    touchesLeft: false,
+    bounds: { x: width, y: height, maxX: 0, maxY: 0, width: 0, height: 0 }
+  }));
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const colorIndex = assignments[width * y + x];
+      if (colorIndex < 0) continue;
+      const color = colors[colorIndex];
+      color.count += 1;
+      color.touchesTop ||= y === 0;
+      color.touchesRight ||= x === width - 1;
+      color.touchesBottom ||= y === height - 1;
+      color.touchesLeft ||= x === 0;
+      color.bounds.x = Math.min(color.bounds.x, x);
+      color.bounds.y = Math.min(color.bounds.y, y);
+      color.bounds.maxX = Math.max(color.bounds.maxX, x + 1);
+      color.bounds.maxY = Math.max(color.bounds.maxY, y + 1);
+    }
+  }
+
+  colors.forEach((color) => {
+    if (color.count <= 0) return;
+    color.bounds.width = Math.max(1, color.bounds.maxX - color.bounds.x);
+    color.bounds.height = Math.max(1, color.bounds.maxY - color.bounds.y);
+  });
+
+  return colors.filter((color) => color.count > 0);
+}
+
+function shouldRemoveEdgeComponent(component, color, width, height) {
+  const totalPixels = Math.max(1, width * height);
+  const coverage = component.count / totalPixels;
+  const boundsCoverage = (component.width * component.height) / totalPixels;
+  const lowChroma = colorChroma(color) <= 36;
+  if (lowChroma) return true;
+  return component.edgeCount >= 2 && (coverage >= 0.01 || boundsCoverage >= 0.22);
+}
+
+function shouldSearchEnclosedBackground(component, color, width, height) {
+  const totalPixels = Math.max(1, width * height);
+  const coverage = component.count / totalPixels;
+  const boundsCoverage = (component.width * component.height) / totalPixels;
+  const lowChroma = colorChroma(color) <= 36;
+  const broadEdgeBackground = component.edgeCount >= 2 && (coverage >= 0.01 || boundsCoverage >= 0.22);
+  return broadEdgeBackground || (lowChroma && component.edgeCount >= 3 && boundsCoverage >= 0.18);
+}
+
+function removeEnclosedBackgroundComponents(output, width, height, backgroundColorIndexes) {
+  const visited = new Uint8Array(output.length);
+  for (let start = 0; start < output.length; start += 1) {
+    const colorIndex = output[start];
+    if (visited[start] || !backgroundColorIndexes.has(colorIndex)) continue;
+
+    const stack = [start];
+    const pixels = [];
+    let touchesCanvasEdge = false;
+    const adjacentSides = new Set();
+    visited[start] = 1;
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      const x = current % width;
+      const y = Math.floor(current / width);
+      pixels.push(current);
+      touchesCanvasEdge ||= x === 0 || y === 0 || x === width - 1 || y === height - 1;
+
+      const neighbors = [
+        [x - 1, y, 'left'],
+        [x + 1, y, 'right'],
+        [x, y - 1, 'top'],
+        [x, y + 1, 'bottom']
+      ];
+      for (const [nextX, nextY, side] of neighbors) {
+        if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height) continue;
+        const next = width * nextY + nextX;
+        const nextColorIndex = output[next];
+        if (nextColorIndex === colorIndex) {
+          if (!visited[next]) {
+            visited[next] = 1;
+            stack.push(next);
+          }
+        } else if (nextColorIndex >= 0 && !backgroundColorIndexes.has(nextColorIndex)) {
+          adjacentSides.add(side);
+        }
+      }
+    }
+
+    if (!touchesCanvasEdge && adjacentSides.size >= 3) {
+      pixels.forEach((pixel) => {
+        output[pixel] = -1;
+      });
+    }
+  }
+}
+
+function removeEdgeConnectedBackground(assignments, palette, width, height, settings = {}) {
+  if (settings.removeBackground !== true || settings.includeBackgroundInFilmSize === true) {
+    return {
+      assignments,
+      colors: recomputeColors(assignments, palette, width, height)
+    };
+  }
+
+  const output = new Int16Array(assignments);
+  const visited = new Uint8Array(assignments.length);
+  const edgeStarts = [];
+  const backgroundColorIndexes = new Set();
+
+  for (let x = 0; x < width; x += 1) {
+    edgeStarts.push(x, width * (height - 1) + x);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    edgeStarts.push(width * y, width * y + width - 1);
+  }
+
+  for (const start of edgeStarts) {
+    if (visited[start] || output[start] < 0) continue;
+    const colorIndex = output[start];
+    const color = palette[colorIndex];
+    const stack = [start];
+    const pixels = [];
+    let count = 0;
+    let minX = start % width;
+    let maxX = minX;
+    let minY = Math.floor(start / width);
+    let maxY = minY;
+    let touchesTop = false;
+    let touchesRight = false;
+    let touchesBottom = false;
+    let touchesLeft = false;
+    visited[start] = 1;
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      const x = current % width;
+      const y = Math.floor(current / width);
+      pixels.push(current);
+      count += 1;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+      touchesTop ||= y === 0;
+      touchesRight ||= x === width - 1;
+      touchesBottom ||= y === height - 1;
+      touchesLeft ||= x === 0;
+
+      const neighbors = [current - 1, current + 1, current - width, current + width];
+      for (const next of neighbors) {
+        if (next < 0 || next >= output.length || visited[next] || output[next] !== colorIndex) continue;
+        const nextX = next % width;
+        const currentX = current % width;
+        if (Math.abs(nextX - currentX) > 1 && (next === current - 1 || next === current + 1)) continue;
+        visited[next] = 1;
+        stack.push(next);
+      }
+    }
+
+    const component = {
+      count,
+      width: maxX - minX + 1,
+      height: maxY - minY + 1,
+      edgeCount: [touchesTop, touchesRight, touchesBottom, touchesLeft].filter(Boolean).length
+    };
+    if (shouldRemoveEdgeComponent(component, color, width, height)) {
+      pixels.forEach((pixel) => {
+        output[pixel] = -1;
+      });
+      if (shouldSearchEnclosedBackground(component, color, width, height)) {
+        backgroundColorIndexes.add(colorIndex);
+      }
+    }
+  }
+
+  if (backgroundColorIndexes.size > 0) {
+    removeEnclosedBackgroundComponents(output, width, height, backgroundColorIndexes);
+  }
+
+  const colors = recomputeColors(output, palette, width, height);
+  if (colors.length === 0) {
+    return {
+      assignments,
+      colors: recomputeColors(assignments, palette, width, height)
+    };
+  }
+
+  return {
+    assignments: output,
+    colors
+  };
+}
+
+function assignPixels(imageData, palette, settings) {
+  const assignments = new Int16Array(imageData.width * imageData.height);
+  assignments.fill(-1);
+  const colors = palette.map((color) => ({
+    ...color,
+    count: 0,
+    touchesTop: false,
+    touchesRight: false,
+    touchesBottom: false,
+    touchesLeft: false,
+    bounds: { x: imageData.width, y: imageData.height, maxX: 0, maxY: 0, width: 0, height: 0 }
+  }));
+
+  for (let y = 0; y < imageData.height; y += 1) {
+    for (let x = 0; x < imageData.width; x += 1) {
+      const offset = (imageData.width * y + x) << 2;
+      const alpha = imageData.data[offset + 3];
+      if (alpha < 16) continue;
+      const pixel = {
+        r: imageData.data[offset],
+        g: imageData.data[offset + 1],
+        b: imageData.data[offset + 2]
+      };
+      if (settings.whiteAsBackground && isNearWhite(pixel)) continue;
+      const colorIndex = nearestColorIndex(canonicalizeSpotPixel(pixel, settings), palette);
+      assignments[imageData.width * y + x] = colorIndex;
+      const color = colors[colorIndex];
+      color.count += 1;
+      color.touchesTop ||= y === 0;
+      color.touchesRight ||= x === imageData.width - 1;
+      color.touchesBottom ||= y === imageData.height - 1;
+      color.touchesLeft ||= x === 0;
+      color.bounds.x = Math.min(color.bounds.x, x);
+      color.bounds.y = Math.min(color.bounds.y, y);
+      color.bounds.maxX = Math.max(color.bounds.maxX, x + 1);
+      color.bounds.maxY = Math.max(color.bounds.maxY, y + 1);
+    }
+  }
+
+  colors.forEach((color) => {
+    if (color.count <= 0) return;
+    color.bounds.width = Math.max(1, color.bounds.maxX - color.bounds.x);
+    color.bounds.height = Math.max(1, color.bounds.maxY - color.bounds.y);
+  });
+
+  return { assignments, colors: colors.filter((color) => color.count > 0) };
+}
+
+function mergeBounds(colors, width, height) {
+  if (colors.length === 0) {
+    return { x: 0, y: 0, maxX: width, maxY: height, width, height };
+  }
+  const x = Math.min(...colors.map((color) => color.bounds.x));
+  const y = Math.min(...colors.map((color) => color.bounds.y));
+  const maxX = Math.max(...colors.map((color) => color.bounds.maxX));
+  const maxY = Math.max(...colors.map((color) => color.bounds.maxY));
+  return { x, y, maxX, maxY, width: Math.max(1, maxX - x), height: Math.max(1, maxY - y) };
+}
+
+function printableColors(colors, settings, width, height) {
+  if (settings.removeBackground !== true || settings.includeBackgroundInFilmSize === true) return colors;
+  const background = [...colors]
+    .filter((color) => color.touchesTop && color.touchesRight && color.touchesBottom && color.touchesLeft)
+    .sort((a, b) => b.count - a.count)[0];
+  const filtered = background ? colors.filter((color) => color.index !== background.index) : colors;
+  return filtered.length > 0 ? filtered : colors;
+}
+
+function fullCanvasBounds(width, height) {
+  return {
+    x: 0,
+    y: 0,
+    width,
+    height,
+    maxX: width,
+    maxY: height
+  };
+}
+
+function touchesCanvas(bounds, width, height) {
+  const tolerance = 2;
+  return bounds.x <= tolerance && bounds.y <= tolerance && bounds.maxX >= width - tolerance && bounds.maxY >= height - tolerance;
+}
+
+function touchesEdgeCount(bounds, width, height) {
+  const tolerance = 2;
+  return [
+    bounds.x <= tolerance,
+    bounds.y <= tolerance,
+    bounds.maxX >= width - tolerance,
+    bounds.maxY >= height - tolerance
+  ].filter(Boolean).length;
+}
+
+function isEdgeDominantBackground(color, width, height) {
+  const totalPixels = Math.max(1, width * height);
+  const boundsArea = Math.max(1, color.bounds.width * color.bounds.height);
+  const edgeCount = touchesEdgeCount(color.bounds, width, height);
+  const canvasCoverage = color.count / totalPixels;
+  const boundsCoverage = boundsArea / totalPixels;
+
+  return edgeCount >= 2 && canvasCoverage >= 0.03 && boundsCoverage >= 0.25;
+}
+
+function backgroundColors(colors, width, height) {
+  const candidates = colors.filter((color) => touchesCanvas(color.bounds, width, height) || isEdgeDominantBackground(color, width, height));
+  if (candidates.length === 0 || candidates.length >= colors.length) return [];
+  return candidates.sort((left, right) => right.count - left.count);
+}
+
+function createFilmPlan(colors, width, height, settings = {}) {
+  if (settings.removeBackground !== true || settings.includeBackgroundInFilmSize === true) {
+    return {
+      colors,
+      bounds: fullCanvasBounds(width, height),
+      backgroundColor: null
+    };
+  }
+
+  const backgroundCandidates = backgroundColors(colors, width, height);
+  const backgroundIndexes = new Set(backgroundCandidates.map((color) => color.index));
+  const filtered = backgroundIndexes.size > 0 ? colors.filter((color) => !backgroundIndexes.has(color.index)) : colors;
+  const effectiveColors = filtered.length > 0 ? filtered : colors;
+
+  return {
+    colors: effectiveColors,
+    bounds: mergeBounds(effectiveColors, width, height),
+    backgroundColor: backgroundCandidates[0] || null,
+    backgroundColors: backgroundCandidates
+  };
+}
+
+function rowRunPath(assignments, width, height, activeIndexes) {
+  const active = activeIndexes instanceof Set ? activeIndexes : new Set([activeIndexes]);
+  const commands = [];
+  for (let y = 0; y < height; y += 1) {
+    let x = 0;
+    while (x < width) {
+      while (x < width && !active.has(assignments[width * y + x])) x += 1;
+      const start = x;
+      while (x < width && active.has(assignments[width * y + x])) x += 1;
+      if (x > start) commands.push(`M${start} ${y}H${x}V${y + 1}H${start}Z`);
+    }
+  }
+  return commands.join('');
+}
+
+function binaryFromAssignments(assignments, width, height, colors) {
+  const activeIndexes = new Set(colors.map((color) => color.index - 1));
+  const binary = new Uint8Array(width * height);
+  for (let index = 0; index < assignments.length; index += 1) {
+    if (activeIndexes.has(assignments[index])) binary[index] = 1;
+  }
+  return binary;
+}
+
+function dilate(binary, width, height, radius) {
+  const output = new Uint8Array(binary.length);
+  const radiusPx = Math.max(1, Math.round(radius));
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let found = false;
+      for (let yy = Math.max(0, y - radiusPx); yy <= Math.min(height - 1, y + radiusPx) && !found; yy += 1) {
+        for (let xx = Math.max(0, x - radiusPx); xx <= Math.min(width - 1, x + radiusPx); xx += 1) {
+          if (binary[width * yy + xx]) {
+            found = true;
+            break;
+          }
+        }
+      }
+      if (found) output[width * y + x] = 1;
+    }
+  }
+  return output;
+}
+
+function erode(binary, width, height, radius) {
+  const output = new Uint8Array(binary.length);
+  const radiusPx = Math.max(1, Math.round(radius));
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let allActive = true;
+      for (let yy = Math.max(0, y - radiusPx); yy <= Math.min(height - 1, y + radiusPx) && allActive; yy += 1) {
+        for (let xx = Math.max(0, x - radiusPx); xx <= Math.min(width - 1, x + radiusPx); xx += 1) {
+          if (!binary[width * yy + xx]) {
+            allActive = false;
+            break;
+          }
+        }
+      }
+      if (allActive) output[width * y + x] = 1;
+    }
+  }
+  return output;
+}
+
+function chokeBinary(binary, width, height, radius = 1) {
+  const choked = erode(binary, width, height, radius);
+  return choked.some((value) => value === 1) ? choked : binary;
+}
+
+function findBinaryComponents(binary, width, height) {
+  const visited = new Uint8Array(binary.length);
+  const components = [];
+  for (let start = 0; start < binary.length; start += 1) {
+    if (visited[start] || !binary[start]) continue;
+
+    const stack = [start];
+    const pixels = [];
+    let count = 0;
+    let minX = start % width;
+    let maxX = minX;
+    let minY = Math.floor(start / width);
+    let maxY = minY;
+    visited[start] = 1;
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      const x = current % width;
+      const y = Math.floor(current / width);
+      pixels.push(current);
+      count += 1;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+
+      const neighbors = [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1]
+      ];
+      for (const [nextX, nextY] of neighbors) {
+        if (nextX < 0 || nextY < 0 || nextX >= width || nextY >= height) continue;
+        const next = nextY * width + nextX;
+        if (visited[next] || !binary[next]) continue;
+        visited[next] = 1;
+        stack.push(next);
+      }
+    }
+
+    components.push({
+      pixels,
+      count,
+      width: maxX - minX + 1,
+      height: maxY - minY + 1,
+      boundsArea: (maxX - minX + 1) * (maxY - minY + 1)
+    });
+  }
+  return components;
+}
+
+function lineartRadiusForComponent(component, totalPixels, lineartPolish) {
+  if (!lineartPolish) return 1;
+  const coverage = component.count / totalPixels;
+  const boundsCoverage = component.boundsArea / totalPixels;
+  const thinStroke = component.width <= 5 || component.height <= 5 || Math.min(component.width, component.height) <= 3;
+  if (thinStroke) return 1;
+  if (coverage >= 0.055 || boundsCoverage >= 0.12) return 2;
+  return 1;
+}
+
+function refineBinaryForTrace(binary, width, height, settings = {}) {
+  const totalPixels = Math.max(1, width * height);
+  const output = new Uint8Array(binary.length);
+  const components = findBinaryComponents(binary, width, height);
+  const lineartPolish = shouldUseLineartPolish(settings);
+
+  for (const component of components) {
+    const minComponentPixels = lineartPolish ? 7 : 10;
+    if (component.count <= minComponentPixels || (component.count <= 48 && (component.width <= 3 || component.height <= 3))) {
+      if (lineartPolish && component.count >= 3 && component.width > 1 && component.height > 1) {
+        component.pixels.forEach((pixel) => {
+          output[pixel] = 1;
+        });
+      }
+      continue;
+    }
+
+    const coverage = component.count / totalPixels;
+    const boundsCoverage = component.boundsArea / totalPixels;
+    const isLarge = coverage >= 0.025 || boundsCoverage >= 0.055;
+    const isMedium = coverage >= 0.004 || boundsCoverage >= 0.01;
+    const radius = lineartRadiusForComponent(component, totalPixels, lineartPolish);
+    let mask = new Uint8Array(binary.length);
+    component.pixels.forEach((pixel) => {
+      mask[pixel] = 1;
+    });
+
+    mask = erode(dilate(mask, width, height, radius), width, height, radius);
+    if (isLarge || isMedium) {
+      mask = dilate(erode(mask, width, height, radius), width, height, radius);
+    }
+    if (lineartPolish && isLarge && radius > 1) {
+      mask = erode(dilate(mask, width, height, 1), width, height, 1);
+    }
+
+    if (lineartPolish && countActivePixels(mask) < component.count * LINEART_POLISH_MIN_RETAIN_RATIO) {
+      mask = new Uint8Array(binary.length);
+      component.pixels.forEach((pixel) => {
+        mask[pixel] = 1;
+      });
+      mask = erode(dilate(mask, width, height, 1), width, height, 1);
+    }
+
+    for (let index = 0; index < mask.length; index += 1) {
+      if (mask[index]) output[index] = 1;
+    }
+  }
+
+  return output;
+}
+
+function refineAssignmentsForTrace(assignments, colors, width, height, settings = {}) {
+  if (settings.edgeRefinement === false) {
+    return {
+      assignments,
+      colors: recomputeColors(assignments, colors, width, height),
+      lineartPolish: false
+    };
+  }
+
+  const output = new Int16Array(assignments.length);
+  output.fill(-1);
+  const colorsBySize = [...colors].sort((left, right) => right.count - left.count);
+  const lineartPolish = shouldUseLineartPolish(settings);
+
+  for (const color of colorsBySize) {
+    const colorIndex = color.index - 1;
+    const binary = new Uint8Array(assignments.length);
+    for (let index = 0; index < assignments.length; index += 1) {
+      if (assignments[index] === colorIndex) binary[index] = 1;
+    }
+    const refined = refineBinaryForTrace(binary, width, height, settings);
+    for (let index = 0; index < refined.length; index += 1) {
+      if (refined[index]) output[index] = colorIndex;
+    }
+  }
+
+  const refinedColors = recomputeColors(output, colors, width, height);
+  return refinedColors.length > 0
+    ? { assignments: output, colors: refinedColors, lineartPolish }
+    : { assignments, colors: recomputeColors(assignments, colors, width, height), lineartPolish: false };
+}
+
+function estimateOutputDpi(bounds, settings = {}) {
+  const actualWidthCm = Math.max(0.1, normalizeNumber(settings.actualWidthCm, 10));
+  return Math.round(bounds.width / (actualWidthCm / 2.54));
+}
+
+function buildPrepressQualityAssessment({ sourceWidth, sourceHeight, width, height, bounds, printable, separationFilmCount, wasColorLimited, settings }) {
+  const warnings = [];
+  const dpiEstimate = estimateOutputDpi(bounds, settings);
+  const sourceDownscaled = width < sourceWidth || height < sourceHeight;
+
+  if (dpiEstimate < 180) {
+    warnings.push(`Resolusi artwork sekitar ${dpiEstimate} DPI pada ukuran ${settings.actualWidthCm || 10} cm; detail kecil bisa pecah saat film dicetak.`);
+  }
+  if (sourceDownscaled) {
+    warnings.push('Gambar sumber diperkecil agar aman diproses browser; periksa ulang detail halus sebelum naik film.');
+  }
+  if (wasColorLimited) {
+    warnings.push('Jumlah warna disederhanakan ke batas sablon; warna kecil digabung ke warna terdekat.');
+  }
+  if (settings.separateColors && separationFilmCount === 0) {
+    warnings.push('Tidak ada film warna yang terbentuk; coba gambar dengan kontras lebih jelas.');
+  }
+  return {
+    status: warnings.length > 0 ? 'review_required' : 'ready',
+    dpiEstimate,
+    colorCount: printable.length,
+    separationFilmCount,
+    sourceDownscaled,
+    wasColorLimited: Boolean(wasColorLimited),
+    checks: {
+      spotColors: printable.map((color, index) => ({
+        index: color.index,
+        hex: color.hex,
+        spotName: spotNameForColor(color, index + 1)
+      })),
+      registrationMarks: settings.separateColors === true,
+      underbaseChokePx: settings.createUnderbaseFilm !== false && settings.productionType === 'sablon' ? 1 : 0
+    },
+    warnings
+  };
+}
+
+function pathOptionsForSettings(settings = {}, width = 0, height = 0) {
+  const enabled = shouldUseLineartPolish(settings);
+  const tolerance = enabled ? clamp(Math.max(width, height) / 420, 1.1, 4) : 0;
+  return {
+    smooth: enabled,
+    tolerance: Number(tolerance.toFixed(2)),
+    cornerCos: 0.25
+  };
+}
+
+function parsePoint(value) {
+  const [x, y] = String(value).split(',').map(Number);
+  return { x, y };
+}
+
+function samePoint(left, right) {
+  return left && right && left.x === right.x && left.y === right.y;
+}
+
+function formatNumber(value) {
+  return Number.isInteger(value) ? String(value) : Number(value.toFixed(3)).toString();
+}
+
+function perpendicularDistance(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  return Math.abs(dy * point.x - dx * point.y + end.x * start.y - end.y * start.x) / Math.hypot(dx, dy);
+}
+
+function simplifyPolyline(points, tolerance) {
+  if (points.length <= 2 || tolerance <= 0) return points;
+  let maxDistance = 0;
+  let maxIndex = 0;
+  const start = points[0];
+  const end = points[points.length - 1];
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const distance = perpendicularDistance(points[index], start, end);
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      maxIndex = index;
+    }
+  }
+
+  if (maxDistance <= tolerance) return [start, end];
+  const left = simplifyPolyline(points.slice(0, maxIndex + 1), tolerance);
+  const right = simplifyPolyline(points.slice(maxIndex), tolerance);
+  return left.slice(0, -1).concat(right);
+}
+
+function simplifyBoundaryPoints(pointKeys, options = {}) {
+  const points = pointKeys.map(parsePoint);
+  if (points.length <= 3) return points;
+  const closed = samePoint(points[0], points[points.length - 1]);
+  const source = closed ? points.slice(0, -1) : points;
+  let simplified = simplifyCollinearPoints(source);
+
+  if (options.smooth && options.tolerance > 0 && simplified.length > 4) {
+    const closedPolyline = [...simplified, simplified[0]];
+    simplified = simplifyPolyline(closedPolyline, options.tolerance);
+    if (samePoint(simplified[0], simplified[simplified.length - 1])) simplified.pop();
+    if (simplified.length < 3) simplified = source;
+  }
+
+  if (closed && simplified.length > 0) simplified.push(simplified[0]);
+  return simplified.length > 2 ? simplified : points;
+}
+
+function simplifyCollinearPoints(points) {
+  if (points.length <= 3) return points;
+  const simplified = [];
+
+  for (let index = 0; index < points.length; index += 1) {
+    const previous = points[(index - 1 + points.length) % points.length];
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    const sameVertical = previous.x === current.x && current.x === next.x;
+    const sameHorizontal = previous.y === current.y && current.y === next.y;
+    if (!sameVertical && !sameHorizontal) simplified.push(current);
+  }
+
+  return simplified.length > 2 ? simplified : points;
+}
+
+function isSharpCorner(previous, current, next, cornerCos) {
+  const leftX = current.x - previous.x;
+  const leftY = current.y - previous.y;
+  const rightX = next.x - current.x;
+  const rightY = next.y - current.y;
+  const leftLength = Math.hypot(leftX, leftY);
+  const rightLength = Math.hypot(rightX, rightY);
+  if (leftLength < 5 || rightLength < 5) return false;
+  const cos = (leftX * rightX + leftY * rightY) / (leftLength * rightLength);
+  return cos < cornerCos;
+}
+
+function linePathFromPoints(points) {
+  const closed = samePoint(points[0], points[points.length - 1]);
+  const source = closed ? points.slice(0, -1) : points;
+  if (source.length < 3) return '';
+  const [first, ...rest] = source;
+  return `M${formatNumber(first.x)} ${formatNumber(first.y)}${rest.map((point) => `L${formatNumber(point.x)} ${formatNumber(point.y)}`).join('')}Z`;
+}
+
+function smoothPathFromPoints(points, options = {}) {
+  const closed = samePoint(points[0], points[points.length - 1]);
+  const source = closed ? points.slice(0, -1) : points;
+  if (source.length < 5) return linePathFromPoints(points);
+
+  const midpoint = (left, right) => ({
+    x: (left.x + right.x) / 2,
+    y: (left.y + right.y) / 2
+  });
+  const start = midpoint(source[source.length - 1], source[0]);
+  const commands = [`M${formatNumber(start.x)} ${formatNumber(start.y)}`];
+
+  for (let index = 0; index < source.length; index += 1) {
+    const previous = source[(index - 1 + source.length) % source.length];
+    const current = source[index];
+    const next = source[(index + 1) % source.length];
+    const nextMidpoint = midpoint(current, next);
+    if (isSharpCorner(previous, current, next, options.cornerCos ?? 0.25)) {
+      commands.push(`L${formatNumber(current.x)} ${formatNumber(current.y)}`);
+      commands.push(`L${formatNumber(nextMidpoint.x)} ${formatNumber(nextMidpoint.y)}`);
+    } else {
+      commands.push(`Q${formatNumber(current.x)} ${formatNumber(current.y)} ${formatNumber(nextMidpoint.x)} ${formatNumber(nextMidpoint.y)}`);
+    }
+  }
+
+  commands.push('Z');
+  return commands.join('');
+}
+
+function pathFromBoundaryPoints(pointKeys, options = {}) {
+  const simplifiedPoints = simplifyBoundaryPoints(pointKeys, options);
+  if (simplifiedPoints.length <= 2) return '';
+  return options.smooth ? smoothPathFromPoints(simplifiedPoints, options) : linePathFromPoints(simplifiedPoints);
+}
+
+function boundaryPaths(binary, width, height, options = {}) {
+  const segments = new Map();
+  const add = (x1, y1, x2, y2) => {
+    const key = `${x1},${y1}`;
+    const value = `${x2},${y2}`;
+    const list = segments.get(key) || [];
+    list.push(value);
+    segments.set(key, list);
+  };
+  const active = (x, y) => x >= 0 && x < width && y >= 0 && y < height && binary[width * y + x] === 1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (!active(x, y)) continue;
+      if (!active(x, y - 1)) add(x, y, x + 1, y);
+      if (!active(x + 1, y)) add(x + 1, y, x + 1, y + 1);
+      if (!active(x, y + 1)) add(x + 1, y + 1, x, y + 1);
+      if (!active(x - 1, y)) add(x, y + 1, x, y);
+    }
+  }
+
+  const paths = [];
+  while (segments.size > 0) {
+    const start = segments.keys().next().value;
+    let current = start;
+    const points = [start];
+    for (let guard = 0; guard < width * height * 8; guard += 1) {
+      const nextList = segments.get(current);
+      if (!nextList || nextList.length === 0) break;
+      const next = nextList.pop();
+      if (nextList.length === 0) segments.delete(current);
+      points.push(next);
+      current = next;
+      if (current === start) break;
+    }
+    const path = pathFromBoundaryPoints(points, options);
+    if (path) paths.push(path);
+  }
+  return paths.join('');
+}
+
+function pathFromAssignments(assignments, width, height, activeIndexes, settings = {}) {
+  const active = activeIndexes instanceof Set ? activeIndexes : new Set([activeIndexes]);
+  const binary = new Uint8Array(width * height);
+  for (let index = 0; index < assignments.length; index += 1) {
+    if (active.has(assignments[index])) binary[index] = 1;
+  }
+  return boundaryPaths(binary, width, height, pathOptionsForSettings(settings, width, height)) || rowRunPath(assignments, width, height, active);
+}
+
+function pathFromBinary(binary, width, height, fallbackPath = '', settings = {}) {
+  return boundaryPaths(binary, width, height, pathOptionsForSettings(settings, width, height)) || fallbackPath;
+}
+
+export function traceBinaryPathForTest(binary, width, height, settings = {}) {
+  return pathFromBinary(binary, width, height, '', settings);
+}
+
+export function refineAssignmentsForTraceForTest(assignments, colors, width, height, settings = {}) {
+  return refineAssignmentsForTrace(assignments, colors, width, height, settings);
+}
+
+function svgDocument({ width, height, body, label = 'Vector output', physicalWidthCm }) {
+  const physicalWidth = physicalWidthCm ? ` width="${physicalWidthCm}cm"` : ` width="${width}"`;
+  const physicalHeight = physicalWidthCm ? ` height="${(physicalWidthCm * height) / width}cm"` : ` height="${height}"`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"${physicalWidth}${physicalHeight} viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(label)}">
+${body}
+</svg>`;
+}
+
+function buildFullSvg({ colors, assignments, width, height, settings }) {
+  const groups = colors
+    .map((color, index) => {
+      const path = pathFromAssignments(assignments, width, height, color.index - 1, settings);
+      const spotName = spotNameForColor(color, index + 1);
+      return `<g id="color-${String(color.index).padStart(2, '0')}" data-color="${color.hex}" data-spot-color="${spotName}">
+<path d="${path}" fill="${color.hex}" fill-rule="evenodd"/>
+</g>`;
+    })
+    .join('\n');
+  return svgDocument({ width, height, body: groups, label: 'Sticker and screen print vector', physicalWidthCm: settings.actualWidthCm });
+}
+
+function buildFilmSvg({ assignments, width, height, settings, activeIndexes, label, bounds, pathOverride = '', spotName = 'BLACK_100', inkHex = '#000000' }) {
+  const artworkBounds = bounds || fullCanvasBounds(width, height);
+  const path = pathOverride || pathFromAssignments(assignments, width, height, activeIndexes, settings);
+  const layout = buildPrintLayout({
+    sourceWidth: artworkBounds.width,
+    sourceHeight: artworkBounds.height,
+    actualWidthCm: settings.actualWidthCm,
+    paperSize: settings.paperSize,
+    paperOrientation: settings.paperOrientation
+  });
+  const marks = createArtworkRegistrationMarks({
+    x: layout.artworkX,
+    y: layout.artworkY,
+    width: layout.artworkWidthMm,
+    height: layout.artworkHeightMm
+  });
+  const transform = `translate(${layout.artworkX.toFixed(3)} ${layout.artworkY.toFixed(3)}) scale(${layout.scale.toFixed(8)}) translate(${(-artworkBounds.x).toFixed(3)} ${(-artworkBounds.y).toFixed(3)})`;
+  const body = `${marks}
+<g id="film-artwork" transform="${transform}" data-spot-color="${escapeXml(spotName)}" data-ink-color="${escapeXml(inkHex)}">
+<path d="${path}" fill="#000000" fill-rule="evenodd"/>
+</g>
+<text x="${layout.artworkX.toFixed(3)}" y="${(layout.artworkY + layout.artworkHeightMm + 12).toFixed(3)}" fill="#000000" font-family="Arial, sans-serif" font-size="4">${escapeXml(label)}</text>`;
+
+  return {
+    svg: `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${layout.paperWidthMm}mm" height="${layout.paperHeightMm}mm" viewBox="0 0 ${layout.paperWidthMm} ${layout.paperHeightMm}" role="img" aria-label="${escapeXml(label)}">
+${body}
+</svg>`,
+    previewWidth: layout.paperWidthMm,
+    previewHeight: layout.paperHeightMm
+  };
+}
+
+function buildCutlineSvg({ assignments, colors, width, height, settings, bounds }) {
+  const actualWidthCm = normalizeNumber(settings.actualWidthCm, 10);
+  const offsetMm = normalizeNumber(settings.stickerCutlineOffsetMm, 2);
+  const mmPerPixel = (actualWidthCm * 10) / Math.max(1, bounds.width);
+  const radiusPx = clamp(Math.round(offsetMm / mmPerPixel), 1, 128);
+  const binary = binaryFromAssignments(assignments, width, height, colors);
+  const outline = boundaryPaths(dilate(binary, width, height, radiusPx), width, height, pathOptionsForSettings(settings, width, height));
+  const fullColor = colors
+    .map((color) => `<path d="${pathFromAssignments(assignments, width, height, color.index - 1, settings)}" fill="${color.hex}" fill-rule="evenodd"/>`)
+    .join('\n');
+  const body = `${fullColor}
+<g id="CutContour" data-spot-color="CutContour">
+<path d="${outline}" fill="none" stroke="#FF00FF" stroke-width="1" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+</g>`;
+  return svgDocument({ width, height, body, label: `Sticker cutline ${offsetMm} mm`, physicalWidthCm: actualWidthCm });
+}
+
+function parseSvgLength(value, fallbackPx = 1024) {
+  if (!value) {
+    return {
+      css: `${fallbackPx}px`,
+      viewportPx: fallbackPx,
+      pdfPoints: fallbackPx * 0.75
+    };
+  }
+
+  const match = String(value).match(/^([\d.]+)([a-z%]*)$/i);
+  if (!match) {
+    return {
+      css: `${fallbackPx}px`,
+      viewportPx: fallbackPx,
+      pdfPoints: fallbackPx * 0.75
+    };
+  }
+
+  const amount = Number(match[1]);
+  const unit = match[2] || 'px';
+
+  if (unit === 'mm') {
+    return {
+      css: `${amount}mm`,
+      viewportPx: Math.ceil((amount / 25.4) * 96),
+      pdfPoints: (amount / 25.4) * 72
+    };
+  }
+
+  if (unit === 'cm') {
+    return {
+      css: `${amount}cm`,
+      viewportPx: Math.ceil((amount / 2.54) * 96),
+      pdfPoints: (amount / 2.54) * 72
+    };
+  }
+
+  return {
+    css: `${amount}px`,
+    viewportPx: Math.ceil(amount),
+    pdfPoints: amount * 0.75
+  };
+}
+
+function dimensionsFromSvg(svg, fallbackWidth = 1024, fallbackHeight = 1024) {
+  const widthMatch = svg.match(/\swidth="([^"]+)"/);
+  const heightMatch = svg.match(/\sheight="([^"]+)"/);
+  return {
+    width: parseSvgLength(widthMatch?.[1], fallbackWidth),
+    height: parseSvgLength(heightMatch?.[1], fallbackHeight)
+  };
+}
+
+async function svgToPdfBlob(svg, fallbackWidth, fallbackHeight) {
+  const { jsPDF } = await import('jspdf');
+  const { width, height } = dimensionsFromSvg(svg, fallbackWidth, fallbackHeight);
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.min(2400, Math.max(320, width.viewportPx));
+    canvas.height = Math.min(3200, Math.max(320, height.viewportPx));
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pdf = new jsPDF({
+      orientation: width.pdfPoints >= height.pdfPoints ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: [(width.pdfPoints / 72) * 25.4, (height.pdfPoints / 72) * 25.4]
+    });
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, (width.pdfPoints / 72) * 25.4, (height.pdfPoints / 72) * 25.4);
+    return pdf.output('blob');
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function svgToPngBlob(svg, fallbackWidth, fallbackHeight, options = {}) {
+  const { width, height } = dimensionsFromSvg(svg, fallbackWidth, fallbackHeight);
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    const scale = normalizeNumber(options.scale, 2);
+    const maxWidth = normalizeNumber(options.maxWidth, 2400);
+    const maxHeight = normalizeNumber(options.maxHeight, 3200);
+    canvas.width = Math.min(maxWidth, Math.max(640, Math.ceil(width.viewportPx * scale)));
+    canvas.height = Math.min(maxHeight, Math.max(640, Math.ceil(height.viewportPx * scale)));
+    const context = canvas.getContext('2d');
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    if (options.background !== null) {
+      context.fillStyle = options.background || '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvasToBlob(canvas);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function fileUrl(blob) {
+  return URL.createObjectURL(blob);
+}
+
+async function addSvgPdf(zip, name, svg, width, height, options = {}) {
+  const svgBlob = new Blob([svg], { type: 'image/svg+xml' });
+  const pdfBlob = await svgToPdfBlob(svg, width, height);
+  const previewBlob = options.includePreviewPng
+    ? await svgToPngBlob(svg, options.previewWidth || width, options.previewHeight || height, {
+        background: options.previewBackground || '#ffffff',
+        scale: options.previewScale || 2
+      })
+    : null;
+  zip.file(`${name}.svg`, svgBlob);
+  zip.file(`${name}.pdf`, pdfBlob);
+  if (previewBlob && options.includePreviewPng !== false) {
+    zip.file(`${name}-preview.png`, previewBlob);
+  }
+  return {
+    svgBlob,
+    pdfBlob,
+    previewBlob,
+    svg: fileUrl(svgBlob),
+    pdf: fileUrl(pdfBlob),
+    preview: previewBlob ? fileUrl(previewBlob) : ''
+  };
+}
+
+export function normalizeLocalTraceSettings(settings = {}) {
+  return settings.inputMode === 'ai_redraw'
+    ? {
+        ...settings,
+        separateColors: true,
+        traceUpscaleFactor: settings.allowTraceUpscaleOverride
+          ? normalizeTraceUpscaleFactor(settings.traceUpscaleFactor)
+          : DEFAULT_TRACE_UPSCALE_FACTOR,
+        traceUpscaleEnabled: true
+      }
+    : settings.inputMode === 'ready_trace'
+      ? {
+          ...settings,
+          makeVector: true,
+          separateColors: settings.productionType === 'sablon' ? true : settings.separateColors,
+          stickerCutlineEnabled: settings.productionType === 'sticker' ? true : settings.stickerCutlineEnabled,
+          traceUpscaleFactor: settings.traceUpscaleEnabled ? DEFAULT_TRACE_UPSCALE_FACTOR : 1
+        }
+      : settings;
+}
+
+export function normalizeTraceUpscaleFactor(value) {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_TRACE_UPSCALE_FACTOR;
+  return clamp(parsed, 1, MAX_TRACE_UPSCALE_FACTOR);
+}
+
+function analyzeRasterMetrics(imageData) {
+  const { data, width, height } = imageData;
+  const grayscale = new Float32Array(width * height);
+  for (let index = 0, pixel = 0; index < data.length; index += 4, pixel += 1) {
+    grayscale[pixel] = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+  }
+
+  let edgePixels = 0;
+  let laplacianSum = 0;
+  let laplacianSquaredSum = 0;
+  let samples = 0;
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = y * width + x;
+      const gradient = Math.abs(grayscale[index] - grayscale[index + 1]) + Math.abs(grayscale[index] - grayscale[index + width]);
+      if (gradient >= 32) edgePixels += 1;
+      const laplacian = 4 * grayscale[index] - grayscale[index - 1] - grayscale[index + 1] - grayscale[index - width] - grayscale[index + width];
+      laplacianSum += laplacian;
+      laplacianSquaredSum += laplacian * laplacian;
+      samples += 1;
+    }
+  }
+  const laplacianMean = samples > 0 ? laplacianSum / samples : 0;
+  const laplacianVariance = samples > 0 ? Math.max(0, laplacianSquaredSum / samples - laplacianMean ** 2) : 0;
+  return {
+    edgeDensity: samples > 0 ? edgePixels / samples : 0,
+    sharpnessScore: clamp(laplacianVariance / 4096, 0, 1)
+  };
+}
+
+export function isVectorImageFile(file) {
+  const mimeType = String(file?.type || '').toLowerCase();
+  const fileName = String(file?.name || '').toLowerCase();
+  return mimeType === 'image/svg+xml' || fileName.endsWith('.svg');
+}
+
+export function decideRasterUpscaleEligibility({ width, height, edgeDensity = 0, sharpnessScore = 0 } = {}) {
+  const maxEdge = Math.max(Number(width) || 0, Number(height) || 0);
+  if (maxEdge >= READY_TRACE_TARGET_EDGE) {
+    return { shouldUpscale: false, reason: 'already_large' };
+  }
+  if (maxEdge < READY_TRACE_MIN_EDGE) {
+    return { shouldUpscale: true, reason: 'low_resolution' };
+  }
+  const lowQuality = sharpnessScore < READY_TRACE_SHARPNESS_THRESHOLD || edgeDensity < READY_TRACE_EDGE_DENSITY_THRESHOLD;
+  return { shouldUpscale: lowQuality, reason: lowQuality ? 'low_quality' : 'already_sharp' };
+}
+
+export async function analyzeRasterForUpscale(file) {
+  const bitmap = await loadBitmap(file);
+  try {
+    const sourceWidth = bitmap.width;
+    const sourceHeight = bitmap.height;
+    if (isVectorImageFile(file)) {
+      return {
+        sourceWidth,
+        sourceHeight,
+        previewWidth: sourceWidth,
+        previewHeight: sourceHeight,
+        edgeDensity: null,
+        sharpnessScore: null,
+        shouldUpscale: false,
+        reason: 'vector_source',
+        sourceType: 'vector',
+        requestedFactor: 1
+      };
+    }
+    const previewScale = Math.min(1, READY_TRACE_ANALYSIS_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * previewScale));
+    const height = Math.max(1, Math.round(sourceHeight * previewScale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(bitmap, 0, 0, width, height);
+    const metrics = analyzeRasterMetrics(context.getImageData(0, 0, width, height));
+    const decision = decideRasterUpscaleEligibility({ width: sourceWidth, height: sourceHeight, ...metrics });
+    return {
+      sourceWidth,
+      sourceHeight,
+      previewWidth: width,
+      previewHeight: height,
+      ...metrics,
+      ...decision,
+      sourceType: 'raster',
+      requestedFactor: decision.shouldUpscale ? DEFAULT_TRACE_UPSCALE_FACTOR : 1
+    };
+  } finally {
+    if (typeof bitmap.close === 'function') bitmap.close();
+  }
+}
+
+async function upscaleRasterForTrace(file, settings = {}) {
+  const factor = normalizeTraceUpscaleFactor(settings.traceUpscaleFactor);
+  const sourceBitmap = await loadBitmap(file);
+  const sourceWidth = sourceBitmap.width;
+  const sourceHeight = sourceBitmap.height;
+  if (factor <= 1) {
+    if (typeof sourceBitmap.close === 'function') sourceBitmap.close();
+    return { file, sourceWidth, sourceHeight, width: sourceWidth, height: sourceHeight, factor: 1, method: 'none' };
+  }
+
+  const requestedWidth = Math.max(1, Math.round(sourceWidth * factor));
+  const requestedHeight = Math.max(1, Math.round(sourceHeight * factor));
+  const scale = Math.min(1, MAX_CANVAS_EDGE / Math.max(requestedWidth, requestedHeight));
+  const width = Math.max(1, Math.round(requestedWidth * scale));
+  const height = Math.max(1, Math.round(requestedHeight * scale));
+  const sourceCanvas = document.createElement('canvas');
+  sourceCanvas.width = sourceWidth;
+  sourceCanvas.height = sourceHeight;
+  const sourceContext = sourceCanvas.getContext('2d');
+  sourceContext.imageSmoothingEnabled = true;
+  sourceContext.imageSmoothingQuality = 'high';
+  sourceContext.drawImage(sourceBitmap, 0, 0, sourceWidth, sourceHeight);
+  if (typeof sourceBitmap.close === 'function') sourceBitmap.close();
+
+  try {
+    const { default: createPica } = await import('pica');
+    const pica = createPica();
+    const targetCanvas = document.createElement('canvas');
+    targetCanvas.width = width;
+    targetCanvas.height = height;
+    await pica.resize(sourceCanvas, targetCanvas, { filter: 'mks2013' });
+    const blob = await pica.toBlob(targetCanvas, 'image/png');
+    if (blob) {
+      return {
+        file: new File([blob], file.name || 'ai-redraw.png', { type: 'image/png' }),
+        sourceWidth,
+        sourceHeight,
+        width,
+        height,
+        factor: width === requestedWidth && height === requestedHeight ? factor : Number((width / sourceWidth).toFixed(2)),
+        method: 'pica_mks2013'
+      };
+    }
+  } catch (_error) {
+    // Fall back to the browser's high-quality canvas scaler on older devices.
+  }
+
+  const fallbackCanvas = document.createElement('canvas');
+  fallbackCanvas.width = width;
+  fallbackCanvas.height = height;
+  const fallbackContext = fallbackCanvas.getContext('2d');
+  fallbackContext.imageSmoothingEnabled = true;
+  fallbackContext.imageSmoothingQuality = 'high';
+  fallbackContext.drawImage(sourceCanvas, 0, 0, width, height);
+  const fallbackBlob = await canvasToBlob(fallbackCanvas);
+  return {
+    file: fallbackBlob ? new File([fallbackBlob], file.name || 'ai-redraw.png', { type: 'image/png' }) : file,
+    sourceWidth,
+    sourceHeight,
+    width,
+    height,
+    factor: width === requestedWidth && height === requestedHeight ? factor : Number((width / sourceWidth).toFixed(2)),
+    method: 'canvas_high_quality'
+  };
+}
+
+export async function processImageLocally(file, settings) {
+  const { default: JSZip } = await import('jszip');
+  const effectiveSettings = normalizeLocalTraceSettings(settings);
+  const shouldUpscale = effectiveSettings.inputMode === 'ai_redraw' || (effectiveSettings.inputMode === 'ready_trace' && effectiveSettings.traceUpscaleEnabled === true);
+  const traceInput = shouldUpscale ? await upscaleRasterForTrace(file, effectiveSettings) : null;
+  const bitmap = traceInput ? await loadBitmap(traceInput.file) : await loadBitmap(file);
+  const processedSourceWidth = bitmap.width;
+  const processedSourceHeight = bitmap.height;
+  const scale = Math.min(1, MAX_CANVAS_EDGE / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  if (typeof bitmap.close === 'function') bitmap.close();
+
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const palette = buildPalette(imageData, effectiveSettings);
+  const assigned = assignPixels(imageData, palette, effectiveSettings);
+  const cleaned = removeEdgeConnectedBackground(assigned.assignments, palette, width, height, effectiveSettings);
+  const limited = enforcePrintableColorLimit(cleaned.assignments, cleaned.colors, effectiveSettings, width, height);
+  const refined = refineAssignmentsForTrace(limited.assignments, limited.colors, width, height, effectiveSettings);
+  const assignments = refined.assignments;
+  const outputColors = refined.colors;
+  const tracePathOptions = pathOptionsForSettings(effectiveSettings, width, height);
+  const filmPlan = createFilmPlan(outputColors, width, height, effectiveSettings);
+  const printable = filmPlan.colors;
+  const fullColorPalette = outputColors;
+  const bounds = filmPlan.bounds;
+  const fullSvg = buildFullSvg({ colors: fullColorPalette, assignments, width, height, settings: effectiveSettings });
+  const zip = new JSZip();
+  const separationZip = new JSZip();
+  const fullSvgPdf = await addSvgPdf(zip, 'full-vector', fullSvg, width, height);
+  const previewBlob = await svgToPngBlob(fullSvg, width, height, {
+    background: null,
+    scale: 4,
+    maxWidth: 4096,
+    maxHeight: 4096
+  });
+  zip.file('preview-full-color.png', previewBlob);
+  zip.file('palette.json', JSON.stringify(fullColorPalette, null, 2));
+
+  const separations = [];
+  if (effectiveSettings.separateColors) {
+    if (effectiveSettings.createUnderbaseFilm && printable.length > 0) {
+      const label = 'FILM DASAR - HITAM 100%';
+      const underbaseActiveIndexes = new Set(printable.map((color) => color.index - 1));
+      const underbaseBinary = new Uint8Array(width * height);
+      for (let index = 0; index < assignments.length; index += 1) {
+        if (underbaseActiveIndexes.has(assignments[index])) underbaseBinary[index] = 1;
+      }
+      const underbasePath = pathFromBinary(
+        chokeBinary(underbaseBinary, width, height, 1),
+        width,
+        height,
+        pathFromAssignments(assignments, width, height, underbaseActiveIndexes, effectiveSettings),
+        effectiveSettings
+      );
+      const film = buildFilmSvg({
+        assignments,
+        width,
+        height,
+        settings: effectiveSettings,
+        activeIndexes: underbaseActiveIndexes,
+        label,
+        bounds: filmPlan.bounds,
+        pathOverride: underbasePath,
+        spotName: 'UNDERBASE_CHOKE_1PX',
+        inkHex: '#000000'
+      });
+      const files = await addSvgPdf(zip, 'separations/film-underbase', film.svg, width, height, {
+        includePreviewPng: true,
+        previewWidth: film.previewWidth,
+        previewHeight: film.previewHeight
+      });
+      separationZip.file('film-underbase.svg', files.svgBlob);
+      separationZip.file('film-underbase.pdf', files.pdfBlob);
+      if (files.previewBlob) separationZip.file('film-underbase-preview.png', files.previewBlob);
+      separations.push({ index: 'underbase', kind: 'underbase', hex: '#000000', label, spotName: 'UNDERBASE_CHOKE_1PX', chokePx: 1, ...files });
+    }
+
+    for (const [colorIndex, color] of printable.entries()) {
+      const index = String(color.index).padStart(2, '0');
+      const label = `FILM ${index} - ${color.hex}`;
+      const spotName = spotNameForColor(color, colorIndex + 1);
+      const film = buildFilmSvg({
+        assignments,
+        width,
+        height,
+        settings: effectiveSettings,
+        activeIndexes: color.index - 1,
+        label,
+        bounds: filmPlan.bounds,
+        spotName,
+        inkHex: color.hex
+      });
+      const files = await addSvgPdf(zip, `separations/film-color-${index}`, film.svg, width, height, {
+        includePreviewPng: true,
+        previewWidth: film.previewWidth,
+        previewHeight: film.previewHeight
+      });
+      separationZip.file(`film-color-${index}.svg`, files.svgBlob);
+      separationZip.file(`film-color-${index}.pdf`, files.pdfBlob);
+      if (files.previewBlob) separationZip.file(`film-color-${index}-preview.png`, files.previewBlob);
+      separations.push({ index: color.index, kind: 'color', hex: color.hex, label, spotName, ...files });
+    }
+  }
+
+  let stickerCutline = null;
+  if (effectiveSettings.productionType === 'sticker' && effectiveSettings.stickerCutlineEnabled && printable.length > 0) {
+    const cutlineSvg = buildCutlineSvg({ assignments, colors: printable, width, height, settings: effectiveSettings, bounds });
+    stickerCutline = await addSvgPdf(zip, 'sticker-cutline', cutlineSvg, width, height);
+  }
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  const separationZipBlob = separations.length > 0 ? await separationZip.generateAsync({ type: 'blob' }) : null;
+  const separationFilmCount = separations.length;
+  const prepressQuality = buildPrepressQualityAssessment({
+    sourceWidth: processedSourceWidth,
+    sourceHeight: processedSourceHeight,
+    width,
+    height,
+    bounds,
+    printable,
+    separationFilmCount,
+    wasColorLimited: limited.wasColorLimited,
+    settings: effectiveSettings
+  });
+  const priceIdr = calculateJobPrice({
+    inputMode: settings.inputMode,
+    separationFilmCount,
+    retouchAlreadyCharged: effectiveSettings.inputMode === INPUT_MODE_RETOUCH
+  });
+
+  return {
+    jobId: `local-${Date.now()}`,
+    status: 'done',
+    progress: 100,
+    message: 'Selesai diproses lokal. File tidak disimpan di server.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    localOnly: true,
+    priceIdr,
+    separationFilmCount,
+    prepressQuality,
+    palette: fullColorPalette,
+    settings: effectiveSettings,
+    files: {
+      fullPng: fileUrl(previewBlob),
+      fullSvg: fullSvgPdf.svg,
+      fullPdf: fullSvgPdf.pdf,
+      stickerCutlineSvg: stickerCutline?.svg,
+      stickerCutlinePdf: stickerCutline?.pdf,
+      zip: fileUrl(zipBlob),
+      separationZip: separationZipBlob ? fileUrl(separationZipBlob) : '',
+      separations
+    },
+    artifactBlobs: {
+      fullPng: previewBlob,
+      fullSvg: fullSvgPdf.svgBlob,
+      fullPdf: fullSvgPdf.pdfBlob,
+      stickerCutlineSvg: stickerCutline?.svgBlob || null,
+      stickerCutlinePdf: stickerCutline?.pdfBlob || null,
+      zip: zipBlob,
+      separationZip: separationZipBlob,
+      separations: separations.map((separation) => ({
+        index: separation.index,
+        kind: separation.kind,
+        hex: separation.hex,
+        label: separation.label,
+        spotName: separation.spotName || '',
+        chokePx: separation.chokePx || 0,
+        svgBlob: separation.svgBlob,
+        pdfBlob: separation.pdfBlob,
+        previewBlob: separation.previewBlob || null
+      }))
+    },
+    manifest: {
+      width,
+      height,
+      traceUpscaleFactor: traceInput ? traceInput.factor : 1,
+      traceUpscaleMethod: traceInput?.method || 'none',
+      traceUpscaleApplied: Boolean(traceInput && traceInput.factor > 1),
+      traceUpscaleAnalysis: effectiveSettings.traceUpscaleAnalysis || null,
+      traceInput: traceInput
+        ? {
+            sourceWidth: traceInput.sourceWidth,
+            sourceHeight: traceInput.sourceHeight,
+            width: traceInput.width,
+            height: traceInput.height,
+            requestedFactor: normalizeTraceUpscaleFactor(effectiveSettings.traceUpscaleFactor),
+            effectiveFactor: traceInput.factor,
+            method: traceInput.method
+          }
+        : null,
+      palette: outputColors,
+      prepressQuality,
+      separationFilmCount,
+      hasStickerCutline: Boolean(stickerCutline),
+      edgeRefinement: settings.edgeRefinement !== false,
+      edgePolish: Boolean(refined.lineartPolish),
+      lineartTrace: Boolean(tracePathOptions.smooth),
+      traceSmoothing: {
+        enabled: Boolean(tracePathOptions.smooth),
+        tolerancePx: tracePathOptions.tolerance,
+        curveMode: tracePathOptions.smooth ? 'quadratic_midpoint' : 'pixel_boundary'
+      },
+      generatedFiles: [
+        'preview-full-color.png',
+        'full-vector.svg',
+        'full-vector.pdf',
+        stickerCutline ? 'sticker-cutline.svg' : null,
+        stickerCutline ? 'sticker-cutline.pdf' : null,
+        separations.length > 0 ? 'separation-films.zip' : null,
+        'result.zip'
+      ].filter(Boolean)
+    }
+  };
+}
+
+export async function processImageLocallyWithFallback(file, settings) {
+  const normalizedSettings = normalizeLocalTraceSettings(settings);
+  try {
+    return await processImageLocally(file, normalizedSettings);
+  } catch (error) {
+    if ((normalizedSettings.traceUpscaleFactor || 1) <= 1) throw error;
+    const fallbackSettings = normalizeLocalTraceSettings({
+      ...normalizedSettings,
+      traceUpscaleFactor: 1,
+      traceUpscaleEnabled: false,
+      allowTraceUpscaleOverride: true
+    });
+    const fallbackResult = await processImageLocally(file, fallbackSettings);
+    return {
+      ...fallbackResult,
+      settings: fallbackSettings,
+      manifest: {
+        ...(fallbackResult.manifest || {}),
+        traceUpscaleFallback: true,
+        traceUpscaleFallbackReason: 'canvas_or_trace_resource_limit'
+      }
+    };
+  }
+}

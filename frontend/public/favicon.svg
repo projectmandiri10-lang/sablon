@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">EasyRedesign Pro favicon</title>
+  <desc id="desc">Monogram ER dengan latar oranye untuk EasyRedesign Pro</desc>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fb923c" />
+      <stop offset="1" stop-color="#ea580c" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="url(#bg)" />
+  <path
+    d="M18 18h28v7H26v7h16v7H26v7h20v8H18V18Zm26 0h2c6 0 10 3 10 9 0 4-2 7-6 8l8 11H49l-7-10h-4v-7h7c2 0 3-.9 3-2.8S47.2 23 45 23h-1v-5Z"
+    fill="#fff8f1"
+  />
+</svg>

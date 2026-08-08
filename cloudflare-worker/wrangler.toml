@@ -1,0 +1,38 @@
+name = "sablon"
+main = "src/index.js"
+compatibility_date = "2026-06-13"
+
+[vars]
+APP_BASE_URL = "https://sablon-5gx.pages.dev"
+MIDTRANS_MERCHANT_ID = "M020138519"
+MIDTRANS_CLIENT_KEY = "Mid-client-poSk7Xki68kLxq8F"
+MIDTRANS_IS_PRODUCTION = "0"
+AIVENE_BASE_URL = "https://api.aivene.com/v1"
+AIVENE_IMAGE_MODEL = "gpt-image-2"
+AIVENE_MAX_IMAGE_INPUT_BYTES = "20971520"
+OPENAI_IMAGE_MODEL = "gpt-image-2"
+AI_REDRAW_PROMPT_PROFILE = "logo_photo_cleanup_short"
+AI_REDRAW_IMAGE_QUALITY = "medium"
+AI_REDRAW_IMAGE_SIZE = "1K"
+AI_REDRAW_INPUT_FIDELITY = "low"
+AI_REDRAW_INPUT_MAX_EDGE = "1080"
+AI_REDRAW_PRESET = "standard"
+AI_REDRAW_PRIMARY_PROVIDER = "aivene_image"
+AI_REDRAW_FALLBACK_PROVIDER = "openai_image"
+SUPABASE_URL = "https://wrjhedlygozqtsdallzr.supabase.co"
+GOOGLE_OAUTH_CLIENT_ID = "49504893574-iaabog19f870a4irea4jf7vo40ud8cj4.apps.googleusercontent.com"
+GOOGLE_OAUTH_CALLBACK_URL = "https://wrjhedlygozqtsdallzr.supabase.co/auth/v1/callback"
+GOOGLE_OAUTH_REDIRECT_TO = "https://sablon-5gx.pages.dev"
+VITE_GOOGLE_OAUTH_REDIRECT_TO = "https://sablon-5gx.pages.dev"
+LOGO_RESTORE_ENABLED = "1"
+LOGO_RESTORE_STRICT_SPOTS = "1"
+REQUIRE_PROCESSOR_AUTH = "1"
+INTERACTIVE_QRIS_SOURCE_PACKAGE = "com.interactive.qrisid"
+INTERACTIVE_QRIS_MIN_AMOUNT_IDR = "2000"
+INTERACTIVE_QRIS_UNIQUE_DIGITS = "2"
+# Isi setelah backend processor berhasil deploy ke Cloud Run.
+# PROCESSOR_BASE_URL = "https://design-mudah-processor-xxxxx.a.run.app"
+
+# Secrets tetap diset di dashboard Cloudflare Worker > Settings > Variables and Secrets.
+# Recommended: AIVENE_API_KEY, OPENAI_API_KEY, SUPABASE_SERVICE_ROLE_KEY, MIDTRANS_SERVER_KEY,
+# SIGNUP_BONUS_HASH_SALT, dan GOOGLE_OAUTH_CLIENT_SECRET
