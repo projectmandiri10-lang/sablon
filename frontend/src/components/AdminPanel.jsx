@@ -32,6 +32,7 @@ import { normalizeAiModelDraft, selectAiveneImageModel } from '../lib/aiModelCon
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from '../lib/modes.js';
 import { formatRupiah } from '../lib/pricing.js';
 import { DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS, normalizeInteractiveQrisClosedHours } from '../../../shared/interactiveQrisClosedHours.js';
+import { isValidQrisPayload } from '../../../shared/qrisPayload.js';
 
 const pricingLabels = {
   [INPUT_MODE_READY]: 'Gambar siap proses',
@@ -78,10 +79,36 @@ function buildDefaultInteractiveQrisDraft() {
     enabled: false,
     merchantName: '',
     qrImageUrl: '',
+    qrPayload: '',
     instructions: 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.',
     contact: '',
     closedHours: normalizeInteractiveQrisClosedHours(DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)
   };
+}
+
+async function decodeQrisPayloadFromImageFile(file) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error('Gambar QR tidak bisa dibaca.'));
+      element.src = objectUrl;
+    });
+    const maxEdge = 1600;
+    const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
+    canvas.height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const { default: jsQR } = await import('jsqr');
+    const decoded = jsQR(imageData.data, imageData.width, imageData.height);
+    return String(decoded?.data || '').trim();
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 function examplePublishHint(job, isPublished) {
@@ -160,6 +187,7 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
         enabled: interactiveQris.enabled === true,
         merchantName: interactiveQris.merchantName || '',
         qrImageUrl: interactiveQris.qrImageUrl || '',
+        qrPayload: interactiveQris.qrPayload || '',
         instructions: interactiveQris.instructions || 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.',
         contact: interactiveQris.contact || '',
         closedHours: normalizeInteractiveQrisClosedHours(interactiveQris.closedHours || DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)
@@ -224,6 +252,7 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
         enabled: interactiveQris.enabled === true,
         merchantName: interactiveQris.merchantName || '',
         qrImageUrl: interactiveQris.qrImageUrl || '',
+        qrPayload: interactiveQris.qrPayload || '',
         instructions: interactiveQris.instructions || 'Scan QRIS merchant lalu bayar sesuai nominal unik yang muncul di billing.',
         contact: interactiveQris.contact || '',
         closedHours: normalizeInteractiveQrisClosedHours(interactiveQris.closedHours || DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)
@@ -455,8 +484,20 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
         ...interactiveQrisDraft,
         qrImageUrl: data?.url || ''
       };
+      let successMessage = 'Gambar QRIS berhasil diupload dan setting QRIS diperbarui.';
+      try {
+        const decodedPayload = await decodeQrisPayloadFromImageFile(interactiveQrisImageFile);
+        if (decodedPayload && isValidQrisPayload(decodedPayload)) {
+          nextDraft.qrPayload = decodedPayload;
+          successMessage = 'Gambar QRIS berhasil diupload dan payload QRIS dinamis terbaca otomatis.';
+        } else {
+          successMessage = 'Gambar terupload, tetapi payload QR tidak terbaca otomatis. Paste payload manual bila ingin QR dinamis.';
+        }
+      } catch {
+        successMessage = 'Gambar terupload, tetapi payload QR tidak terbaca otomatis. Paste payload manual bila ingin QR dinamis.';
+      }
       setInteractiveQrisDraft(nextDraft);
-      await persistInteractiveQrisSetting(nextDraft, 'Gambar QRIS berhasil diupload dan setting QRIS diperbarui.');
+      await persistInteractiveQrisSetting(nextDraft, successMessage);
     } catch (error) {
       setMessage(toUserApiError(error, 'Gagal mengupload gambar QRIS.').message);
     } finally {
@@ -1198,6 +1239,18 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                   />
                 </div>
               )}
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">Payload QRIS statis (teks EMVCo)</span>
+                <textarea
+                  value={interactiveQrisDraft.qrPayload}
+                  onChange={(event) => setInteractiveQrisDraft((current) => ({ ...current, qrPayload: event.target.value }))}
+                  className="min-h-24 w-full border border-line bg-white px-3 py-2.5 font-mono text-xs outline-none focus:border-spruce"
+                  placeholder="00020101021126..."
+                />
+                <p className="mt-1 text-xs text-gray-600">
+                  Opsional. Bila diisi, billing menampilkan QR dinamis sesuai nominal unik. Bisa paste manual atau terisi otomatis dari gambar QR yang diupload.
+                </p>
+              </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-ink">Instruksi billing</span>
                 <textarea

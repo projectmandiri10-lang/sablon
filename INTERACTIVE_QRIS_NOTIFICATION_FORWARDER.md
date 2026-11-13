@@ -19,7 +19,9 @@ Flow ini memakai:
    - `base_amount_idr` nominal dasar top up
    - `unique_code` 2 digit
    - `expired_at` 30 menit
-3. User membayar ke QRIS merchant statis sesuai nominal unik.
+3. User membayar sesuai nominal unik:
+   - bila `Payload QRIS statis` diisi di setting admin, billing menampilkan **QRIS dinamis** hasil konversi payload statis (nominal unik sudah tertanam di QR, user cukup scan tanpa mengetik nominal);
+   - bila payload belum diisi, user scan gambar QRIS merchant statis lalu memasukkan nominal unik secara manual (perilaku lama).
 4. Aplikasi InterActive QRIS di Android memunculkan notifikasi sukses bayar.
 5. NotificationForwarder meneruskan notifikasi itu ke Worker webhook.
 6. Worker memvalidasi secret, package name, lalu mencocokkan nominal notifikasi ke pending payment yang aktif.
@@ -48,6 +50,7 @@ Masuk ke tab `Setting aplikasi` di halaman superadmin, lalu isi `QRIS otomatis`:
 - `Aktifkan QRIS otomatis`: centang
 - `Nama merchant`: nama toko/merchant yang muncul di billing
 - `Upload gambar QR`: upload langsung gambar QRIS statis dari halaman admin
+- `Payload QRIS statis (teks EMVCo)`: opsional, untuk QRIS dinamis (lihat bagian 2A)
 - `Instruksi billing`: instruksi singkat untuk user
 - `Kontak admin`: nomor WhatsApp atau kontak bantuan
 - `Jam tutup QRIS`: default 22:00 sampai 05:00 WIB
@@ -59,6 +62,25 @@ Saat jam tutup aktif:
 - user tetap bisa melihat card QRIS
 - instruksi QRIS yang sudah terbit sebelum jam tutup tetap terlihat sampai expiry normal
 - checkout QRIS baru akan ditolak sampai jam operasional kembali buka
+
+## 2A. QRIS Dinamis (Nominal Unik Tertanam di QR)
+
+Tanpa mengubah jalur notifikasi, billing bisa menampilkan **QRIS dinamis** yang dibuat dari payload QRIS statis merchant:
+
+1. Worker mengonversi payload EMVCo statis menjadi dinamis: tag `01` diubah ke `12`, tag `54` diisi nominal unik (nominal dasar + 2 digit akhir), lalu CRC tag `63` dihitung ulang. Identitas merchant pada payload statis dipertahankan apa adanya.
+2. Frontend merender payload dinamis tersebut sebagai QR yang bisa langsung dipindai aplikasi e-wallet/m-banking — user tidak perlu mengetik nominal lagi.
+3. Pencocokan pembayaran tetap memakai nominal unik yang sama, sehingga webhook NotificationForwarder/MacroDroid tidak berubah sama sekali.
+
+Cara mengisi payload:
+
+- **Otomatis**: saat admin mengupload gambar QRIS, aplikasi mencoba membaca payload QR dari gambar tersebut dan mengisi field `Payload QRIS statis` bila berhasil.
+- **Manual**: paste teks payload EMVCo (hasil decode gambar QRIS memakai aplikasi scanner QR mana pun) ke field `Payload QRIS statis (teks EMVCo)`, lalu simpan. Worker memvalidasi struktur TLV dan CRC sebelum menyimpan.
+
+Perilaku fallback:
+
+- bila payload kosong atau tidak valid, billing otomatis kembali menampilkan gambar QRIS statis dan user membayar dengan memasukkan nominal unik manual seperti sebelumnya;
+- checkout tetap bisa dibuat selama salah satu dari gambar QR atau payload tersedia;
+- QR dinamis mengikuti expiry instruksi (30 menit); pembayaran setelah expiry tidak akan dicocokkan, sama seperti flow statis.
 
 ## 3. Setup NotificationForwarder
 
@@ -202,13 +224,13 @@ Catatan payload:
 
 1. Buat instruksi QRIS dari halaman Billing.
 2. Pastikan user melihat:
-   - QR image
+   - QR image (statis) atau QR dinamis bila payload QRIS statis sudah diisi
    - exact payable amount
    - base amount
    - unique code
    - expiry
    - contact
-3. Bayar sesuai nominal unik.
+3. Bayar sesuai nominal unik: scan QR dinamis (nominal sudah tertanam) atau scan QR statis lalu ketik nominal unik manual.
 4. Pastikan NotificationForwarder mengirim webhook ke Worker.
 5. Cek hasil:
    - `payment_transactions.status` menjadi settled

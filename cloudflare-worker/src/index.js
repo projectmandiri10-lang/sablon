@@ -37,6 +37,7 @@ import {
   getInteractiveQrisClosedState,
   normalizeInteractiveQrisClosedHours
 } from '../../shared/interactiveQrisClosedHours.js';
+import { buildDynamicQrisPayload, isValidQrisPayload, QRIS_MAX_PAYLOAD_LENGTH } from '../../shared/qrisPayload.js';
 
 const DEFAULT_PRICING = {
   ready_trace: 2000,
@@ -530,6 +531,7 @@ function normalizeInteractiveQrisSetting(value = {}) {
     enabled: value?.enabled === true,
     merchantName: String(value?.merchantName || '').trim(),
     qrImageUrl: String(value?.qrImageUrl || '').trim(),
+    qrPayload: String(value?.qrPayload || '').trim(),
     instructions: String(value?.instructions || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS).trim() || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS,
     contact: String(value?.contact || '').trim(),
     closedHours: normalizeInteractiveQrisClosedHours(value?.closedHours || DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)
@@ -545,6 +547,15 @@ function padInteractiveQrisUniqueCode(uniqueCode, digits) {
   return String(Math.max(0, Number.parseInt(uniqueCode, 10) || 0)).padStart(Math.max(1, digits), '0');
 }
 
+function buildInteractiveQrisDynamicPayload(qrisPayload, amountIdr) {
+  if (!qrisPayload) return '';
+  try {
+    return buildDynamicQrisPayload(qrisPayload, amountIdr);
+  } catch {
+    return '';
+  }
+}
+
 function buildInteractiveQrisInstruction(payment = {}, settingValue = {}, env = {}) {
   const settings = normalizeInteractiveQrisSetting(settingValue);
   return {
@@ -553,6 +564,7 @@ function buildInteractiveQrisInstruction(payment = {}, settingValue = {}, env = 
     uniqueCode: padInteractiveQrisUniqueCode(payment.unique_code, interactiveQrisUniqueDigits(env)),
     expiresAt: payment.expired_at || null,
     qrImageUrl: settings.qrImageUrl,
+    qrisPayload: buildInteractiveQrisDynamicPayload(settings.qrPayload, Number(payment.amount_idr) || 0),
     merchantName: settings.merchantName,
     instructions: settings.instructions,
     contact: settings.contact,
@@ -2557,8 +2569,8 @@ async function handleCreateInteractiveQrisCheckout(env, request) {
   if (!qrisSetting.enabled) {
     throw new Error('QRIS otomatis sedang dimatikan dari setting aplikasi.');
   }
-  if (!qrisSetting.qrImageUrl) {
-    throw new Error('QR image untuk QRIS otomatis belum diisi.');
+  if (!qrisSetting.qrImageUrl && !qrisSetting.qrPayload) {
+    throw new Error('QR image atau payload QRIS untuk QRIS otomatis belum diisi.');
   }
   requireInteractiveQrisOpen(qrisSetting);
 
@@ -2573,6 +2585,7 @@ async function handleCreateInteractiveQrisCheckout(env, request) {
   await expireStaleInteractiveQrisPayments(env);
   const activePayments = await listActivePendingInteractiveQrisPayments(env);
   const { displayAmountIdr, uniqueCode } = allocateInteractiveQrisPaymentAmount(amountIdr, activePayments, interactiveQrisUniqueDigits(env));
+  const dynamicQrisPayload = buildInteractiveQrisDynamicPayload(qrisSetting.qrPayload, displayAmountIdr);
   const payment = await createPaymentTransaction(env, {
     user_id: user.id,
     provider: INTERACTIVE_QRIS_PROVIDER,
@@ -2589,6 +2602,7 @@ async function handleCreateInteractiveQrisCheckout(env, request) {
       displayAmountIdr,
       baseAmountIdr: amountIdr,
       uniqueCode,
+      dynamicQris: Boolean(dynamicQrisPayload),
       provider: INTERACTIVE_QRIS_PROVIDER
     },
     raw_notification: {},
@@ -3053,6 +3067,11 @@ async function handleAdminSettings(env, request) {
       : body.key === 'interactive_qris_payment'
         ? normalizeInteractiveQrisSetting(body.value || {})
         : body.value || {};
+  if (body.key === 'interactive_qris_payment' && normalizedValue.qrPayload) {
+    if (normalizedValue.qrPayload.length > QRIS_MAX_PAYLOAD_LENGTH || !isValidQrisPayload(normalizedValue.qrPayload)) {
+      throw new Error('Payload QRIS statis tidak valid. Pastikan teks EMVCo lengkap dan CRC benar.');
+    }
+  }
   const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=*', {
     method: 'POST',
     prefer: 'resolution=merge-duplicates,return=representation',

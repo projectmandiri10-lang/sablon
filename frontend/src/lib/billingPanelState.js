@@ -3,6 +3,7 @@ import {
   getInteractiveQrisClosedState,
   normalizeInteractiveQrisClosedHours
 } from '../../../shared/interactiveQrisClosedHours.js';
+import { buildDynamicQrisPayload } from '../../../shared/qrisPayload.js';
 
 export const DEFAULT_SHOPEE_URL = 'https://shopee.co.id/';
 export const DEFAULT_SHOPEE_NOTE =
@@ -72,6 +73,15 @@ export function findNewlyCreditedAutomaticPayment(previousPayments = [], nextPay
   return null;
 }
 
+function buildDynamicQrisPayloadSafe(qrisPayload, amountIdr) {
+  if (!qrisPayload) return '';
+  try {
+    return buildDynamicQrisPayload(qrisPayload, amountIdr);
+  } catch {
+    return '';
+  }
+}
+
 export function buildInteractiveQrisPaymentInstruction(payment = {}, interactiveQris = {}, now = Date.now()) {
   if (!isActiveInteractiveQrisPayment(payment, now)) return null;
   const uniqueDigits = Number(interactiveQris.uniqueDigits) || DEFAULT_INTERACTIVE_QRIS_UNIQUE_DIGITS;
@@ -81,6 +91,7 @@ export function buildInteractiveQrisPaymentInstruction(payment = {}, interactive
     uniqueCode: String(Math.max(0, Number.parseInt(payment.unique_code, 10) || 0)).padStart(Math.max(1, uniqueDigits), '0'),
     expiresAt: payment.expired_at || null,
     qrImageUrl: interactiveQris.qrImageUrl || '',
+    qrisPayload: buildDynamicQrisPayloadSafe(interactiveQris.qrPayload, Number(payment.amount_idr) || 0),
     merchantName: interactiveQris.merchantName || '',
     instructions: interactiveQris.instructions || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS,
     contact: interactiveQris.contact || '',
@@ -117,6 +128,7 @@ export function buildBillingPanelState(appConfig = {}, session = null) {
       uniqueDigits: Number(features.interactiveQrisUniqueDigits) || DEFAULT_INTERACTIVE_QRIS_UNIQUE_DIGITS,
       merchantName: interactiveQris.merchantName || '',
       qrImageUrl: interactiveQris.qrImageUrl || '',
+      qrPayload: interactiveQris.qrPayload || '',
       instructions: interactiveQris.instructions || DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS,
       contact: interactiveQris.contact || '',
       closedHours: normalizeInteractiveQrisClosedHours(interactiveQris.closedHours || DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS)

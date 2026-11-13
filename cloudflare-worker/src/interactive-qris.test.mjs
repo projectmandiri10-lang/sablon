@@ -1,6 +1,23 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import worker, { allocateInteractiveQrisPaymentAmount, extractInteractiveQrisAmountCandidates } from './index.js';
+import { crc16CcittFalse, isValidQrisPayload, parseQrisTlv, serializeQrisTlv } from '../../shared/qrisPayload.js';
+
+function buildStaticQrisFixture() {
+  const body = `${serializeQrisTlv([
+    { tag: '00', value: '01' },
+    { tag: '01', value: '11' },
+    { tag: '26', value: '0016COM.NOBUBANK.WWW01189360050300000873620214516278328362610303UMI' },
+    { tag: '51', value: '0014ID.CO.QRIS.WWW0215ID10243227383620303UMI' },
+    { tag: '52', value: '5499' },
+    { tag: '53', value: '360' },
+    { tag: '58', value: 'ID' },
+    { tag: '59', value: 'NAMA TOKO' },
+    { tag: '60', value: 'JAKARTA' },
+    { tag: '61', value: '12340' }
+  ])}6304`;
+  return `${body}${crc16CcittFalse(body)}`;
+}
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -703,6 +720,273 @@ test('admin interactive qris image upload rejects non-image mime types', async (
 
     assert.equal(response.status, 400);
     assert.equal(data.error, 'Format gambar QRIS harus PNG, JPG, JPEG, atau WEBP.');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('interactive qris checkout returns dynamic payload when static qr payload is configured', async () => {
+  const originalFetch = globalThis.fetch;
+  const staticPayload = buildStaticQrisFixture();
+  let createdBody = null;
+
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+
+    if (url.endsWith('/auth/v1/user')) {
+      return jsonResponse({
+        id: 'user-1',
+        email: 'user@example.com',
+        user_metadata: { full_name: 'User Test' }
+      });
+    }
+
+    if (url.includes('/rest/v1/profiles?id=eq.user-1&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at')) {
+      return jsonResponse([
+        {
+          id: 'user-1',
+          email: 'user@example.com',
+          full_name: 'User Test',
+          role: 'user',
+          is_unlimited: false,
+          is_active: true,
+          deleted_at: null,
+          created_at: '2026-07-11T09:00:00.000Z'
+        }
+      ]);
+    }
+
+    if (url.includes('/rest/v1/app_settings?select=key,value,is_public,description,updated_at&key=eq.interactive_qris_payment&limit=1')) {
+      return jsonResponse([
+        {
+          key: 'interactive_qris_payment',
+          value: {
+            enabled: true,
+            merchantName: 'Merchant QRIS',
+            qrImageUrl: 'https://cdn.example/qris.png',
+            qrPayload: staticPayload,
+            instructions: 'Bayar sesuai nominal unik.',
+            contact: 'WA Admin',
+            closedHours: { enabled: false }
+          },
+          is_public: true
+        }
+      ]);
+    }
+
+    if (url.includes('/rest/v1/payment_transactions?provider=eq.interactive_qris&status=eq.pending&expired_at=lt.') && init.method === 'PATCH') {
+      return jsonResponse([]);
+    }
+
+    if (url.includes('/rest/v1/payment_transactions?select=id,user_id,provider,order_id,external_transaction_id,amount_idr,base_amount_idr,unique_code,currency,status,payment_type,redirect_url,credited_ledger_id,paid_at,expired_at,created_at,updated_at&provider=eq.interactive_qris&status=eq.pending&expired_at=gt.')) {
+      return jsonResponse([]);
+    }
+
+    if (url.endsWith('/rest/v1/payment_transactions?select=*') && init.method === 'POST') {
+      createdBody = JSON.parse(init.body);
+      return jsonResponse([
+        {
+          id: 'payment-1',
+          ...createdBody,
+          created_at: '2026-07-11T10:00:00.000Z',
+          updated_at: '2026-07-11T10:00:00.000Z'
+        }
+      ]);
+    }
+
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  try {
+    const env = {
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role',
+      INTERACTIVE_QRIS_WEBHOOK_SECRET: 'secret-123',
+      INTERACTIVE_QRIS_SOURCE_PACKAGE: 'com.interactive.qrisid'
+    };
+    const request = new Request('https://worker.example/api/payments/interactive-qris/checkout', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer user-token',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ amountIdr: 10000 })
+    });
+
+    const response = await worker.fetch(request, env);
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(createdBody.amount_idr, 10001);
+    assert.equal(createdBody.raw_create_response.dynamicQris, true);
+    assert.equal(data.instruction.displayAmountIdr, 10001);
+    assert.equal(isValidQrisPayload(data.instruction.qrisPayload), true);
+
+    const entries = parseQrisTlv(data.instruction.qrisPayload);
+    const byTag = Object.fromEntries(entries.map((entry) => [entry.tag, entry.value]));
+    assert.equal(byTag['01'], '12');
+    assert.equal(byTag['54'], '10001');
+    assert.equal(byTag['59'], 'NAMA TOKO');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('interactive qris checkout rejects when neither qr image nor payload is configured', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+
+    if (url.includes('/rest/v1/app_settings?select=key,value,is_public,description,updated_at&key=eq.interactive_qris_payment&limit=1')) {
+      return jsonResponse([
+        {
+          key: 'interactive_qris_payment',
+          value: {
+            enabled: true,
+            merchantName: 'Merchant QRIS',
+            qrImageUrl: '',
+            closedHours: { enabled: false }
+          },
+          is_public: true
+        }
+      ]);
+    }
+
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+
+  try {
+    const env = {
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role',
+      INTERACTIVE_QRIS_WEBHOOK_SECRET: 'secret-123',
+      INTERACTIVE_QRIS_SOURCE_PACKAGE: 'com.interactive.qrisid'
+    };
+    const request = new Request('https://worker.example/api/payments/interactive-qris/checkout', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer user-token',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ amountIdr: 10000 })
+    });
+
+    const response = await worker.fetch(request, env);
+    const data = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.equal(data.error, 'QR image atau payload QRIS untuk QRIS otomatis belum diisi.');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+function mockAdminSettingsFetch(onSave) {
+  return async (input, init = {}) => {
+    const url = String(input);
+
+    if (url.endsWith('/auth/v1/user')) {
+      return jsonResponse({
+        id: 'admin-1',
+        email: 'admin@example.com',
+        user_metadata: { full_name: 'Admin Test' }
+      });
+    }
+
+    if (url.includes('/rest/v1/profiles?id=eq.admin-1&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at')) {
+      return jsonResponse([
+        {
+          id: 'admin-1',
+          email: 'admin@example.com',
+          full_name: 'Admin Test',
+          role: 'superuser',
+          is_unlimited: true,
+          is_active: true,
+          deleted_at: null,
+          created_at: '2026-07-11T09:00:00.000Z'
+        }
+      ]);
+    }
+
+    if (url.endsWith('/rest/v1/app_settings?select=*') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      onSave(body);
+      return jsonResponse([body]);
+    }
+
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+}
+
+test('admin settings reject invalid interactive qris static payload', async () => {
+  const originalFetch = globalThis.fetch;
+  let savedBody = null;
+  globalThis.fetch = mockAdminSettingsFetch((body) => {
+    savedBody = body;
+  });
+
+  try {
+    const env = {
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role'
+    };
+    const response = await worker.fetch(
+      new Request('https://worker.example/api/admin/settings', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer admin-token',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          key: 'interactive_qris_payment',
+          value: { enabled: true, qrPayload: 'bukan-payload-qris' }
+        })
+      }),
+      env
+    );
+    const data = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.equal(data.error, 'Payload QRIS statis tidak valid. Pastikan teks EMVCo lengkap dan CRC benar.');
+    assert.equal(savedBody, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('admin settings accept valid interactive qris static payload', async () => {
+  const originalFetch = globalThis.fetch;
+  const staticPayload = buildStaticQrisFixture();
+  let savedBody = null;
+  globalThis.fetch = mockAdminSettingsFetch((body) => {
+    savedBody = body;
+  });
+
+  try {
+    const env = {
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role'
+    };
+    const response = await worker.fetch(
+      new Request('https://worker.example/api/admin/settings', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer admin-token',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          key: 'interactive_qris_payment',
+          value: { enabled: true, qrPayload: staticPayload }
+        })
+      }),
+      env
+    );
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(savedBody.value.qrPayload, staticPayload);
+    assert.equal(data.setting.value.qrPayload, staticPayload);
   } finally {
     globalThis.fetch = originalFetch;
   }

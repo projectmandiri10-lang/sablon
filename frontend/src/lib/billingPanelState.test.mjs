@@ -13,6 +13,23 @@ import {
   resolveInteractiveQrisClosedState,
   stripMidtransReturnParams
 } from './billingPanelState.js';
+import { crc16CcittFalse, isValidQrisPayload, parseQrisTlv, serializeQrisTlv } from '../../../shared/qrisPayload.js';
+
+function buildStaticQrisFixture() {
+  const body = `${serializeQrisTlv([
+    { tag: '00', value: '01' },
+    { tag: '01', value: '11' },
+    { tag: '26', value: '0016COM.NOBUBANK.WWW01189360050300000873620214516278328362610303UMI' },
+    { tag: '51', value: '0014ID.CO.QRIS.WWW0215ID10243227383620303UMI' },
+    { tag: '52', value: '5499' },
+    { tag: '53', value: '360' },
+    { tag: '58', value: 'ID' },
+    { tag: '59', value: 'NAMA TOKO' },
+    { tag: '60', value: 'JAKARTA' },
+    { tag: '61', value: '12340' }
+  ])}6304`;
+  return `${body}${crc16CcittFalse(body)}`;
+}
 
 test('billing panel state keeps Midtrans, QRIS, and Shopee sections available', () => {
   const state = buildBillingPanelState(
@@ -108,6 +125,73 @@ test('interactive qris instruction renders active pending payment details', () =
   assert.equal(instruction.baseAmountIdr, 10000);
   assert.equal(instruction.uniqueCode, '237');
   assert.equal(instruction.merchantName, 'Merchant QRIS');
+  assert.equal(instruction.qrisPayload, '');
+});
+
+test('billing panel state forwards static qr payload from app config', () => {
+  const staticPayload = buildStaticQrisFixture();
+  const state = buildBillingPanelState({
+    settings: {
+      interactive_qris_payment: {
+        merchantName: 'Merchant Test',
+        qrImageUrl: 'https://cdn.example/qris.png',
+        qrPayload: staticPayload
+      }
+    },
+    features: { interactiveQrisAvailable: true }
+  });
+
+  assert.equal(state.interactiveQris.qrPayload, staticPayload);
+});
+
+test('interactive qris instruction builds dynamic payload for active pending payment', () => {
+  const staticPayload = buildStaticQrisFixture();
+  const instruction = buildInteractiveQrisPaymentInstruction(
+    {
+      provider: 'interactive_qris',
+      status: 'pending',
+      amount_idr: 10023,
+      base_amount_idr: 10000,
+      unique_code: 23,
+      expired_at: '2099-07-11T10:30:00.000Z'
+    },
+    {
+      uniqueDigits: 2,
+      merchantName: 'Merchant QRIS',
+      qrImageUrl: 'https://cdn.example/qris.png',
+      qrPayload: staticPayload
+    },
+    new Date('2099-07-11T10:00:00.000Z').getTime()
+  );
+
+  assert.equal(isValidQrisPayload(instruction.qrisPayload), true);
+  const byTag = Object.fromEntries(parseQrisTlv(instruction.qrisPayload).map((entry) => [entry.tag, entry.value]));
+  assert.equal(byTag['01'], '12');
+  assert.equal(byTag['54'], '10023');
+  assert.equal(instruction.qrImageUrl, 'https://cdn.example/qris.png');
+});
+
+test('interactive qris instruction falls back to static image when payload is missing or broken', () => {
+  const payment = {
+    provider: 'interactive_qris',
+    status: 'pending',
+    amount_idr: 10023,
+    base_amount_idr: 10000,
+    unique_code: 23,
+    expired_at: '2099-07-11T10:30:00.000Z'
+  };
+  const now = new Date('2099-07-11T10:00:00.000Z').getTime();
+
+  const withoutPayload = buildInteractiveQrisPaymentInstruction(payment, { qrImageUrl: 'https://cdn.example/qris.png' }, now);
+  assert.equal(withoutPayload.qrisPayload, '');
+
+  const brokenPayload = buildInteractiveQrisPaymentInstruction(
+    payment,
+    { qrImageUrl: 'https://cdn.example/qris.png', qrPayload: '00020101021163040000' },
+    now
+  );
+  assert.equal(brokenPayload.qrisPayload, '');
+  assert.equal(brokenPayload.qrImageUrl, 'https://cdn.example/qris.png');
 });
 
 test('automatic payment helpers keep QRIS non-refreshable and label mixed providers', () => {

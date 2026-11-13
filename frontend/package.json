@@ -13,9 +13,11 @@
     "@supabase/supabase-js": "^2.106.2",
     "@vitejs/plugin-react": "^4.3.4",
     "jspdf": "^4.2.1",
+    "jsqr": "^1.4.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "pica": "^10.0.2",
+    "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^6.0.6"

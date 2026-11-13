@@ -1,4 +1,5 @@
 import { ExternalLink, QrCode, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   createInteractiveQrisCheckout,
@@ -64,8 +65,8 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     topupEmailLabel: isId ? 'Email akun Anda yang dipakai untuk top up:' : 'Your account email used for top-up:',
     amountLabel: isId ? 'Nominal top up' : 'Top-up amount',
     paymentMethodLabel: isId ? 'Metode pembayaran' : 'Payment method',
-    paymentMethodHelp: isId ? 'QRIS statis menjadi pilihan utama. Metode online lain tersedia melalui halaman pembayaran.' : 'Static QRIS is the default option. Other online methods are available through the payment page.',
-    qrisMethod: isId ? 'QRIS statis' : 'Static QRIS',
+    paymentMethodHelp: isId ? 'QRIS menjadi pilihan utama. Metode online lain tersedia melalui halaman pembayaran.' : 'QRIS is the default option. Other online methods are available through the payment page.',
+    qrisMethod: isId ? 'QRIS' : 'QRIS',
     onlineMethod: isId ? 'E-wallet, VA, kartu, dan metode lain' : 'E-wallet, VA, cards, and other methods',
     onlineMethodPending: isId
       ? 'E-wallet, VA, kartu, dan metode lain (segera hadir)'
@@ -84,6 +85,12 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     qrisInfo: isId
       ? 'Sistem akan membuat nominal unik yang harus dibayar ke QRIS merchant statis. Setelah notifikasi pembayaran masuk, saldo akan dikreditkan otomatis.'
       : 'The system will create a unique payable amount for the static merchant QRIS. Once the payment notification arrives, credits are added automatically.',
+    qrisDynamicInfo: isId
+      ? 'Sistem akan membuat QR pembayaran dinamis sesuai nominal unik (termasuk 2 digit akhir). Cukup scan QR tanpa mengetik nominal; setelah notifikasi pembayaran masuk, saldo dikreditkan otomatis.'
+      : 'The system will create a dynamic payment QR matching the unique amount (including the last 2 digits). Just scan the QR without typing the amount; once the payment notification arrives, credits are added automatically.',
+    qrisDynamicHint: isId
+      ? 'Scan QR ini dengan aplikasi pembayaran — nominal sudah termasuk kode unik, tidak perlu mengetik manual.'
+      : 'Scan this QR with your payment app — the amount already includes the unique code, no manual typing needed.',
     onlinePaymentMissing: isId ? 'Metode pembayaran online belum tersedia saat ini. Silakan pilih QRIS atau hubungi admin.' : 'Online payment is not available right now. Please choose QRIS or contact admin.',
     qrisMissing: isId ? 'QRIS otomatis belum aktif saat ini. Silakan pilih metode lain atau hubungi admin.' : 'Automatic QRIS is not available right now. Please choose another method or contact admin.',
     qrisClosed: isId ? 'QRIS sedang tutup pada jam ini.' : 'QRIS is currently closed at this time.',
@@ -256,7 +263,12 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
   const selectedMethodBusy = selectedPaymentMethod === 'midtrans' ? isCheckingOut : isCreatingQris;
   const selectedMethodClosed = selectedPaymentMethod === 'interactive_qris' && qrisClosedState.isClosed;
   const automaticCheckoutDisabled = !selectedMethodAvailable || selectedMethodClosed || selectedMethodBusy;
-  const selectedMethodInfo = selectedPaymentMethod === 'midtrans' ? copy.onlinePaymentInfo : copy.qrisInfo;
+  const selectedMethodInfo =
+    selectedPaymentMethod === 'midtrans'
+      ? copy.onlinePaymentInfo
+      : state.interactiveQris.qrPayload
+        ? copy.qrisDynamicInfo
+        : copy.qrisInfo;
   const selectedMethodButtonLabel =
     selectedPaymentMethod === 'midtrans'
       ? isCheckingOut ? copy.openCheckout : copy.continuePayment
@@ -428,7 +440,18 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
           {activeQrisInstruction ? (
             <div className="grid gap-4 border border-line bg-panel p-3 lg:grid-cols-[280px_minmax(0,1fr)] lg:p-4">
               <div className="flex items-start justify-center">
-                {activeQrisInstruction.qrImageUrl ? (
+                {activeQrisInstruction.qrisPayload ? (
+                  <div className="w-full max-w-[280px] border border-line bg-white p-3 shadow-sm">
+                    <QRCodeCanvas
+                      value={activeQrisInstruction.qrisPayload}
+                      size={256}
+                      level="M"
+                      marginSize={4}
+                      className="h-auto w-full"
+                    />
+                    <p className="mt-2 text-center text-xs leading-5 text-gray-600">{copy.qrisDynamicHint}</p>
+                  </div>
+                ) : activeQrisInstruction.qrImageUrl ? (
                   <img
                     src={activeQrisInstruction.qrImageUrl}
                     alt={state.interactiveQris.merchantName || copy.qrisTitle}
