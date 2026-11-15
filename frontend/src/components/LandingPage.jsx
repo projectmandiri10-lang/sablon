@@ -710,22 +710,22 @@ function useCounter(target, enabled = true, duration = 1200) {
 
 function SectionHeader({ eyebrow, title, subtitle, id }) {
   return (
-    <div className="text-center">
+    <div className="mx-auto max-w-2xl text-center">
       {eyebrow && (
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-white/5 px-4 py-1.5 text-sm font-medium text-primary shadow-[0_0_0_1px_rgba(124,58,237,0.04)] backdrop-blur-sm">
-          <Sparkles className="h-4 w-4" />
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3.5 py-1 text-xs font-semibold uppercase tracking-wider text-violet-300">
+          <Sparkles className="h-3.5 w-3.5" />
           {eyebrow}
         </div>
       )}
-      <h2 id={id} className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+      <h2 id={id} className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
         <span className="gradient-text">{title}</span>
       </h2>
-      {subtitle && <p className="mx-auto mt-4 max-w-2xl text-lg text-mutedForeground">{subtitle}</p>}
+      {subtitle && <p className="mt-3 text-base leading-relaxed text-slate-300 sm:text-lg">{subtitle}</p>}
     </div>
   );
 }
 
-function PublicNav({ locale = 'id', onLocaleChange, onStart, onNavigate }) {
+function PublicNav({ locale = 'id', onLocaleChange, onStart }) {
   const isId = locale === 'id';
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -762,13 +762,13 @@ function PublicNav({ locale = 'id', onLocaleChange, onStart, onNavigate }) {
 
   return (
     <header
-      className={`sticky top-0 z-40 w-full transition-all duration-500 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-primary/20 after:to-transparent ${
-        scrolled ? 'glass-nav shadow-lg shadow-primary/5 after:opacity-100' : 'bg-transparent after:opacity-0'
+      className={`sticky top-0 z-40 w-full transition-all duration-300 ${
+        scrolled ? 'glass-nav shadow-lg shadow-black/25' : 'border-b border-transparent bg-transparent'
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <button type="button" onClick={() => scrollToId('beranda')} className="flex items-center gap-2 text-left transition-opacity hover:opacity-80">
-          <BrandMark compact />
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <button type="button" onClick={() => scrollToId('beranda')} className="flex items-center gap-2 text-left transition-opacity hover:opacity-85">
+          <BrandMark compact dark />
         </button>
 
         <nav className="hidden items-center gap-1 md:flex">
@@ -777,71 +777,99 @@ function PublicNav({ locale = 'id', onLocaleChange, onStart, onNavigate }) {
               key={link.id}
               type="button"
               onClick={() => handleSectionClick(link.id)}
-              className="rounded-md px-3 py-2 text-sm font-medium text-mutedForeground transition hover:bg-white/5 hover:text-foreground"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
             >
               {link.label}
             </button>
           ))}
-          <div className="ml-2 inline-flex items-center overflow-hidden rounded-md border border-border bg-white/5">
+          <div className="ml-2 inline-flex items-center overflow-hidden rounded-lg border border-white/15 bg-white/5 p-0.5">
             {['id', 'en'].map((nextLocale) => (
               <button
                 key={nextLocale}
                 type="button"
                 onClick={() => onLocaleChange?.(nextLocale)}
-                className={`px-3 py-2 text-xs font-semibold uppercase ${locale === nextLocale ? 'bg-primary text-white' : 'text-mutedForeground hover:bg-white/5 hover:text-foreground'}`}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold uppercase transition ${
+                  locale === nextLocale ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:text-white'
+                }`}
               >
                 {nextLocale}
               </button>
             ))}
           </div>
-          <div className="ml-2 flex items-center gap-2">
+          <div className="ml-3 flex items-center gap-2">
             <button
               type="button"
               onClick={handleStart}
-              className="rounded-md px-3 py-2 text-sm font-medium text-foreground transition hover:bg-white/5"
+              className="rounded-xl border border-white/15 px-3.5 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
             >
               {isId ? 'Masuk' : 'Sign In'}
             </button>
             <button
               type="button"
               onClick={handleStart}
-              className="gradient-bg rounded-md px-3 py-2 text-sm font-medium text-white shadow-lg shadow-primary/20 transition hover:shadow-xl"
+              className="gradient-bg rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-md shadow-primary/25 transition hover:opacity-95"
             >
-              {isId ? 'Daftar' : 'Sign Up'}
+              {isId ? 'Mulai' : 'Start'}
             </button>
           </div>
         </nav>
 
-        <button
-          type="button"
-          onClick={() => setMobileOpen((value) => !value)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md text-foreground transition hover:bg-white/5 md:hidden"
-          aria-expanded={mobileOpen}
-          aria-label={mobileOpen ? (isId ? 'Tutup menu navigasi' : 'Close navigation menu') : isId ? 'Buka menu navigasi' : 'Open navigation menu'}
-        >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <div className="inline-flex items-center overflow-hidden rounded-lg border border-white/15 bg-white/5 p-0.5">
+            {['id', 'en'].map((nextLocale) => (
+              <button
+                key={nextLocale}
+                type="button"
+                onClick={() => onLocaleChange?.(nextLocale)}
+                className={`rounded-md px-2 py-1 text-[11px] font-semibold uppercase ${
+                  locale === nextLocale ? 'bg-primary text-white' : 'text-slate-300'
+                }`}
+              >
+                {nextLocale}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setMobileOpen((value) => !value)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+            aria-expanded={mobileOpen}
+            aria-label={mobileOpen ? (isId ? 'Tutup menu navigasi' : 'Close navigation menu') : isId ? 'Buka menu navigasi' : 'Open navigation menu'}
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {mobileOpen && (
-        <div className="border-t border-border/70 bg-[#090d18]/95 px-4 py-4 backdrop-blur md:hidden">
+        <div className="border-t border-white/10 bg-[#080d1a]/95 px-4 py-4 backdrop-blur-xl md:hidden">
           <div className="flex flex-col gap-2">
             {links.map((link) => (
               <button
                 key={link.id}
                 type="button"
                 onClick={() => handleSectionClick(link.id)}
-                className="rounded-xl border border-border bg-white px-4 py-3 text-left text-sm font-medium text-foreground transition hover:border-primary/30 hover:bg-white/5"
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-left text-sm font-medium text-slate-100 transition hover:bg-white/10"
               >
                 {link.label}
               </button>
             ))}
-            <button type="button" onClick={handleStart} className="rounded-xl border border-border bg-white px-4 py-3 text-left text-sm font-medium text-foreground transition hover:border-primary/30 hover:bg-white/5">
-              {isId ? 'Masuk' : 'Sign In'}
-            </button>
-            <button type="button" onClick={handleStart} className="gradient-bg rounded-xl px-4 py-3 text-left text-sm font-semibold text-white shadow-lg shadow-primary/20">
-              {isId ? 'Daftar' : 'Sign Up'}
-            </button>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleStart}
+                className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-center text-sm font-semibold text-white"
+              >
+                {isId ? 'Masuk' : 'Sign In'}
+              </button>
+              <button
+                type="button"
+                onClick={handleStart}
+                className="gradient-bg rounded-xl px-4 py-2.5 text-center text-sm font-semibold text-white shadow-lg shadow-primary/20"
+              >
+                {isId ? 'Daftar' : 'Sign Up'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -875,40 +903,38 @@ function PublicFooter({ locale = 'id', onNavigate }) {
 
   return (
     <footer className="mt-auto overflow-hidden">
-      <div className="h-1 bg-gradient-to-r from-primary via-chart-2 to-chart-3" />
-      <div className="landing-footer-shell relative mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+      <div className="landing-footer-shell relative mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-4">
-            <BrandMark compact />
-            <p className="text-sm leading-relaxed text-mutedForeground">
+          <div className="space-y-3">
+            <BrandMark compact dark />
+            <p className="text-sm leading-relaxed text-slate-400">
               {isId
-                ? 'Platform redesign logo berbasis AI untuk mengubah logo kaos menjadi desain modern dan profesional hanya dalam hitungan detik.'
-                : 'An AI-powered logo redesign platform for turning shirt logo photos into cleaner, more professional artwork in seconds.'}
+                ? 'Platform redesign logo & vector otomatis untuk kebutuhan produksi sablon dan sticker dalam hitungan detik.'
+                : 'An AI-powered logo redesign and vector platform built for screen printing and sticker production in seconds.'}
             </p>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">{isId ? 'Layanan' : 'Services'}</h3>
-            <ul className="space-y-2 text-sm text-mutedForeground">
-              <li><button type="button" onClick={() => scrollToId('pricing')} className="hover:text-primary">AI Redesign</button></li>
-              <li><button type="button" onClick={() => scrollToId('pricing')} className="hover:text-primary">{isId ? 'Vector Siap Proses' : 'Production-Ready Vector'}</button></li>
-              <li><button type="button" onClick={() => scrollToId('pricing')} className="hover:text-primary">{isId ? 'Harga' : 'Pricing'}</button></li>
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">{isId ? 'Layanan' : 'Services'}</h3>
+            <ul className="space-y-2 text-sm text-slate-400">
+              <li><button type="button" onClick={() => scrollToId('pricing')} className="transition hover:text-white">AI Redesign</button></li>
+              <li><button type="button" onClick={() => scrollToId('pricing')} className="transition hover:text-white">{isId ? 'Vector Siap Proses' : 'Production-Ready Vector'}</button></li>
+              <li><button type="button" onClick={() => scrollToId('pricing')} className="transition hover:text-white">{isId ? 'Harga' : 'Pricing'}</button></li>
             </ul>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">{isId ? 'Bantuan' : 'Help'}</h3>
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">{isId ? 'Bantuan' : 'Help'}</h3>
             <ul className="space-y-2">
               {helpLinks.map((link) => (
                 <li key={link.label}>
                   <button
                     type="button"
                     onClick={link.action}
-                    className="group flex items-center gap-2 text-sm text-mutedForeground transition-all hover:translate-x-1 hover:text-primary"
+                    className="group flex items-center gap-2 text-sm text-slate-400 transition hover:text-white"
                   >
-                    <span className="transition-transform group-hover:scale-110">
-                      <link.icon className="h-4 w-4" />
-                    </span>
+                    <link.icon className="h-4 w-4 text-slate-500 transition group-hover:text-violet-400" />
                     {link.label}
                   </button>
                 </li>
@@ -916,9 +942,9 @@ function PublicFooter({ locale = 'id', onNavigate }) {
             </ul>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">{isId ? 'Ikuti Kami' : 'Follow Us'}</h3>
-            <div className="flex items-center gap-3">
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">{isId ? 'Ikuti Kami' : 'Follow Us'}</h3>
+            <div className="flex items-center gap-2.5">
               {socialLinks.map((social) => (
                 <a
                   key={social.label}
@@ -926,32 +952,32 @@ function PublicFooter({ locale = 'id', onNavigate }) {
                   onClick={(event) => event.preventDefault()}
                   aria-label={social.label}
                   title={isId ? 'Segera hadir' : 'Coming soon'}
-                  className="group/social flex h-10 w-10 items-center justify-center rounded-full border border-border text-mutedForeground transition-all duration-300 hover:-translate-y-1 hover:scale-110 hover:border-primary hover:bg-primary/5 hover:text-primary hover:shadow-md hover:shadow-primary/10"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition hover:border-primary/40 hover:bg-primary/10 hover:text-white"
                 >
-                  <social.icon className="h-5 w-5 transition-all duration-300 group-hover/social:scale-110 group-hover/social:text-primary" />
+                  <social.icon className="h-4 w-4" />
                 </a>
               ))}
             </div>
-            <div className="space-y-2">
-              <p className="text-xs text-mutedForeground">{isId ? 'Dapatkan tips desain & update terbaru' : 'Get design tips and product updates'}</p>
+            <div className="space-y-2 pt-1">
+              <p className="text-xs text-slate-400">{isId ? 'Dapatkan tips desain & update terbaru' : 'Get design tips and product updates'}</p>
               {subscribed ? (
-                <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
                   <CheckCircle2 className="h-4 w-4" />
                   {isId ? 'Berhasil berlangganan!' : 'Subscribed successfully!'}
                 </div>
               ) : (
                 <form onSubmit={handleSubscribe} className="flex gap-2">
                   <div className="relative min-w-0 flex-1">
-                    <Mail className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-mutedForeground" />
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
                     <input
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                       placeholder={isId ? 'Email Anda' : 'Your email'}
-                      className="min-w-0 w-full rounded-xl border border-border bg-white py-2 pl-8 pr-3 text-xs outline-none focus:border-primary"
+                      className="min-w-0 w-full rounded-xl border border-white/15 bg-white/5 py-2 pl-8 pr-3 text-xs text-white outline-none placeholder:text-slate-500 focus:border-primary"
                     />
                   </div>
-                  <button type="submit" className="inline-flex items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-primary to-chart-2 px-3 py-2 text-xs font-semibold text-white hover:opacity-90">
+                  <button type="submit" className="inline-flex items-center justify-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white transition hover:bg-primary/90">
                     <Send className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">{isId ? 'Kirim' : 'Send'}</span>
                   </button>
@@ -961,18 +987,18 @@ function PublicFooter({ locale = 'id', onNavigate }) {
           </div>
         </div>
 
-        <div className="my-8 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+        <div className="my-8 h-px bg-white/10" />
 
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-xs text-mutedForeground">&copy; {new Date().getFullYear()} EasyRedesign Pro. {isId ? 'Hak cipta dilindungi.' : 'All rights reserved.'}</p>
+          <p className="text-xs text-slate-500">&copy; {new Date().getFullYear()} EasyRedesign Pro. {isId ? 'Hak cipta dilindungi.' : 'All rights reserved.'}</p>
           <div className="flex items-center gap-4">
-            <p className="flex items-center gap-1 text-xs text-mutedForeground">
+            <p className="flex items-center gap-1 text-xs text-slate-500">
               Made with <Heart className="inline h-3 w-3 fill-red-500 text-red-500" /> in Indonesia
             </p>
             <button
               type="button"
               onClick={scrollToTop}
-              className="flex h-8 w-8 items-center justify-center rounded-full border bg-primary/10 text-primary transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary hover:text-white hover:shadow-md hover:shadow-primary/20"
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-slate-300 transition hover:bg-primary hover:text-white"
               aria-label={isId ? 'Kembali ke atas' : 'Back to top'}
             >
               <ArrowUp className="h-4 w-4" />
@@ -987,119 +1013,105 @@ function PublicFooter({ locale = 'id', onNavigate }) {
 function HeroSection({ locale = 'id', onStart }) {
   const isId = locale === 'id';
   const stats = isId ? heroStats : heroStatsEn;
-  const floatingBadges = [
-    { label: 'AI Powered', icon: Sparkles, tone: 'text-primary border-primary/20', position: 'right-[8%] top-[12%] sm:right-[12%] sm:top-[15%]', delay: '0s' },
-    { label: formatRupiah(IMAGE_RETOUCH_PRICE_IDR), icon: Zap, tone: 'text-chart-3 border-chart-3/20', position: 'left-[5%] top-[25%] sm:left-[8%] sm:top-[30%]', delay: '1.3s' },
-    { label: isId ? 'Termasuk Pecah Warna' : 'Color Separation Included', icon: Star, tone: 'text-chart-2 border-chart-2/20', position: 'right-[15%] bottom-[18%] sm:right-[18%] sm:bottom-[20%]', delay: '2.6s' }
-  ];
 
   return (
-    <section id="beranda" className="relative overflow-hidden py-20 sm:py-28 lg:py-36">
+    <section id="beranda" className="relative overflow-hidden pb-16 pt-14 sm:pb-24 sm:pt-20">
       <div className="pointer-events-none absolute inset-0">
-        <div className="hero-gradient-pan absolute inset-0" />
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(#7c3aed 1px, transparent 1px), linear-gradient(90deg, #7c3aed 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
-        <div className="animate-float absolute -left-32 -top-32 h-[500px] w-[500px] rounded-full bg-primary/10 blur-[100px]" />
-        <div className="animate-float absolute -bottom-40 -right-40 h-[600px] w-[600px] rounded-full bg-chart-2/10 blur-[120px]" style={{ animationDelay: '1.5s' }} />
-        <div className="animate-float absolute left-1/2 top-1/3 h-[400px] w-[400px] -translate-x-1/2 rounded-full bg-chart-3/10 blur-[100px]" style={{ animationDelay: '2.5s' }} />
-        <div className="animate-float absolute right-[5%] top-[10%] h-[300px] w-[300px] rounded-full bg-chart-4/10 blur-[80px]" style={{ animationDelay: '0.8s' }} />
-        <div className="animate-float absolute bottom-[20%] left-[10%] h-[250px] w-[250px] rounded-full bg-primary/8 blur-[80px]" style={{ animationDelay: '3s' }} />
-        <div className="absolute right-[15%] top-[20%] h-3 w-3 rounded-full bg-primary/30 animate-float" />
-        <div className="absolute left-[20%] top-[60%] h-2 w-2 rounded-full bg-chart-3/40 animate-float" style={{ animationDelay: '0.5s' }} />
-        <div className="absolute right-[30%] bottom-[25%] h-4 w-4 rounded-full bg-chart-2/20 animate-float" style={{ animationDelay: '1s' }} />
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(#8b5cf6 1px, transparent 1px), linear-gradient(90deg, #8b5cf6 1px, transparent 1px)', backgroundSize: '64px 64px' }} />
+        <div className="absolute left-1/2 top-0 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-primary/15 blur-[130px]" />
       </div>
 
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-center text-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-white/5 px-4 py-2 text-sm font-medium text-primary shadow-sm backdrop-blur animate-pulse-glow">
-            <Sparkles className="h-4 w-4" />
-            {isId ? 'Didukung Teknologi AI Terbaru' : 'Powered by Modern AI Technology'}
+      <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-violet-300 sm:text-sm">
+            <Sparkles className="h-3.5 w-3.5" />
+            {isId ? 'AI Redraw + Pecah Warna Sablon Otomatis' : 'AI Redraw + Automatic Color Separation'}
           </div>
 
-          <div className="pointer-events-none absolute inset-0 hidden sm:block">
-            {floatingBadges.map((badge) => (
-              <div key={badge.label} className={`animate-badge-float absolute ${badge.position}`} style={{ animationDelay: badge.delay }}>
-                <span className={`glass-card inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-lg ${badge.tone}`}>
-                  <badge.icon className="h-3 w-3" />
-                  {badge.label}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <h1 className="max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
-            <span className="gradient-text animate-gradient-text relative inline-block bg-[length:200%_200%]">
-              EasyRedesign Pro
-              <span className="hero-shimmer pointer-events-none absolute inset-0 overflow-hidden">
-                <span className="absolute inset-y-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent" style={{ width: '50%' }} />
-              </span>
+          <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
+            <span className="gradient-text">EasyRedesign Pro</span>
+            <span className="mt-2 block text-slate-100">
+              {isId ? 'Foto Logo Buram Jadi Vector Siap Cetak' : 'Turn Blurry Logo Photos Into Print-Ready Vectors'}
             </span>
-            <br />
-            <span className="text-foreground">{isId ? 'Redesign AI Logo & Vector Siap Proses' : 'AI Logo Redesign and Production-Ready Vector'}</span>
           </h1>
 
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-mutedForeground sm:text-xl">
+          <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
             {isId
-              ? 'Ubah foto logo kaos biasa menjadi hasil redesign yang lebih bersih, profesional, dan siap diproses untuk sablon atau sticker dalam hitungan detik.'
-              : 'Turn ordinary shirt logo photos into cleaner, more professional artwork ready for screen printing or sticker production in seconds.'}
+              ? 'Upload foto logo kaos, rapikan dengan AI, lalu dapatkan file SVG, PDF, film pecah warna sablon, dan cutline sticker siap produksi dalam hitungan menit.'
+              : 'Upload a shirt logo photo, clean it with AI, and get production-ready SVG, PDF, screen-print separation films, and sticker cutlines in minutes.'}
           </p>
 
-          <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+          <div className="mt-8 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
             <button
               type="button"
               onClick={onStart}
-              className="gradient-bg animate-pulse-glow inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-8 text-base font-semibold text-white shadow-lg shadow-primary/20 transition hover:shadow-xl"
+              className="gradient-bg inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-7 text-sm font-bold text-white shadow-lg shadow-primary/25 transition hover:opacity-95 sm:text-base"
             >
               {isId ? 'Mulai Sekarang' : 'Get Started'}
-              <ArrowRight className="h-5 w-5" />
+              <ArrowRight className="h-4 w-4" />
             </button>
             <button
               type="button"
               onClick={() => scrollToId('how-it-works')}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-white px-8 text-base font-semibold text-foreground transition hover:border-primary/40 hover:bg-primary/5"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-7 text-sm font-semibold text-slate-100 transition hover:bg-white/10 sm:text-base"
             >
               {isId ? 'Lihat Cara Kerja' : 'See How It Works'}
             </button>
           </div>
+        </div>
 
-          <div className="landing-showcase mt-12 w-full max-w-4xl overflow-hidden rounded-[28px] p-6 sm:p-8">
-            <div className="pointer-events-none absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'linear-gradient(rgba(96,165,250,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(96,165,250,0.6) 1px, transparent 1px)', backgroundSize: '42px 42px' }} />
-            <div className="relative flex flex-col items-center gap-6 md:flex-row md:justify-center md:gap-10">
-              <div className="landing-before flex h-40 w-full max-w-[230px] flex-col items-center justify-center rounded-[26px]">
-                <div className="flex h-16 w-16 items-center justify-center rounded-[22px] border border-dashed border-white/20 bg-white/5 text-mutedForeground">
-                  <ImageIcon className="h-8 w-8" />
-                </div>
-                <p className="mt-4 text-lg font-semibold text-foreground">{isId ? 'Sebelum' : 'Before'}</p>
+        <div className="landing-showcase mx-auto mt-12 max-w-4xl overflow-hidden rounded-3xl p-5 sm:p-7">
+          <div className="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
+            <div className="landing-before flex flex-col items-center justify-center rounded-2xl p-6 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-white/20 bg-white/5 text-slate-400">
+                <ImageIcon className="h-7 w-7" />
               </div>
-
-              <div className="landing-process-pill flex flex-col items-center gap-2">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-chart-2 text-white shadow-[0_0_35px_rgba(96,165,250,0.35)]">
-                  <Wand2 className="h-7 w-7" />
-                </div>
-                <p className="text-sm font-medium text-mutedForeground">AI Processing</p>
-              </div>
-
-              <div className="landing-after flex h-40 w-full max-w-[230px] flex-col items-center justify-center rounded-[26px]">
-                <div className="flex h-24 w-24 items-center justify-center rounded-[28px] border border-primary/35 bg-primary/10 text-primary shadow-[0_0_32px_rgba(124,58,237,0.35)]">
-                  <ImageIcon className="h-10 w-10" />
-                </div>
-                <p className="mt-4 text-lg font-semibold text-primary">{isId ? 'Sesudah' : 'After'}</p>
-              </div>
+              <p className="mt-3 text-base font-bold text-slate-100">{isId ? 'Sebelum' : 'Before'}</p>
+              <p className="mt-1 text-xs text-slate-400">{isId ? 'Foto kaos miring, buram, atau berbayang' : 'Blurry, angled, or shadowed shirt photo'}</p>
             </div>
-            <div className="mt-5 flex items-center justify-between text-xs text-mutedForeground">
-              <span className="rounded-full border border-chart-3/20 bg-white/5 px-3 py-1 text-chart-3">{formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}</span>
-              <span className="rounded-full border border-primary/20 bg-white/5 px-3 py-1 text-primary">{isId ? 'Sudah termasuk pecah warna' : 'Color separation included'}</span>
+
+            <div className="flex flex-col items-center justify-center gap-2 py-1">
+              <div className="gradient-bg flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-lg shadow-primary/30">
+                <Wand2 className="h-5 w-5" />
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-slate-300">
+                {isId ? 'AI + Trace Otomatis' : 'AI + Auto Trace'}
+              </span>
+            </div>
+
+            <div className="landing-after flex flex-col items-center justify-center rounded-2xl p-6 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/40 bg-primary/15 text-violet-300">
+                <Layers className="h-7 w-7" />
+              </div>
+              <p className="mt-3 text-base font-bold text-violet-300">{isId ? 'Sesudah' : 'After'}</p>
+              <p className="mt-1 text-xs text-slate-300">{isId ? 'Vector SVG, PDF, Film Sablon & Cutline' : 'Vector SVG, PDF, Screen Film & Cutline'}</p>
             </div>
           </div>
 
-          <div className="mt-10 grid w-full max-w-4xl gap-4 md:grid-cols-3">
-            {stats.map((stat) => (
-              <div key={stat.label} className="landing-stat-card glass-card rounded-2xl px-5 py-4 text-center">
-                <stat.icon className={`mx-auto mb-3 h-5 w-5 ${stat.accent}`} />
-                <div className={`text-3xl font-black tracking-tight ${stat.accent}`}>{stat.value}</div>
-                <div className="mt-1 text-sm text-mutedForeground">{stat.label}</div>
-              </div>
-            ))}
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-4 text-xs text-slate-300">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 font-semibold text-amber-300">
+              <Sparkles className="h-3.5 w-3.5" />
+              {isId ? `Promo Perkenalan ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}/gambar` : `Intro Promo ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}/image`}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-semibold text-violet-300">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {isId ? 'Sudah termasuk pecah warna sablon' : 'Screen-print color separation included'}
+            </span>
           </div>
+        </div>
+
+        <div className="mx-auto mt-6 grid max-w-4xl gap-3 sm:grid-cols-3">
+          {stats.map((stat) => (
+            <div key={stat.label} className="landing-stat-card flex items-center gap-4 rounded-2xl px-5 py-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5">
+                <stat.icon className={`h-5 w-5 ${stat.accent}`} />
+              </div>
+              <div>
+                <div className={`text-2xl font-extrabold tracking-tight ${stat.accent}`}>{stat.value}</div>
+                <div className="text-xs font-medium text-slate-400">{stat.label}</div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -1107,19 +1119,18 @@ function HeroSection({ locale = 'id', onStart }) {
 }
 
 function StepCard({ step }) {
-  const accentClass = step.number === '01' ? 'landing-step-cyan' : step.number === '02' ? 'landing-step-violet' : 'landing-step-amber';
   return (
-    <div className={`landing-step-card glass-card group relative overflow-hidden rounded-3xl p-6 text-center transition-transform hover:-translate-y-1 ${accentClass}`}>
-      <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-chart-2 text-base font-bold text-white shadow-lg shadow-primary/20">
-        {step.number}
+    <div className="glass-card relative flex flex-col rounded-2xl p-6 transition hover:-translate-y-0.5 hover:border-primary/40">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 text-violet-300">
+          <step.icon className="h-5 w-5" />
+        </div>
+        <span className="font-mono text-xs font-bold text-slate-400">STEP {step.number}</span>
       </div>
-      <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/5 text-primary transition group-hover:scale-105">
-        <step.icon className="h-9 w-9" />
-      </div>
-      <h3 className="mb-2 text-xl font-bold text-foreground">{step.title}</h3>
-      <p className="mb-3 text-sm text-mutedForeground sm:text-base">{step.description}</p>
-      <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-medium text-mutedForeground">
-        <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+      <h3 className="text-lg font-bold text-white">{step.title}</h3>
+      <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-300">{step.description}</p>
+      <div className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
+        <CheckCircle2 className="h-3.5 w-3.5 text-violet-400" />
         {step.detail}
       </div>
     </div>
@@ -1130,22 +1141,18 @@ function HowItWorksSection({ locale = 'id' }) {
   const isId = locale === 'id';
   const steps = isId ? howItWorks : howItWorksEn;
   return (
-    <section id="how-it-works" className="relative overflow-hidden py-20 sm:py-28">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-20 top-1/3 h-40 w-40 rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute -right-20 bottom-1/3 h-40 w-40 rounded-full bg-chart-2/5 blur-3xl" />
-      </div>
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow={isId ? 'Mudah dan Cepat' : 'Fast and Simple'} title={isId ? 'Cara Kerja' : 'How It Works'} subtitle={isId ? 'Tiga langkah mudah untuk mendapatkan logo kaos profesional' : 'Three easy steps to get a more professional shirt logo'} />
-        <div className="relative mt-16">
-          <div className="pointer-events-none absolute left-[10%] right-[10%] top-[190px] hidden h-px bg-gradient-to-r from-chart-2/25 via-primary/25 to-chart-3/25 lg:block" />
-          <div className="grid gap-8 lg:grid-cols-3">
+    <section id="how-it-works" className="relative py-16 sm:py-24">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <SectionHeader
+          eyebrow={isId ? 'Mudah dan Cepat' : 'Fast and Simple'}
+          title={isId ? 'Cara Kerja' : 'How It Works'}
+          subtitle={isId ? 'Tiga langkah ringkas untuk hasil desain siap sablon & sticker' : 'Three simple steps for print-ready screen and sticker designs'}
+        />
+        <div className="mt-10 grid gap-5 lg:grid-cols-3">
           {steps.map((step) => (
             <StepCard key={step.number} step={step} />
           ))}
-          </div>
         </div>
-        <p className="mt-14 text-center text-sm text-mutedForeground">{isId ? 'Seluruh proses berjalan otomatis - tidak perlu keahlian desain.' : 'The entire process runs automatically, so no design expertise is required.'}</p>
       </div>
     </section>
   );
@@ -1156,46 +1163,43 @@ function PricingSection({ locale = 'id' }) {
   const cards = isId ? pricingCards : pricingCardsEn;
   const packages = isId ? creditPackages : creditPackagesEn;
   return (
-    <section id="pricing" className="relative overflow-hidden py-20 sm:py-28">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-16 top-1/4 h-32 w-32 rounded-full bg-primary/5 blur-2xl" />
-        <div className="absolute -right-16 bottom-1/4 h-40 w-40 rounded-full bg-chart-2/5 blur-2xl" />
-        <div className="absolute left-1/3 top-[10%] h-24 w-24 rounded-full bg-chart-3/5 blur-2xl" />
-      </div>
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow={isId ? 'Harga Transparan' : 'Transparent Pricing'} title={isId ? 'Harga Terjangkau' : 'Affordable Pricing'} subtitle={isId ? 'Pilih mode yang sesuai dengan kebutuhan Anda' : 'Choose the mode that best matches your workflow'} />
+    <section id="pricing" className="relative py-16 sm:py-24">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <SectionHeader
+          eyebrow={isId ? 'Harga Transparan' : 'Transparent Pricing'}
+          title={isId ? 'Pilih Mode Sesuai Kebutuhan' : 'Choose Your Processing Mode'}
+          subtitle={isId ? 'Bayar per gambar sesuai kebutuhan, tanpa langganan bulanan.' : 'Pay per image as you go, with no monthly subscription.'}
+        />
 
-        <div className="mt-14 grid gap-6 lg:grid-cols-2 lg:max-w-4xl lg:mx-auto">
+        <div className="mx-auto mt-10 grid max-w-4xl gap-5 lg:grid-cols-2">
           {cards.map((card) => (
-            <div key={card.title} className={`landing-price-card relative overflow-hidden rounded-3xl ${card.popular ? 'landing-price-primary ring-1 ring-primary/20' : 'landing-price-secondary'}`}>
+            <div key={card.title} className="relative overflow-hidden rounded-3xl">
               {card.popular && (
-                <div className="absolute right-4 top-4 z-10 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-primary/20">
-                  <div className="inline-flex items-center gap-1">
-                    <Crown className="h-3.5 w-3.5" />
-                    {isId ? 'Paling Populer' : 'Most Popular'}
-                  </div>
+                <div className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white shadow-md">
+                  <Crown className="h-3.5 w-3.5" />
+                  {isId ? 'Paling Populer' : 'Most Popular'}
                 </div>
               )}
-              <div className={`h-full rounded-3xl p-6 sm:p-8 ${card.popular ? 'landing-pricing-surface-primary' : 'landing-pricing-surface-secondary'}`}>
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${card.popular ? 'bg-primary/10 text-primary' : 'bg-chart-2/10 text-chart-2'}`}>
-                    <card.icon className="h-6 w-6" />
+              <div className={`h-full rounded-3xl p-6 sm:p-7 ${card.popular ? 'landing-pricing-surface-primary' : 'landing-pricing-surface-secondary'}`}>
+                <div className="flex items-start gap-3 pr-24">
+                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${card.popular ? 'bg-primary/20 text-violet-300' : 'bg-blue-500/15 text-blue-300'}`}>
+                    <card.icon className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-foreground">{card.title}</h3>
-                    <p className="text-sm text-mutedForeground">{card.description}</p>
+                    <h3 className="text-xl font-bold text-white">{card.title}</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-300">{card.description}</p>
                   </div>
                 </div>
 
-                <div className="mt-6 text-4xl font-black tracking-tight text-foreground">
-                  {formatMiniRupiah(card.price)}
-                  <span className="text-base font-semibold text-mutedForeground">{isId ? '/gambar' : '/image'}</span>
+                <div className="mt-6 flex items-baseline gap-1 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                  <span>{formatMiniRupiah(card.price)}</span>
+                  <span className="text-sm font-medium text-slate-400">{isId ? '/gambar' : '/image'}</span>
                 </div>
 
-                <ul className="mt-6 space-y-3">
+                <ul className="mt-5 space-y-2.5 border-t border-white/10 pt-5">
                   {card.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-3 text-sm text-foreground">
-                      <BadgeCheck className={`h-4 w-4 ${card.popular ? 'text-primary' : 'text-chart-2'}`} />
+                    <li key={feature} className="flex items-center gap-2.5 text-sm text-slate-200">
+                      <BadgeCheck className={`h-4 w-4 shrink-0 ${card.popular ? 'text-violet-400' : 'text-blue-400'}`} />
                       {feature}
                     </li>
                   ))}
@@ -1205,39 +1209,39 @@ function PricingSection({ locale = 'id' }) {
           ))}
         </div>
 
-        <div className="mt-20 text-center">
-          <div className="mb-3 flex items-center justify-center gap-2">
-            <CreditCard className="h-6 w-6 text-primary" />
-            <h3 className="text-2xl font-bold text-foreground sm:text-3xl">{isId ? 'Beli Credit' : 'Buy Credits'}</h3>
-          </div>
-          <p className="text-mutedForeground">{isId ? 'Beli credit untuk mulai memproses logo Anda' : 'Buy credits to start processing your logos'}</p>
+        <div className="mt-16 text-center">
+          <h3 className="text-xl font-bold text-white sm:text-2xl">{isId ? 'Paket Saldo Credit' : 'Credit Top-Up Packages'}</h3>
+          <p className="mt-1 text-sm text-slate-400">{isId ? 'Isi saldo fleksibel via QRIS otomatis atau Shopee' : 'Flexible top-ups via automatic QRIS or Shopee'}</p>
         </div>
 
-        <div className="mt-10 grid gap-4 sm:grid-cols-3 lg:max-w-5xl lg:mx-auto">
+        <div className="mx-auto mt-7 grid max-w-5xl gap-4 sm:grid-cols-3">
           {packages.map((pkg) => (
-            <div key={pkg.name} className={`landing-mini-card landing-credit-card rounded-2xl p-5 ${pkg.highlight ? 'landing-credit-card-highlight ring-1 ring-primary/20' : ''}`}>
-              {pkg.highlight && <div className="mb-3 inline-flex rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white">{isId ? 'Rekomendasi' : 'Recommended'}</div>}
-              <h4 className="text-lg font-bold text-foreground">{pkg.name}</h4>
-              <p className="mt-1 text-sm text-mutedForeground">
+            <div key={pkg.name} className={`landing-credit-card flex flex-col rounded-2xl p-5 ${pkg.highlight ? 'landing-credit-card-highlight ring-1 ring-primary/40' : ''}`}>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-base font-bold text-white">{pkg.name}</h4>
+                {pkg.highlight && (
+                  <span className="rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-semibold text-white">
+                    {isId ? 'Favorit' : 'Popular'}
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 text-2xl font-extrabold text-white">{formatMiniRupiah(pkg.price)}</div>
+              <p className="mt-1 text-xs text-slate-400">
                 {isId ? `Saldo masuk ${formatMiniRupiah(pkg.balanceIdr)}` : `Balance added ${formatMiniRupiah(pkg.balanceIdr)}`}
               </p>
-              <div className="mt-4 text-2xl font-black text-foreground">{formatMiniRupiah(pkg.price)}</div>
-              <div className="mt-1 text-sm text-mutedForeground">
-                {isId ? 'AI Redraw sudah termasuk pecah warna' : 'AI Redesign includes color separation'}
+              <div className="mt-4 space-y-1.5 border-t border-white/10 pt-3 text-xs text-slate-300">
+                <p>• {pkg.aiRedesign}× AI Redesign ({isId ? 'termasuk pecah warna' : 'color separation included'})</p>
+                <p>• {pkg.readyToTrace}× {isId ? 'Vector Siap Proses' : 'Production-Ready Vector'}</p>
               </div>
-              <div className="mt-4 space-y-2 text-sm text-mutedForeground">
-                <p>{pkg.aiRedesign}x AI Redesign</p>
-                <p>{pkg.readyToTrace}x {isId ? 'Vector Siap Proses' : 'Production-Ready Vector'}</p>
-              </div>
-              {pkg.callout && <p className="mt-3 text-xs text-mutedForeground">{pkg.callout}</p>}
+              {pkg.callout && <p className="mt-3 flex-1 text-xs leading-relaxed text-slate-400">{pkg.callout}</p>}
               <button
                 type="button"
                 onClick={() => scrollToId('auth')}
                 className={`mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold transition ${
-                  pkg.highlight ? 'gradient-bg text-white shadow-lg shadow-primary/20' : 'border border-border bg-white text-foreground hover:border-primary/30 hover:bg-white/5'
+                  pkg.highlight ? 'gradient-bg text-white shadow-md shadow-primary/25' : 'border border-white/15 bg-white/5 text-white hover:bg-white/10'
                 }`}
               >
-                {isId ? 'Mulai Paket Ini' : 'Choose This Package'}
+                {isId ? 'Pilih Paket' : 'Select Package'}
               </button>
             </div>
           ))}
@@ -1251,7 +1255,7 @@ function StarRow({ rating }) {
   return (
     <div className="flex gap-0.5">
       {Array.from({ length: 5 }).map((_, index) => (
-        <Star key={index} className={`h-4 w-4 ${index < rating ? 'fill-chart-3 text-chart-3' : 'text-border'}`} />
+        <Star key={index} className={`h-3.5 w-3.5 ${index < rating ? 'fill-amber-400 text-amber-400' : 'text-slate-700'}`} />
       ))}
     </div>
   );
@@ -1261,58 +1265,32 @@ function TestimonialsSection({ locale = 'id' }) {
   const isId = locale === 'id';
   const items = isId ? testimonials : testimonialsEn;
   return (
-    <section id="testimonials" className="relative overflow-hidden py-20 sm:py-28">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-20 top-1/3 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute -right-20 bottom-1/3 h-64 w-64 rounded-full bg-chart-3/5 blur-3xl" />
-      </div>
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow={isId ? 'Testimoni Nyata' : 'Real Testimonials'} title={isId ? 'Apa Kata Mereka' : 'What They Say'} subtitle={isId ? 'Ribuan pengguna telah merasakan kemudahan redesign logo dengan AI' : 'Thousands of users have experienced easier logo redesign with AI'} />
-        <div className="mt-14 grid gap-6 md:grid-cols-3">
+    <section id="testimonials" className="relative py-16 sm:py-24">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <SectionHeader
+          eyebrow={isId ? 'Testimoni' : 'Testimonials'}
+          title={isId ? 'Dipercaya Pelaku Sablon & Desainer' : 'Trusted by Print Shops & Designers'}
+          subtitle={isId ? 'Pengalaman nyata mempercepat produksi sablon dan sticker' : 'Real feedback from screen-print and sticker production workflows'}
+        />
+        <div className="mt-10 grid gap-5 md:grid-cols-3">
           {items.map((testimonial, index) => (
-            <div key={testimonial.name} className={`rounded-3xl p-6 ${index === 1 ? 'landing-testimonial-featured md:mt-8' : 'glass-card'}`}>
-              <div className="mb-4 flex items-start justify-between">
-                <div className="relative">
-                  <Quote className="h-10 w-10 text-primary/10" />
-                  <Quote className="absolute left-1 top-1 h-7 w-7 text-primary/20" />
-                </div>
-                <div className="flex items-center gap-1 rounded-full bg-chart-3/10 px-2.5 py-1 text-xs font-bold text-chart-3">
-                  <Star className="h-3 w-3 fill-chart-3 text-chart-3" />
-                  {testimonial.rating}.0
-                </div>
+            <div key={testimonial.name} className={`flex flex-col rounded-2xl p-6 ${index === 1 ? 'landing-testimonial-featured' : 'glass-card'}`}>
+              <div className="mb-3 flex items-center justify-between">
+                <StarRow rating={testimonial.rating} />
+                <Quote className="h-5 w-5 text-primary/40" />
               </div>
-              <StarRow rating={testimonial.rating} />
-              <p className="mt-4 mb-6 text-sm leading-relaxed text-mutedForeground sm:text-[15px]">
-                {testimonial.quote}
-              </p>
-              <div className="flex items-center gap-3 border-t border-border pt-5">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-primary to-chart-2 text-sm font-bold text-white">
+              <p className="flex-1 text-sm leading-relaxed text-slate-300">{testimonial.quote}</p>
+              <div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-blue-600 text-xs font-bold text-white">
                   {testimonial.initials}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{testimonial.name}</p>
-                  <p className="text-xs text-mutedForeground">{testimonial.role}</p>
+                  <p className="text-sm font-semibold text-white">{testimonial.name}</p>
+                  <p className="text-xs text-slate-400">{testimonial.role}</p>
                 </div>
               </div>
             </div>
           ))}
-        </div>
-        <div className="mt-12 flex justify-center">
-          <div className="landing-trust-pill inline-flex items-center gap-3 rounded-full px-4 py-3 text-sm text-mutedForeground">
-            <div className="flex -space-x-2">
-              {['S', 'R', 'A', 'B'].map((initial) => (
-                <span key={initial} className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-xs font-bold text-foreground">
-                  {initial}
-                </span>
-              ))}
-            </div>
-            <div className="flex items-center gap-1 text-chart-3">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <Star key={index} className="h-3.5 w-3.5 fill-chart-3 text-chart-3" />
-              ))}
-            </div>
-            <span>{isId ? 'Dipercaya 500+ pengguna' : 'Trusted by 500+ users'}</span>
-          </div>
         </div>
       </div>
     </section>
@@ -1323,26 +1301,23 @@ function FaqSection({ locale = 'id' }) {
   const isId = locale === 'id';
   const items = isId ? faqItems : faqItemsEn;
   return (
-    <section id="faq" className="relative overflow-hidden py-20 sm:py-28">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -right-20 top-1/4 h-40 w-40 rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute -left-20 bottom-1/4 h-40 w-40 rounded-full bg-chart-2/5 blur-3xl" />
-      </div>
-      <div className="relative mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-        <SectionHeader title={isId ? 'Pertanyaan Umum' : 'Frequently Asked Questions'} subtitle={isId ? 'Temukan jawaban untuk pertanyaan yang sering diajukan' : 'Find answers to the questions people ask most often'} />
-        <div className="mt-12 overflow-hidden rounded-3xl border border-border/70 glass-card">
+    <section id="faq" className="relative py-16 sm:py-24">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+        <SectionHeader
+          title={isId ? 'Pertanyaan Umum' : 'Frequently Asked Questions'}
+          subtitle={isId ? 'Jawaban singkat seputar cara kerja, harga, dan keamanan file' : 'Quick answers about workflow, pricing, and file security'}
+        />
+        <div className="glass-card mt-10 overflow-hidden rounded-2xl">
           {items.map((item, index) => (
             <details key={item.question} className="landing-faq-item group overflow-hidden">
-              <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 text-left text-sm font-semibold text-foreground sm:text-base">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary/20 text-xs font-semibold text-primary">
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 text-left text-sm font-semibold text-white sm:text-base">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-violet-300">
                   {index + 1}
                 </span>
                 <span className="flex-1">{item.question}</span>
-                <ChevronDown className="h-4 w-4 text-mutedForeground transition group-open:rotate-180" />
+                <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180" />
               </summary>
-              <div className="px-5 pb-5 pl-14 text-sm leading-relaxed text-mutedForeground sm:text-base">
-                {item.answer}
-              </div>
+              <div className="px-5 pb-4 pl-14 text-sm leading-relaxed text-slate-300">{item.answer}</div>
             </details>
           ))}
         </div>
@@ -1355,96 +1330,85 @@ function CtaSection({ locale = 'id', onStart }) {
   const isId = locale === 'id';
   const badges = isId ? trustBadges : trustBadgesEn;
   return (
-    <section className="relative overflow-hidden py-24 sm:py-32">
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 gradient-bg" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(2,6,23,0.35)_100%)]" />
-        <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.35) 1px, transparent 1px)', backgroundSize: '50px 50px' }} />
-      </div>
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
-          <div className="mb-8 flex h-18 w-18 items-center justify-center rounded-2xl border border-white/20 bg-white/10 shadow-xl backdrop-blur-sm">
-            <Sparkles className="h-9 w-9 text-white" />
-          </div>
-          <h2 className="max-w-3xl text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
-            {isId ? 'Siap Transformasi ' : 'Ready to Transform '}<span className="relative inline-block">{isId ? 'Logo Anda?' : 'Your Logo?'}
-              <span className="absolute -bottom-1 left-0 right-0 h-1 rounded-full bg-chart-3/60" />
-            </span>
-          </h2>
-          <p className="mt-5 max-w-xl text-lg text-white/80 sm:text-xl">
-            {isId ? 'Masuk sekarang dan manfaatkan promo perkenalan AI Redraw hanya Rp5.000, sudah termasuk pecah warna, atau pilih Vector Siap Proses untuk file SVG murni.' : 'Sign in now and use the introductory AI Redesign promo at only Rp5,000 including color separation, or choose Production-Ready Vector for pure SVG files.'}
-          </p>
+    <section className="relative overflow-hidden py-16 sm:py-20">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="gradient-bg relative overflow-hidden rounded-3xl px-6 py-12 text-center shadow-2xl shadow-primary/20 sm:px-10 sm:py-16">
+          <div className="relative mx-auto max-w-3xl">
+            <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              {isId ? 'Siap Ubah Foto Logo Jadi Siap Produksi?' : 'Ready to Turn Logo Photos Into Print Files?'}
+            </h2>
+            <p className="mt-3 text-base text-white/90 sm:text-lg">
+              {isId
+                ? 'Masuk sekarang dan manfaatkan promo perkenalan AI Redraw hanya Rp5.000, sudah termasuk pecah warna, atau pilih Vector Siap Proses untuk file SVG murni.'
+                : 'Sign in now and use the introductory AI Redesign promo at only Rp5,000 including color separation, or choose Production-Ready Vector for pure SVG files.'}
+            </p>
+            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={onStart}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-7 text-sm font-bold text-slate-900 shadow-lg transition hover:bg-slate-100 sm:text-base"
+              >
+                {isId ? 'Mulai Sekarang' : 'Start Now'}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToId('how-it-works')}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-7 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 sm:text-base"
+              >
+                <Eye className="h-4 w-4" />
+                {isId ? 'Lihat Demo' : 'See Demo'}
+              </button>
+            </div>
 
-          <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-            <button
-              type="button"
-              onClick={onStart}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-8 text-base font-semibold text-primary shadow-lg transition hover:bg-white/95"
-            >
-              {isId ? 'Mulai Sekarang' : 'Start Now'}
-              <ArrowRight className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToId('how-it-works')}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-8 text-base font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
-            >
-              <Eye className="h-4 w-4" />
-              {isId ? 'Lihat Demo' : 'See Demo'}
-            </button>
+            <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {badges.map((badge) => (
+                <div key={badge.text} className="landing-cta-badge rounded-2xl px-3 py-3">
+                  <badge.icon className="mx-auto h-4 w-4 text-white/90" />
+                  <div className="mt-1.5 text-xs font-semibold text-white">{badge.text}</div>
+                  <div className="mt-0.5 text-[11px] text-white/75">{badge.subtext}</div>
+                </div>
+              ))}
+            </div>
           </div>
-
-          <div className="mt-14 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
-            {badges.map((badge) => (
-              <div key={badge.text} className="landing-cta-badge rounded-2xl px-4 py-3">
-                <badge.icon className="mx-auto h-5 w-5 text-white/80" />
-                <div className="mt-2 text-sm font-semibold text-white/90">{badge.text}</div>
-                <div className="mt-1 text-[10px] text-white/60">{badge.subtext}</div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-8 text-sm text-white/55">{isId ? 'Tanpa risiko - Tanpa komitmen - Bisa berhenti kapan saja' : 'No risk - No commitment - Cancel any time'}</p>
         </div>
       </div>
     </section>
   );
 }
 
-function AuthSection({ locale = 'id', authPanel, onStart }) {
+function AuthSection({ locale = 'id', authPanel }) {
   if (!authPanel) return null;
   const isId = locale === 'id';
   return (
-    <section id="auth" className="relative overflow-hidden py-20 sm:py-28">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-10 top-10 h-40 w-40 rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute right-10 bottom-10 h-40 w-40 rounded-full bg-chart-2/5 blur-3xl" />
-      </div>
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+    <section id="auth" className="relative py-16 sm:py-24">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary">
-              <Sparkles className="h-4 w-4" />
-              {isId ? 'Akses akun' : 'Account access'}
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3.5 py-1 text-xs font-semibold text-violet-300">
+              <Sparkles className="h-3.5 w-3.5" />
+              {isId ? 'Akses Studio' : 'Studio Access'}
             </div>
-            <BrandMark className="justify-start" textClassName="text-left" />
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              <span className="gradient-text">{isId ? 'Masuk untuk melanjutkan' : 'Sign in to continue'}</span>
+            <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              <span className="gradient-text">{isId ? 'Masuk untuk Mulai Memproses Logo' : 'Sign In to Start Processing'}</span>
             </h2>
-            <p className="max-w-2xl text-lg leading-8 text-mutedForeground">
+            <p className="max-w-xl text-base leading-relaxed text-slate-300">
               {isId
-                ? 'Gunakan akun Anda untuk mengakses dashboard, billing, dan riwayat proses EasyRedesign Pro dengan alur yang sama seperti aplikasi utama.'
-                : 'Use your account to access the dashboard, billing, and processing history with the same flow as the main application.'}
+                ? 'Kelola proses redesign AI, pecah warna sablon, cutline sticker, riwayat pekerjaan, dan top up saldo QRIS otomatis dalam satu dashboard.'
+                : 'Manage AI redraws, screen-print color separations, sticker cutlines, job history, and automatic QRIS top-ups in one workspace.'}
             </p>
-            <button
-              type="button"
-              onClick={onStart}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-white px-6 text-sm font-semibold text-primary transition hover:border-primary hover:bg-primary/5"
-            >
-              {isId ? 'Scroll ke form login' : 'Scroll to the sign-in form'}
-              <ArrowRight className="h-4 w-4" />
-            </button>
+            <div className="grid gap-2.5 pt-2 text-sm text-slate-300 sm:grid-cols-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-violet-400" />
+                <span>{isId ? 'Riwayat tersimpan rapi di browser' : 'History saved cleanly in browser'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-violet-400" />
+                <span>{isId ? 'Top up QRIS otomatis instan' : 'Instant automatic QRIS top-up'}</span>
+              </div>
+            </div>
           </div>
-          <div className="landing-auth-shell">{authPanel}</div>
+          <div>{authPanel}</div>
         </div>
       </div>
     </section>
@@ -1453,7 +1417,7 @@ function AuthSection({ locale = 'id', authPanel, onStart }) {
 
 function PublicLanding({ locale = 'id', onLocaleChange, onStart, authPanel, onNavigate }) {
   return (
-    <div className="landing-shell min-h-screen bg-background text-foreground">
+    <div className="landing-shell min-h-screen text-slate-100">
       <PublicNav locale={locale} onLocaleChange={onLocaleChange} onStart={onStart} onNavigate={onNavigate} />
       <HeroSection locale={locale} onStart={onStart} />
       <HowItWorksSection locale={locale} />
@@ -1470,71 +1434,83 @@ function PublicLanding({ locale = 'id', onLocaleChange, onStart, authPanel, onNa
 function LegalShell({ locale = 'id', title, subtitle, icon: Icon, onNavigate, children }) {
   const isId = locale === 'id';
   return (
-    <article className="min-h-screen gradient-bg-subtle">
-      <div className="gradient-bg py-16 sm:py-20">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+    <article className="min-h-screen gradient-bg-subtle text-slate-900">
+      <header className="glass-nav sticky top-0 z-30">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <button type="button" onClick={() => navigatePath('/', onNavigate)} className="text-left transition hover:opacity-80">
+            <BrandMark compact />
+          </button>
           <button
             type="button"
             onClick={() => navigatePath('/', onNavigate)}
-            className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
+            className="studio-btn-secondary"
           >
             <ArrowRight className="h-4 w-4 rotate-180" />
-            {isId ? 'Kembali' : 'Back'}
+            {isId ? 'Kembali ke Beranda' : 'Back to Home'}
           </button>
-          <div className="flex items-start gap-4 text-white">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 backdrop-blur-sm">
-              <Icon className="h-8 w-8" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold sm:text-4xl lg:text-5xl">{title}</h1>
-              <p className="mt-3 text-lg text-white/80">{subtitle}</p>
-            </div>
+        </div>
+      </header>
+
+      <div className="border-b border-slate-200/80 bg-white/70 py-10 sm:py-12">
+        <div className="mx-auto flex max-w-6xl items-start gap-4 px-4 sm:px-6 lg:px-8">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Icon className="h-7 w-7" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">{title}</h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">{subtitle}</p>
           </div>
         </div>
       </div>
-      <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">{children}</div>
+
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">{children}</div>
     </article>
   );
 }
 
 function LegalSectionList({ sections }) {
   return (
-    <div className="space-y-6">
-      <div className="glass-card rounded-3xl p-6">
-        <h2 className="text-lg font-semibold text-foreground">Daftar Isi</h2>
-        <ol className="mt-4 space-y-2">
+    <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+      <aside className="studio-card p-5 lg:sticky lg:top-24">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Daftar Isi</h2>
+        <ol className="mt-3 space-y-1.5">
           {sections.map((section) => (
             <li key={section.title}>
-              <a href={`#${slugify(section.title)}`} className="inline-flex items-center gap-2 text-sm text-mutedForeground transition hover:text-primary">
-                <section.icon className="h-4 w-4 shrink-0" />
-                {section.title}
+              <a
+                href={`#${slugify(section.title)}`}
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-primary/5 hover:text-primary"
+              >
+                <section.icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="truncate">{section.title}</span>
               </a>
             </li>
           ))}
         </ol>
-      </div>
+      </aside>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {sections.map((section) => (
-          <div key={section.title} id={slugify(section.title)} className="glass-card rounded-3xl p-6">
-            <div className="mb-4 flex items-center gap-2">
-              <section.icon className="h-5 w-5 text-primary" />
-              <h3 className="text-xl font-bold text-foreground">{section.title}</h3>
+          <div key={section.title} id={slugify(section.title)} className="studio-card scroll-mt-24 p-6">
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <section.icon className="h-4 w-4" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">{section.title}</h3>
             </div>
 
             {section.content?.map((paragraph) => (
-              <p key={paragraph} className="mb-4 text-sm leading-relaxed text-mutedForeground sm:text-base">
+              <p key={paragraph} className="mb-3 text-sm leading-relaxed text-slate-600">
                 {paragraph}
               </p>
             ))}
 
             {section.subsections?.map((subsection) => (
-              <div key={subsection.subtitle} className="mb-4">
-                <h4 className="mb-2 text-sm font-semibold text-foreground sm:text-base">{subsection.subtitle}</h4>
-                <ul className="ml-4 space-y-1.5">
+              <div key={subsection.subtitle} className="mb-4 rounded-xl bg-slate-50 p-4">
+                <h4 className="mb-2 text-sm font-semibold text-slate-900">{subsection.subtitle}</h4>
+                <ul className="space-y-1.5">
                   {subsection.items.map((item) => (
-                    <li key={item} className="flex items-start gap-2 text-sm text-mutedForeground sm:text-base">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
+                    <li key={item} className="flex items-start gap-2 text-sm text-slate-600">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
                       {item}
                     </li>
                   ))}
@@ -1543,10 +1519,10 @@ function LegalSectionList({ sections }) {
             ))}
 
             {section.list && (
-              <ul className="ml-4 space-y-2">
+              <ul className="space-y-2">
                 {section.list.map((item) => (
-                  <li key={item} className="flex items-start gap-2 text-sm text-mutedForeground sm:text-base">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
+                  <li key={item} className="flex items-start gap-2 text-sm text-slate-600">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
                     {item}
                   </li>
                 ))}
@@ -1554,7 +1530,7 @@ function LegalSectionList({ sections }) {
             )}
 
             {section.afterList?.map((paragraph) => (
-              <p key={paragraph} className="mt-4 text-sm leading-relaxed text-mutedForeground sm:text-base">
+              <p key={paragraph} className="mt-3 text-xs leading-relaxed text-slate-500">
                 {paragraph}
               </p>
             ))}
@@ -1568,11 +1544,17 @@ function LegalSectionList({ sections }) {
 function PrivacyPage({ locale = 'id', onNavigate }) {
   const isId = locale === 'id';
   return (
-    <LegalShell locale={locale} title={isId ? 'Kebijakan Privasi' : 'Privacy Policy'} subtitle={isId ? 'Bagaimana kami mengumpulkan, menggunakan, dan melindungi informasi pribadi Anda' : 'How we collect, use, and protect your personal information'} icon={ShieldCheck} onNavigate={onNavigate}>
+    <LegalShell
+      locale={locale}
+      title={isId ? 'Kebijakan Privasi' : 'Privacy Policy'}
+      subtitle={isId ? 'Bagaimana kami mengumpulkan, menggunakan, dan melindungi informasi pribadi Anda' : 'How we collect, use, and protect your personal information'}
+      icon={ShieldCheck}
+      onNavigate={onNavigate}
+    >
       <LegalSectionList sections={privacySections} />
-      <div className="mt-12 text-center text-sm text-mutedForeground">
+      <div className="mt-10 text-center text-sm text-slate-500">
         {isId ? 'Pertanyaan tentang kebijakan privasi kami?' : 'Questions about our privacy policy?'}{' '}
-        <button type="button" onClick={() => navigatePath('/contact', onNavigate)} className="text-primary underline underline-offset-4">
+        <button type="button" onClick={() => navigatePath('/contact', onNavigate)} className="font-semibold text-primary underline underline-offset-4">
           {isId ? 'Hubungi kami' : 'Contact us'}
         </button>
       </div>
@@ -1583,11 +1565,17 @@ function PrivacyPage({ locale = 'id', onNavigate }) {
 function TermsPage({ locale = 'id', onNavigate }) {
   const isId = locale === 'id';
   return (
-    <LegalShell locale={locale} title={isId ? 'Syarat dan Ketentuan' : 'Terms and Conditions'} subtitle={isId ? 'Aturan penggunaan layanan EasyRedesign Pro' : 'Rules for using EasyRedesign Pro'} icon={FileText} onNavigate={onNavigate}>
+    <LegalShell
+      locale={locale}
+      title={isId ? 'Syarat dan Ketentuan' : 'Terms and Conditions'}
+      subtitle={isId ? 'Aturan penggunaan layanan EasyRedesign Pro' : 'Rules for using EasyRedesign Pro'}
+      icon={FileText}
+      onNavigate={onNavigate}
+    >
       <LegalSectionList sections={termsSections} />
-      <div className="mt-12 text-center text-sm text-mutedForeground">
+      <div className="mt-10 text-center text-sm text-slate-500">
         {isId ? 'Pertanyaan tentang syarat dan ketentuan?' : 'Questions about our terms?'}{' '}
-        <button type="button" onClick={() => navigatePath('/contact', onNavigate)} className="text-primary underline underline-offset-4">
+        <button type="button" onClick={() => navigatePath('/contact', onNavigate)} className="font-semibold text-primary underline underline-offset-4">
           {isId ? 'Hubungi kami' : 'Contact us'}
         </button>
       </div>
@@ -1602,14 +1590,14 @@ function ContactFaqItem({ question, answer }) {
     <button
       type="button"
       onClick={() => setOpen((value) => !value)}
-      className="glass-card rounded-2xl p-4 text-left transition hover:-translate-y-0.5"
+      className="studio-card p-4 text-left transition hover:border-primary/40"
     >
       <div className="flex items-center gap-3">
         <HelpCircle className="h-5 w-5 shrink-0 text-primary" />
-        <span className="flex-1 text-sm font-semibold text-foreground">{question}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-mutedForeground transition ${open ? 'rotate-180' : ''}`} />
+        <span className="flex-1 text-sm font-semibold text-slate-900">{question}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
       </div>
-      {open && <p className="mt-3 text-sm leading-relaxed text-mutedForeground">{answer}</p>}
+      {open && <p className="mt-3 pl-8 text-sm leading-relaxed text-slate-600">{answer}</p>}
     </button>
   );
 }
@@ -1682,35 +1670,41 @@ function ContactPage({ locale = 'id', onNavigate }) {
   }
 
   return (
-    <LegalShell locale={locale} title={isId ? 'Hubungi Kami' : 'Contact Us'} subtitle={isId ? 'Punya pertanyaan atau butuh bantuan? Tim kami siap membantu Anda' : 'Have a question or need help? Our team is ready to assist you.'} icon={Mail} onNavigate={onNavigate}>
-      <div className="mb-10 grid gap-3 sm:grid-cols-2">
+    <LegalShell
+      locale={locale}
+      title={isId ? 'Hubungi Kami' : 'Contact Us'}
+      subtitle={isId ? 'Punya pertanyaan atau butuh bantuan? Tim kami siap membantu Anda' : 'Have a question or need help? Our team is ready to assist you.'}
+      icon={Mail}
+      onNavigate={onNavigate}
+    >
+      <div className="mb-8 grid gap-3 sm:grid-cols-2">
         {contactFaq.map((item) => (
           <ContactFaqItem key={item.question} {...item} />
         ))}
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="glass-card rounded-3xl p-6">
-          <div className="mb-6 flex items-center gap-2">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="studio-card p-6">
+          <div className="mb-5 flex items-center gap-2">
             <Send className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold text-foreground">{isId ? 'Kirim Pesan' : 'Send a Message'}</h2>
+            <h2 className="text-lg font-bold text-slate-900">{isId ? 'Kirim Pesan' : 'Send a Message'}</h2>
           </div>
 
           {success ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-12 text-center">
               <CheckCircle2 className="h-12 w-12 text-emerald-600" />
-              <h3 className="mt-4 text-xl font-semibold text-foreground">{isId ? 'Pesan Terkirim' : 'Message Sent'}</h3>
-              <p className="mt-2 text-sm text-mutedForeground">{isId ? 'Terima kasih telah menghubungi kami. Kami akan merespons pesan Anda dalam 1x24 jam.' : 'Thanks for contacting us. We will respond within 24 hours.'}</p>
-              <button type="button" onClick={() => setSuccess(false)} className="mt-6 rounded-xl border border-emerald-300 px-4 py-2 text-sm font-semibold text-emerald-700">
+              <h3 className="mt-4 text-lg font-bold text-slate-900">{isId ? 'Pesan Terkirim' : 'Message Sent'}</h3>
+              <p className="mt-2 text-sm text-slate-600">{isId ? 'Terima kasih telah menghubungi kami. Kami akan merespons pesan Anda dalam 1x24 jam.' : 'Thanks for contacting us. We will respond within 24 hours.'}</p>
+              <button type="button" onClick={() => setSuccess(false)} className="mt-5 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700">
                 {isId ? 'Kirim Pesan Lain' : 'Send Another Message'}
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="grid gap-5 sm:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <User className="h-4 w-4" />
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block space-y-1.5">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                    <User className="h-4 w-4 text-slate-400" />
                     {isId ? 'Nama Lengkap' : 'Full Name'}
                   </span>
                   <input
@@ -1718,14 +1712,14 @@ function ContactPage({ locale = 'id', onNavigate }) {
                     value={formData.name}
                     onChange={handleChange}
                     placeholder={isId ? 'Masukkan nama Anda' : 'Enter your name'}
-                    className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-primary ${errors.name ? 'border-red-400' : 'border-border'}`}
+                    className={`studio-input ${errors.name ? 'border-red-400' : ''}`}
                   />
                   {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
                 </label>
 
-                <label className="space-y-2">
-                  <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <AtSign className="h-4 w-4" />
+                <label className="block space-y-1.5">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                    <AtSign className="h-4 w-4 text-slate-400" />
                     Email
                   </span>
                   <input
@@ -1734,25 +1728,27 @@ function ContactPage({ locale = 'id', onNavigate }) {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="nama@email.com"
-                    className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-primary ${errors.email ? 'border-red-400' : 'border-border'}`}
+                    className={`studio-input ${errors.email ? 'border-red-400' : ''}`}
                   />
                   {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
                 </label>
               </div>
 
-              <label className="space-y-2">
-                <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <FileText className="h-4 w-4" />
+              <div className="space-y-1.5">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                  <FileText className="h-4 w-4 text-slate-400" />
                   {isId ? 'Subjek' : 'Subject'}
                 </span>
-                <div className="grid gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {contactSubjects.map((subject) => (
                     <button
                       key={subject.value}
                       type="button"
                       onClick={() => handleSubjectChange(subject.value)}
-                      className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${
-                        formData.subject === subject.value ? 'border-primary bg-primary text-white' : 'border-border bg-white text-foreground hover:border-primary/40 hover:bg-primary/5'
+                      className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${
+                        formData.subject === subject.value
+                          ? 'border-primary bg-primary text-white shadow-sm'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-primary/40 hover:bg-primary/5'
                       }`}
                     >
                       {subject.label}
@@ -1760,15 +1756,15 @@ function ContactPage({ locale = 'id', onNavigate }) {
                   ))}
                 </div>
                 {errors.subject && <p className="text-xs text-red-500">{errors.subject}</p>}
-              </label>
+              </div>
 
-              <label className="space-y-2">
-                <span className="flex items-center justify-between text-sm font-medium text-foreground">
-                  <span className="flex items-center gap-2">
-                    <Mail className="h-4 w-4" />
+              <label className="block space-y-1.5">
+                <span className="flex items-center justify-between text-sm font-medium text-slate-700">
+                  <span className="flex items-center gap-1.5">
+                    <Mail className="h-4 w-4 text-slate-400" />
                     {isId ? 'Pesan' : 'Message'}
                   </span>
-                  <span className={`text-xs tabular-nums ${formData.message.length > maxMessageLength * 0.9 ? 'text-amber-600' : 'text-mutedForeground'}`}>
+                  <span className={`text-xs tabular-nums ${formData.message.length > maxMessageLength * 0.9 ? 'text-amber-600' : 'text-slate-400'}`}>
                     {formData.message.length.toLocaleString()} / {maxMessageLength.toLocaleString()}
                   </span>
                 </span>
@@ -1776,16 +1772,16 @@ function ContactPage({ locale = 'id', onNavigate }) {
                   name="message"
                   value={formData.message}
                   onChange={handleChange}
-                  rows={8}
+                  rows={6}
                   placeholder={isId ? 'Tuliskan pertanyaan atau kebutuhan Anda di sini' : 'Write your question or request here'}
-                  className={`w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none focus:border-primary ${errors.message ? 'border-red-400' : 'border-border'}`}
+                  className={`studio-input ${errors.message ? 'border-red-400' : ''}`}
                 />
                 {errors.message && <p className="text-xs text-red-500">{errors.message}</p>}
               </label>
 
               {errors.submit && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errors.submit}</p>}
 
-              <button type="submit" disabled={isSubmitting} className="gradient-bg inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="submit" disabled={isSubmitting} className="studio-btn-primary px-6">
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 {isSubmitting ? (isId ? 'Mengirim...' : 'Sending...') : isId ? 'Kirim Pesan' : 'Send Message'}
               </button>
@@ -1793,29 +1789,29 @@ function ContactPage({ locale = 'id', onNavigate }) {
           )}
         </div>
 
-        <aside className="space-y-6">
-          <div className="glass-card rounded-3xl p-6">
-            <h3 className="text-lg font-semibold text-foreground">{isId ? 'Info Kontak' : 'Contact Info'}</h3>
-            <div className="mt-4 space-y-3 text-sm text-mutedForeground">
-              <p>Telepon: {SUPPORT_PHONE}</p>
-              <p>WhatsApp: {SUPPORT_WHATSAPP}</p>
+        <aside className="space-y-4">
+          <div className="studio-card p-5">
+            <h3 className="text-base font-bold text-slate-900">{isId ? 'Info Kontak' : 'Contact Info'}</h3>
+            <div className="mt-3 space-y-2.5 text-sm text-slate-600">
+              <p>Telepon: <strong className="text-slate-900">{SUPPORT_PHONE}</strong></p>
+              <p>WhatsApp: <strong className="text-slate-900">{SUPPORT_WHATSAPP}</strong></p>
               <p>Email: {SUPPORT_EMAIL_LABEL}</p>
-              <p>{isId ? 'Jam kerja: Senin - Jumat, 09.00 - 17.00 WIB' : 'Business hours: Monday - Friday, 09:00 - 17:00 WIB'}</p>
+              <p className="text-xs text-slate-500">{isId ? 'Jam kerja: Senin - Jumat, 09.00 - 17.00 WIB' : 'Business hours: Monday - Friday, 09:00 - 17:00 WIB'}</p>
             </div>
           </div>
 
-          <div className="glass-card rounded-3xl p-6">
-            <h3 className="text-lg font-semibold text-foreground">{isId ? 'Arah Cepat' : 'Quick Links'}</h3>
-            <div className="mt-4 space-y-2 text-sm">
-              <button type="button" onClick={() => goToLandingSection('faq')} className="flex w-full items-center justify-between rounded-xl border border-border bg-white px-4 py-3 text-left text-foreground transition hover:border-primary/40 hover:bg-primary/5">
+          <div className="studio-card p-5">
+            <h3 className="text-base font-bold text-slate-900">{isId ? 'Arah Cepat' : 'Quick Links'}</h3>
+            <div className="mt-3 space-y-2 text-sm">
+              <button type="button" onClick={() => goToLandingSection('faq')} className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-left font-medium text-slate-700 transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary">
                 {isId ? 'Lihat FAQ' : 'See FAQ'}
                 <ArrowUpRight className="h-4 w-4 text-primary" />
               </button>
-              <button type="button" onClick={() => goToLandingSection('pricing')} className="flex w-full items-center justify-between rounded-xl border border-border bg-white px-4 py-3 text-left text-foreground transition hover:border-primary/40 hover:bg-primary/5">
+              <button type="button" onClick={() => goToLandingSection('pricing')} className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-left font-medium text-slate-700 transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary">
                 {isId ? 'Lihat Harga' : 'See Pricing'}
                 <ArrowUpRight className="h-4 w-4 text-primary" />
               </button>
-              <button type="button" onClick={() => goToLandingSection('beranda')} className="flex w-full items-center justify-between rounded-xl border border-border bg-white px-4 py-3 text-left text-foreground transition hover:border-primary/40 hover:bg-primary/5">
+              <button type="button" onClick={() => goToLandingSection('beranda')} className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-left font-medium text-slate-700 transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary">
                 {isId ? 'Kembali ke Landing' : 'Back to Landing'}
                 <ArrowUpRight className="h-4 w-4 text-primary" />
               </button>
@@ -1832,11 +1828,17 @@ function AboutPage({ locale = 'id', onNavigate }) {
   const stats = aboutStats.map((stat) => ({ ...stat }));
 
   return (
-    <LegalShell locale={locale} title={isId ? 'Tentang Kami' : 'About Us'} subtitle={isId ? 'Mengenal lebih dekat EasyRedesign Pro, platform redesign logo berbasis AI' : 'Get to know EasyRedesign Pro, an AI-powered logo redesign platform'} icon={Sparkles} onNavigate={onNavigate}>
+    <LegalShell
+      locale={locale}
+      title={isId ? 'Tentang Kami' : 'About Us'}
+      subtitle={isId ? 'Mengenal lebih dekat EasyRedesign Pro, platform redesign logo berbasis AI' : 'Get to know EasyRedesign Pro, an AI-powered logo redesign platform'}
+      icon={Sparkles}
+      onNavigate={onNavigate}
+    >
       <div className="space-y-6">
-        <div className="glass-card rounded-3xl p-6">
-          <h2 className="text-xl font-semibold text-foreground">{isId ? 'Tentang Kami' : 'About Us'}</h2>
-          <div className="mt-4 space-y-4 text-sm leading-relaxed text-mutedForeground sm:text-base">
+        <div className="studio-card p-6">
+          <h2 className="text-lg font-bold text-slate-900">{isId ? 'Tentang Kami' : 'About Us'}</h2>
+          <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600 sm:text-base">
             <p>
               EasyRedesign Pro adalah platform inovatif yang menggunakan kecerdasan buatan untuk mentransformasi logo kaos menjadi desain profesional yang siap untuk disablon atau dijadikan sticker.
             </p>
@@ -1846,14 +1848,14 @@ function AboutPage({ locale = 'id', onNavigate }) {
           </div>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {aboutMissionVision.map((card) => (
-            <div key={card.title} className="glass-card rounded-3xl p-6">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <card.icon className="h-6 w-6" />
+            <div key={card.title} className="studio-card p-6">
+              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <card.icon className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-semibold text-foreground">{card.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-mutedForeground">{card.description}</p>
+              <h3 className="text-base font-bold text-slate-900">{card.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{card.description}</p>
             </div>
           ))}
         </div>
@@ -1863,49 +1865,49 @@ function AboutPage({ locale = 'id', onNavigate }) {
             const { count, ref } = useCounter(stat.value, true, 1400);
             const displayValue = Number.isInteger(stat.value) ? count.toLocaleString('id-ID') : String(stat.value);
             return (
-              <div key={stat.label} ref={ref} className="glass-card rounded-3xl p-6 text-center">
-                <stat.icon className="mx-auto h-6 w-6 text-primary" />
-                <div className="mt-3 text-3xl font-black text-foreground">
+              <div key={stat.label} ref={ref} className="studio-card p-5 text-center">
+                <stat.icon className="mx-auto h-5 w-5 text-primary" />
+                <div className="mt-2 text-3xl font-extrabold text-slate-900">
                   {displayValue}
                   {stat.suffix}
                 </div>
-                <div className="mt-1 text-sm text-mutedForeground">{stat.label}</div>
+                <div className="mt-1 text-xs font-medium text-slate-500">{stat.label}</div>
               </div>
             );
           })}
         </div>
 
-        <div className="glass-card rounded-3xl p-6">
-          <h3 className="text-xl font-semibold text-foreground">{isId ? 'Perjalanan Kami' : 'Our Journey'}</h3>
-          <div className="relative mt-6 space-y-4">
-            <div className="absolute left-5 top-2 bottom-2 w-px bg-gradient-to-b from-primary/40 via-chart-2/40 to-chart-3/40" />
+        <div className="studio-card p-6">
+          <h3 className="text-lg font-bold text-slate-900">{isId ? 'Perjalanan Kami' : 'Our Journey'}</h3>
+          <div className="relative mt-5 space-y-4">
+            <div className="absolute bottom-2 left-5 top-2 w-px bg-slate-200" />
             {aboutTimeline.map((milestone) => (
-              <div key={milestone.date} className="relative flex items-start gap-4 pl-0">
-                <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-chart-2 text-white">
+              <div key={milestone.date} className="relative flex items-start gap-4">
+                <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-sm">
                   <milestone.icon className="h-4 w-4" />
                 </div>
-                <div className="flex-1 rounded-2xl border border-border bg-white p-4">
-                  <div className="text-xs font-mono text-primary">{milestone.date}</div>
-                  <h4 className="mt-1 text-sm font-semibold text-foreground">{milestone.title}</h4>
-                  <p className="mt-1 text-xs leading-relaxed text-mutedForeground">{milestone.description}</p>
+                <div className="flex-1 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="font-mono text-xs font-semibold text-primary">{milestone.date}</div>
+                  <h4 className="mt-1 text-sm font-bold text-slate-900">{milestone.title}</h4>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{milestone.description}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="glass-card rounded-3xl p-6">
-          <h3 className="text-xl font-semibold text-foreground">{isId ? 'Teknologi yang Digunakan' : 'Technology Stack'}</h3>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="studio-card p-6">
+          <h3 className="text-lg font-bold text-slate-900">{isId ? 'Teknologi yang Digunakan' : 'Technology Stack'}</h3>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {aboutTechStack.map((tech) => (
-              <div key={tech.name} className="rounded-2xl border border-border bg-white p-4">
+              <div key={tech.name} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <tech.icon className="h-5 w-5" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <tech.icon className="h-4 w-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-foreground">{tech.name}</h4>
-                    <p className="mt-1 text-xs leading-relaxed text-mutedForeground">{tech.description}</p>
+                    <h4 className="text-sm font-bold text-slate-900">{tech.name}</h4>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600">{tech.description}</p>
                   </div>
                 </div>
               </div>
@@ -1913,37 +1915,37 @@ function AboutPage({ locale = 'id', onNavigate }) {
           </div>
         </div>
 
-        <div className="glass-card rounded-3xl p-6">
-          <h3 className="text-xl font-semibold text-foreground">{isId ? 'Tim Kami' : 'Our Team'}</h3>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="studio-card p-6">
+          <h3 className="text-lg font-bold text-slate-900">{isId ? 'Tim Kami' : 'Our Team'}</h3>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {aboutTeam.map((member) => (
-              <div key={member.name} className="rounded-2xl border border-border bg-white p-4 text-center">
-                <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-chart-2/20 text-lg font-bold text-primary">
+              <div key={member.name} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-center">
+                <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-base font-bold text-primary">
                   {member.initials}
                 </div>
-                <p className="text-sm font-semibold text-foreground">{member.name}</p>
-                <p className="text-xs text-mutedForeground">{member.role}</p>
+                <p className="text-sm font-bold text-slate-900">{member.name}</p>
+                <p className="text-xs text-slate-500">{member.role}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="glass-card rounded-3xl p-6">
-          <h3 className="text-xl font-semibold text-foreground">{isId ? 'Mengapa Memilih Kami?' : 'Why Choose Us?'}</h3>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-border bg-white p-4">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-chart-2/10 text-chart-2">
-                <Zap className="h-5 w-5" />
+        <div className="studio-card p-6">
+          <h3 className="text-lg font-bold text-slate-900">{isId ? 'Mengapa Memilih Kami?' : 'Why Choose Us?'}</h3>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
+                <Zap className="h-4 w-4" />
               </div>
-              <h4 className="text-sm font-semibold text-foreground">{isId ? 'Proses Cepat' : 'Fast Processing'}</h4>
-              <p className="mt-1 text-xs leading-relaxed text-mutedForeground">{isId ? 'Hasil redesign logo hanya dalam hitungan detik hingga menit.' : 'Logo redesign results are delivered within seconds to minutes.'}</p>
+              <h4 className="text-sm font-bold text-slate-900">{isId ? 'Proses Cepat' : 'Fast Processing'}</h4>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">{isId ? 'Hasil redesign logo hanya dalam hitungan detik hingga menit.' : 'Logo redesign results are delivered within seconds to minutes.'}</p>
             </div>
-            <div className="rounded-2xl border border-border bg-white p-4">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <ShieldCheck className="h-5 w-5" />
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ShieldCheck className="h-4 w-4" />
               </div>
-              <h4 className="text-sm font-semibold text-foreground">{isId ? 'Keamanan Terjamin' : 'Secure by Design'}</h4>
-              <p className="mt-1 text-xs leading-relaxed text-mutedForeground">{isId ? 'Gambar Anda diproses secara aman dan dihapus dari server setelah selesai.' : 'Your images are processed securely and removed from the server after completion.'}</p>
+              <h4 className="text-sm font-bold text-slate-900">{isId ? 'Keamanan Terjamin' : 'Secure by Design'}</h4>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">{isId ? 'Gambar Anda diproses secara aman dan dihapus dari server setelah selesai.' : 'Your images are processed securely and removed from the server after completion.'}</p>
             </div>
           </div>
         </div>

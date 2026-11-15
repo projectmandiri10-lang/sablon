@@ -1,335 +1,369 @@
-import { ImagePlus, UploadCloud, X, ZoomIn } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, ChevronDown, Eye, FileImage, Sparkles, UploadCloud, X } from 'lucide-react';
+import { useState } from 'react';
+import { absoluteUrl } from '../lib/api.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from '../lib/modes.js';
-import { formatRupiah, IMAGE_RETOUCH_PRICE_IDR, READY_PROCESS_PRICE_IDR } from '../lib/pricing.js';
 
-const rasterMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const rasterExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp']);
-const readyTraceMimeTypes = new Set(['image/svg+xml']);
-const readyTraceExtensions = new Set(['.svg']);
+const MAX_MB = 15;
+const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
+const DEFAULT_GUIDE_EXAMPLES = [
+  {
+    id: 'guide-tee-sample',
+    title: 'Foto sablon di kaos',
+    caption: 'Desain terlihat utuh di kain tanpa banyak silau atau objek menghalangi gambar.',
+    src: '/examples/guide-sablon-tee.svg'
+  },
+  {
+    id: 'guide-paper-sample',
+    title: 'Foto desain di kertas/meja',
+    caption: 'Pencahayaan merata dan gambar tidak terpotong sehingga redraw dan vector lebih presisi.',
+    src: '/examples/guide-artwork-paper.svg'
+  }
+];
 
-function getModeOptions(locale) {
-  const isId = locale === 'id';
-  return [
-    {
-      value: INPUT_MODE_RETOUCH,
-      title: isId ? 'Gambar perlu digambar ulang' : 'Image needs AI redraw',
-      description: isId
-        ? 'Untuk foto buram, scan, atau logo yang perlu dirapikan sebelum diproses. Harga sudah termasuk pecah warna sablon.'
-        : 'For blurry photos, scans, or logos that need cleanup before processing.',
-      priceIdr: IMAGE_RETOUCH_PRICE_IDR,
-      helper: isId
-        ? 'Upload JPG, PNG, atau WebP. Cocok untuk foto logo yang masih perlu dibersihkan sebelum redraw AI, lalu diteruskan ke pecah warna sablon.'
-        : 'Upload JPG, PNG, or WebP files. Best for logo photos that still need cleanup before AI redraw and screen-print color separation.',
-      accept: 'image/png,image/jpeg,image/webp',
-      badge: isId ? 'Raster + AI' : 'Raster + AI'
-    },
-    {
-      value: INPUT_MODE_READY,
-      title: isId ? 'Vector Siap Proses' : 'Production-Ready Vector',
-      description: isId
-        ? 'Tanpa AI. Khusus file vector murni untuk pisah warna dan contour sticker.'
-        : 'No AI. For pure vector files used for color separation and sticker cutlines.',
-      priceIdr: READY_PROCESS_PRICE_IDR,
-      helper: isId
-        ? 'Upload SVG vector murni. EPS/AI akan mengikuti jalur ini setelah parser dedicated diaktifkan.'
-        : 'Upload pure SVG vector files. EPS/AI will follow this path after the dedicated parser is enabled.',
-      accept: '.svg,image/svg+xml',
-      badge: isId ? 'Khusus vector' : 'Vector only'
-    }
-  ];
+function getCopy(locale) {
+  const isId = locale !== 'en';
+  return {
+    stepLabel: isId ? '1. Jenis Input & File' : '1. Input Mode & File',
+    heading: isId ? 'Pilih mode lalu upload desain' : 'Choose mode and upload artwork',
+    subheading: isId
+      ? 'Sesuaikan jenis file awal agar proses AI, vector, dan film warna bekerja optimal.'
+      : 'Match your input type so AI redraw, vector tracing, and color separation work best.',
+    modes: [
+      {
+        value: INPUT_MODE_RETOUCH,
+        title: isId ? 'Foto baju / desain buram' : 'Shirt photo / blurry design',
+        badge: isId ? 'AI Redraw · Rp5.000' : 'AI Redraw · Rp5,000',
+        description: isId
+          ? 'Digambar ulang AI menjadi bersih, rata, dan siap trace.'
+          : 'Redrawn cleanly with AI into crisp, flat artwork ready for tracing.',
+        costNote: isId
+          ? 'Rp5.000 per gambar, sudah termasuk pecah warna'
+          : 'Rp5,000 per image, color separation included',
+        icon: Sparkles
+      },
+      {
+        value: INPUT_MODE_READY,
+        title: isId ? 'Gambar bersih / siap trace' : 'Clean / ready-to-trace artwork',
+        badge: isId ? 'Direct Trace · Rp3.000' : 'Direct Trace · Rp3,000',
+        description: isId
+          ? 'Langsung ubah ke SVG, PDF cetak, cutline, dan film warna.'
+          : 'Directly converts to SVG, print PDF, cutline, and color films.',
+        costNote: isId
+          ? 'Rp3.000 flat per proses'
+          : 'Rp3,000 flat per process',
+        icon: FileImage
+      }
+    ],
+    tipsHeading: isId ? 'Tips foto untuk AI Redraw' : 'Photo tips for AI Redraw',
+    tipsSubtitle: isId ? 'Lihat syarat & contoh foto sumber yang baik' : 'See tips & good source photo examples',
+    tips: isId
+      ? [
+          'Foto desain selurus mungkin dari depan, tidak miring berlebihan.',
+          'Usahakan cahaya merata tanpa bayangan pekat atau pantulan lampu.',
+          'Pastikan seluruh grafik masuk frame dan tidak terpotong.',
+          'Hindari kaos terlalu berkerut atau objek menutupi gambar.'
+        ]
+      : [
+          'Take the photo straight-on without extreme perspective tilt.',
+          'Use even lighting with no harsh shadows or glossy glare.',
+          'Keep the entire graphic inside the frame.',
+          'Avoid heavy fabric wrinkles or hands covering the artwork.'
+        ],
+    goodExamplesTitle: isId ? 'Contoh foto sumber yang baik' : 'Good source photo examples',
+    examplesCountLabel: (count) => (isId ? `${count} contoh` : `${count} examples`),
+    clickPreview: isId ? 'Perbesar' : 'Zoom',
+    dropTitle: isId ? 'Klik atau seret file gambar ke sini' : 'Click or drag an image file here',
+    dropSubtitle: isId
+      ? 'PNG, JPG, JPEG, atau WebP · Maksimal 15 MB'
+      : 'PNG, JPG, JPEG, or WebP · Max 15 MB',
+    changeFile: isId ? 'Ganti file' : 'Replace file',
+    invalidType: isId
+      ? 'Format harus PNG, JPG, JPEG, atau WebP.'
+      : 'File must be PNG, JPG, JPEG, or WebP.',
+    tooLarge: isId
+      ? 'Ukuran file terlalu besar. Maksimal 15 MB.'
+      : 'File is too large. Maximum size is 15 MB.',
+    closePreview: isId ? 'Tutup' : 'Close',
+    goodExampleModalLabel: isId ? 'Contoh foto sumber' : 'Good source photo example'
+  };
 }
 
-export default function UploadBox({ locale = 'id', file, previewUrl, inputMode, onInputModeChange, onFileChange, disabled, exampleJobs = [] }) {
-  const [previewFailed, setPreviewFailed] = useState(false);
-  const [uploadError, setUploadError] = useState('');
+function validateFile(file, copy) {
+  if (!file) return '';
+  const type = (file.type || '').toLowerCase();
+  const validExt = /\.(png|jpe?g|webp)$/i.test(file.name);
+  if (!ALLOWED_TYPES.has(type) && !validExt) {
+    return copy.invalidType;
+  }
+  if (file.size > MAX_MB * 1024 * 1024) {
+    return copy.tooLarge;
+  }
+  return '';
+}
+
+function formatFileSizeMb(bytes) {
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+export default function UploadBox({
+  locale = 'id',
+  file,
+  previewUrl,
+  inputMode,
+  onInputModeChange,
+  onFileChange,
+  disabled,
+  exampleJobs = []
+}) {
+  const [error, setError] = useState('');
   const [selectedGuideExample, setSelectedGuideExample] = useState(null);
-  const hasPreview = Boolean(file && previewUrl);
-  const isId = locale === 'id';
-  const modeOptions = useMemo(() => getModeOptions(locale), [locale]);
-  const activeOption = useMemo(() => modeOptions.find((option) => option.value === inputMode) || modeOptions[0], [inputMode, modeOptions]);
-  const guideExamples = useMemo(
-    () => (exampleJobs || []).filter((example) => example?.sourcePreviewUrl).slice(0, 6),
-    [exampleJobs]
-  );
+  const copy = getCopy(locale);
 
-  useEffect(() => {
-    setUploadError('');
-  }, [inputMode]);
+  const publishedGuideExamples = exampleJobs
+    .filter((item) => item?.files?.sourcePreview || item?.files?.tracedPng || item?.files?.fullPng)
+    .slice(0, 4)
+    .map((item) => ({
+      id: item.jobId,
+      title: item.projectName || (locale === 'en' ? 'Admin example photo' : 'Contoh foto dari admin'),
+      caption:
+        locale === 'en'
+          ? 'Published example source photo ready for processing.'
+          : 'Contoh foto sumber yang dipublish dan siap diproses.',
+      src: absoluteUrl(item.files.sourcePreview || item.files.tracedPng || item.files.fullPng)
+    }));
 
-  useEffect(() => {
-    if (!selectedGuideExample) return undefined;
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setSelectedGuideExample(null);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedGuideExample]);
+  const guideExamples = publishedGuideExamples.length ? publishedGuideExamples : DEFAULT_GUIDE_EXAMPLES;
 
-  function getExtension(name = '') {
-    const lastDot = name.lastIndexOf('.');
-    return lastDot >= 0 ? name.slice(lastDot).toLowerCase() : '';
-  }
-
-  function validateFile(nextFile) {
-    const extension = getExtension(nextFile.name);
-    if (inputMode === INPUT_MODE_READY) {
-      if (readyTraceExtensions.has(extension) && (!nextFile.type || readyTraceMimeTypes.has(nextFile.type))) return '';
-      return isId ? 'Vector Siap Proses hanya menerima file vector SVG. EPS/AI belum aktif di server.' : 'Production-Ready Vector only accepts SVG vector files. EPS/AI support is not enabled yet.';
+  function handleFiles(fileList) {
+    const picked = fileList?.[0];
+    if (!picked) return;
+    const message = validateFile(picked, copy);
+    setError(message);
+    if (!message) {
+      onFileChange(picked);
     }
-    if (rasterExtensions.has(extension) && (!nextFile.type || rasterMimeTypes.has(nextFile.type))) return '';
-    return isId ? 'Mode gambar ulang hanya menerima JPG, PNG, atau WebP.' : 'Redraw mode only accepts JPG, PNG, or WebP files.';
   }
-
-  function handleChange(event) {
-    const nextFile = event.target.files?.[0];
-    if (!nextFile) return;
-    const validationMessage = validateFile(nextFile);
-    if (validationMessage) {
-      setUploadError(validationMessage);
-      event.target.value = '';
-      return;
-    }
-    setUploadError('');
-    setPreviewFailed(false);
-    onFileChange(nextFile);
-  }
-
-  const isValidType = !uploadError;
-  const isValidSize = file ? file.size <= 10 * 1024 * 1024 : true;
-  const showRasterGuidelines = inputMode === INPUT_MODE_RETOUCH;
-  const uploadZone = (
-    <label
-      className={`relative flex cursor-pointer overflow-hidden border border-dashed px-4 py-5 text-center transition ${
-        hasPreview ? 'border-spruce bg-white' : 'border-line bg-panel hover:border-spruce hover:bg-white'
-      } ${showRasterGuidelines ? 'min-h-40 md:min-h-44' : 'min-h-56'}`}
-    >
-      {hasPreview && (
-        <div className="absolute inset-0">
-          {previewFailed ? (
-            <div className="checkerboard flex h-full w-full items-center justify-center p-4">
-              <p className="max-w-sm px-3 py-6 text-sm font-medium text-tomato">
-                {isId ? 'Preview lokal gagal ditampilkan, tetapi file tetap siap diproses.' : 'Local preview could not be shown, but the file is still ready to process.'}
-              </p>
-            </div>
-          ) : (
-            <img className="h-full w-full object-cover" src={previewUrl} alt={isId ? 'Preview gambar asli' : 'Original image preview'} onError={() => setPreviewFailed(true)} />
-          )}
-          <div className="absolute inset-0 bg-white/65" />
-        </div>
-      )}
-
-      <div className="relative z-10 flex w-full flex-col items-center justify-center gap-4">
-        <div className="flex w-full items-start justify-center gap-3">
-          <div className="min-w-0 text-center">
-            {file ? (
-              <>
-                <p className="truncate text-sm font-semibold text-ink">{file.name}</p>
-                <p className="text-xs text-gray-700">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-              </>
-            ) : (
-              <>
-                <UploadCloud className="mx-auto mb-3 h-9 w-9 text-spruce" aria-hidden="true" />
-                <span className="block text-sm font-semibold text-ink">
-                  {inputMode === INPUT_MODE_READY
-                    ? isId ? 'Pilih file SVG vector murni' : 'Choose a pure SVG vector file'
-                    : isId ? 'Pilih gambar JPG, PNG, atau WebP' : 'Choose a JPG, PNG, or WebP image'}
-                </span>
-                <span className="mt-1 block text-xs text-gray-600">
-                  {inputMode === INPUT_MODE_READY
-                    ? isId ? 'Maksimal 10 MB. Jalur ini khusus SVG murni untuk separasi warna dan contour sticker.' : 'Maximum 10 MB. This path is for pure SVG files used for color separation and sticker cutlines.'
-                    : isId ? 'Maksimal 10 MB. Gambar akan dirapikan sebelum diproses AI.' : 'Maximum 10 MB. The image will be cleaned up before AI processing.'}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-
-        {file && (
-          <div className="flex w-full justify-center">
-            <div className="checkerboard flex max-h-56 w-full max-w-80 items-center justify-center overflow-hidden border border-line bg-white/75 p-3 shadow-sm">
-              <div className="flex w-full flex-col items-center gap-2 text-center">
-                <p className="text-xs font-semibold uppercase tracking-wide text-spruce">{isId ? 'Preview terunggah' : 'Uploaded preview'}</p>
-                <p className="text-sm text-gray-700">{isId ? 'Klik area ini untuk mengganti gambar.' : 'Click this area to replace the image.'}</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {file && (
-        <button
-          type="button"
-          className="absolute right-4 top-4 inline-flex h-9 w-9 shrink-0 items-center justify-center border border-line bg-white text-gray-700 hover:border-tomato hover:text-tomato"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            setPreviewFailed(false);
-            setUploadError('');
-            onFileChange(null);
-          }}
-          title={isId ? 'Hapus gambar' : 'Remove image'}
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
-      )}
-
-      <input className="sr-only" type="file" accept={activeOption.accept} onChange={handleChange} disabled={disabled} />
-    </label>
-  );
 
   return (
-    <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <ImagePlus className="h-5 w-5 text-spruce" aria-hidden="true" />
-        <h2 className="text-base font-semibold text-ink">{isId ? 'Upload gambar' : 'Upload image'}</h2>
-      </div>
-
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        {modeOptions.map((option) => {
-          const isActive = option.value === inputMode;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              disabled={disabled}
-              onClick={() => onInputModeChange(option.value)}
-              className={`border px-3 py-2.5 text-left transition ${
-                isActive ? 'border-spruce bg-primary/5 shadow-sm' : 'border-line bg-white hover:border-spruce/50'
-              } disabled:opacity-60`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-black text-ink">{option.title}</h3>
-                  <p className="mt-1.5 text-xs leading-5 text-gray-700">{option.description}</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-base font-black text-spruce">{formatRupiah(option.priceIdr)}/{isId ? 'gambar' : 'image'}</p>
-                  <p className="text-[11px] text-gray-600">{option.badge}</p>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border border-spruce/30 bg-primary/5 px-3 py-2">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-spruce">{isId ? 'Mode aktif' : 'Active mode'}</p>
-          <p className="text-xs text-gray-700">
-            <span className="font-semibold text-ink">{activeOption.title}</span>
-            {' - '}
-            {activeOption.helper}
-          </p>
+    <>
+      <section className="studio-card p-5 sm:p-6">
+        <div className="mb-4">
+          <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+            {copy.stepLabel}
+          </span>
+          <h2 className="mt-2 text-lg font-bold tracking-tight text-ink">{copy.heading}</h2>
+          <p className="mt-0.5 text-sm text-slate-600">{copy.subheading}</p>
         </div>
-        {file && (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => {
-              setUploadError('');
-              setPreviewFailed(false);
-              onFileChange(null);
-            }}
-            className="inline-flex min-h-8 items-center justify-center border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink hover:border-spruce disabled:opacity-60"
-          >
-            {isId ? 'Kosongkan file' : 'Clear file'}
-          </button>
-        )}
-      </div>
 
-      {showRasterGuidelines && (
-        <>
-          {guideExamples.length > 0 && (
-            <div className="mb-4 border border-spruce/30 bg-primary/5 p-3">
-              <div className="mb-3 flex items-start justify-between gap-3">
+        {/* Mode Selector Cards */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          {copy.modes.map((option) => {
+            const Icon = option.icon;
+            const active = inputMode === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                disabled={disabled}
+                onClick={() => onInputModeChange?.(option.value)}
+                className={`group relative flex flex-col justify-between rounded-2xl border p-4 text-left transition-all ${
+                  active
+                    ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20'
+                    : 'border-line bg-white hover:border-slate-300 hover:bg-slate-50/70'
+                }`}
+              >
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-spruce">{isId ? 'Contoh foto sumber yang baik' : 'Good source photo examples'}</p>
-                  <p className="mt-1 text-xs leading-5 text-gray-700">
-                    {isId ? 'Contoh ini berasal dari hasil admin. Klik gambar untuk melihat ukuran besar dan meniru pencahayaan, jarak, serta ketajamannya.' : 'These examples come from admin results. Click an image to view it larger and follow its lighting, distance, and sharpness.'}
-                  </p>
-                </div>
-                <ZoomIn className="mt-0.5 h-5 w-5 shrink-0 text-spruce" aria-hidden="true" />
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                {guideExamples.map((example) => (
-                  <button
-                    key={example.jobId || example.sourcePreviewUrl}
-                    type="button"
-                    onClick={() => setSelectedGuideExample(example)}
-                    className="group overflow-hidden border border-line bg-white text-left transition hover:border-spruce hover:shadow-sm"
-                    title={isId ? 'Klik untuk melihat gambar sumber besar' : 'Click to view the large source image'}
-                  >
-                    <div className="checkerboard flex h-24 items-center justify-center overflow-hidden p-1 sm:h-28">
-                      <img className="h-full w-full object-contain transition group-hover:scale-105" src={example.sourcePreviewUrl} alt={isId ? `Contoh sumber ${example.projectName || ''}` : `Source example ${example.projectName || ''}`} loading="lazy" />
+                  <div className="flex items-start justify-between gap-2">
+                    <div
+                      className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition ${
+                        active ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200/70'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" aria-hidden="true" />
                     </div>
-                    <span className="block truncate border-t border-line px-2 py-1.5 text-[11px] font-semibold text-ink">{example.projectName || (isId ? 'Contoh admin' : 'Admin example')}</span>
-                  </button>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                        active ? 'bg-primary/15 text-primary' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {option.badge}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm font-bold text-ink">{option.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">{option.description}</p>
+                </div>
+                <p className="mt-3 border-t border-line/70 pt-2.5 text-[11px] font-semibold text-primary">
+                  {option.costNote}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Collapsible Tips & Examples for AI Redraw */}
+        {inputMode === INPUT_MODE_RETOUCH && (
+          <details className="group mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/50">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-indigo-950">
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+                <div>
+                  <span>{copy.tipsHeading}</span>
+                  <span className="ml-2 hidden text-xs font-normal text-indigo-700/80 sm:inline">
+                    — {copy.tipsSubtitle}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 shadow-sm">
+                  {copy.examplesCountLabel(guideExamples.length)}
+                </span>
+                <ChevronDown className="h-4 w-4 text-indigo-600 transition-transform group-open:rotate-180" aria-hidden="true" />
+              </div>
+            </summary>
+
+            <div className="space-y-4 border-t border-indigo-100 px-4 py-4">
+              <ul className="grid gap-1.5 text-xs leading-5 text-slate-700 sm:grid-cols-2">
+                {copy.tips.map((tip) => (
+                  <li key={tip} className="flex items-start gap-1.5">
+                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                    <span>{tip}</span>
+                  </li>
                 ))}
+              </ul>
+
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-indigo-900">
+                  {copy.goodExamplesTitle}
+                </p>
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  {guideExamples.map((example) => (
+                    <button
+                      key={example.id}
+                      type="button"
+                      onClick={() => setSelectedGuideExample(example)}
+                      className="flex items-center gap-3 rounded-xl border border-indigo-100 bg-white p-2.5 text-left transition hover:border-primary/40 hover:shadow-sm"
+                    >
+                      <div className="h-14 w-16 shrink-0 overflow-hidden rounded-lg border border-line bg-slate-50">
+                        <img src={example.src} alt={example.title} className="h-full w-full object-cover" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-xs font-bold text-ink">{example.title}</p>
+                          <Eye className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                        </div>
+                        <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-500">{example.caption}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          )}
+          </details>
+        )}
 
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.9fr)]">
-            <div className="border border-amber-200 bg-amber-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">{isId ? 'Saran foto untuk AI redraw' : 'Photo tips for AI redraw'}</p>
-              <ul className="mt-2 space-y-1 text-xs leading-5 text-amber-900">
-                {isId ? (
-                  <>
-                    <li>Kamera Android minimal 16 MP.</li>
-                    <li>Ambil foto di tempat dengan cahaya cukup dan tanpa bayangan di area logo.</li>
-                    <li>Pastikan gambar tidak blur dan logo terlihat jelas.</li>
-                    <li>Jangan gunakan efek, filter, atau mode beautify kamera.</li>
-                    <li>Jangan gunakan zoom optik atau zoom digital saat memotret logo.</li>
-                  </>
-                ) : (
-                  <>
-                    <li>Use an Android camera with at least 16 MP.</li>
-                    <li>Take the photo in good lighting without shadows over the logo area.</li>
-                    <li>Make sure the image is not blurry and the logo is clearly visible.</li>
-                    <li>Do not use filters, effects, or beautify mode.</li>
-                    <li>Avoid optical or digital zoom when photographing the logo.</li>
-                  </>
-                )}
-              </ul>
-            </div>
-          {uploadZone}
-          </div>
-        </>
-      )}
+        {/* Prominent Dropzone / File Preview */}
+        <div
+          className="mt-4"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            if (!disabled) handleFiles(event.dataTransfer.files);
+          }}
+        >
+          <label
+            className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center transition ${
+              file
+                ? 'border-primary/40 bg-primary/[0.02] hover:border-primary/60'
+                : 'border-slate-300 bg-slate-50/70 py-8 hover:border-primary/50 hover:bg-primary/[0.03]'
+            } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+          >
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+              disabled={disabled}
+              className="sr-only"
+              onChange={(event) => handleFiles(event.target.files)}
+            />
 
-      {!showRasterGuidelines && uploadZone}
+            {!file ? (
+              <>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-primary shadow-sm ring-1 ring-line">
+                  <UploadCloud className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <p className="mt-3 text-sm font-bold text-ink">{copy.dropTitle}</p>
+                <p className="mt-1 text-xs text-slate-500">{copy.dropSubtitle}</p>
+              </>
+            ) : (
+              <div className="flex w-full flex-col items-center gap-4 sm:flex-row sm:text-left">
+                <div className="checkerboard h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-line p-1.5">
+                  {previewUrl ? (
+                    <img src={previewUrl} alt={file.name} className="h-full w-full object-contain" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-slate-400">
+                      <FileImage className="h-8 w-8" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>{inputMode === INPUT_MODE_READY ? 'Ready Trace' : 'AI Redraw'}</span>
+                  </div>
+                  <p className="mt-1.5 truncate text-sm font-bold text-ink">{file.name}</p>
+                  <p className="text-xs text-slate-500">{formatFileSizeMb(file.size)}</p>
+                </div>
+                <span className="studio-btn-secondary !min-h-9 shrink-0 !rounded-xl !px-3.5 !py-1.5 !text-xs">
+                  {copy.changeFile}
+                </span>
+              </div>
+            )}
+          </label>
+        </div>
 
-      {!isValidType && <p className="mt-3 text-sm text-tomato">{uploadError}</p>}
-      {!isValidSize && <p className="mt-3 text-sm text-tomato">{isId ? 'Ukuran file maksimal 10 MB.' : 'Maximum file size is 10 MB.'}</p>}
-      <p className="mt-3 text-xs text-gray-600">
-        {inputMode === INPUT_MODE_READY
-          ? isId ? 'Vector Siap Proses dipakai untuk file vector murni yang akan dipisah warna dan dibuat contour sticker.' : 'Production-Ready Vector is meant for pure vector files that will be separated by color and used to create sticker cutlines.'
-          : isId ? 'Harga promo perkenalan AI Redraw hanya Rp5.000 per gambar, sudah termasuk pecah warna. Jika foto terlalu gelap, blur, atau banyak bayangan, hasil redraw bisa tetap meleset dan perlu upload ulang.' : 'Introductory AI Redraw promo is only Rp5,000 per image and includes screen-print color separation. If the photo is too dark, blurry, or heavily shadowed, the redraw can still miss details and may need a re-upload.'}
-      </p>
+        {error && (
+          <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700">
+            {error}
+          </p>
+        )}
+      </section>
 
+      {/* Lightbox Modal for Guide Examples */}
       {selectedGuideExample && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4"
-          role="presentation"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
           onClick={() => setSelectedGuideExample(null)}
         >
-          <div className="relative max-h-[92vh] w-full max-w-5xl border border-white/30 bg-white p-3 shadow-2xl" role="dialog" aria-modal="true" aria-label={isId ? 'Contoh gambar sumber besar' : 'Large source image example'} onClick={(event) => event.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setSelectedGuideExample(null)}
-              className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center border border-line bg-white text-ink shadow-sm hover:border-tomato hover:text-tomato"
-              title={isId ? 'Tutup preview besar' : 'Close large preview'}
-            >
-              <X className="h-5 w-5" aria-hidden="true" />
-            </button>
-            <div className="checkerboard flex max-h-[80vh] min-h-64 items-center justify-center overflow-auto p-3">
-              <img className="max-h-[78vh] max-w-full object-contain" src={selectedGuideExample.sourcePreviewUrl} alt={isId ? 'Gambar sumber contoh admin' : 'Admin source example'} />
+          <div
+            className="w-full max-w-2xl overflow-hidden rounded-3xl border border-line bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-line px-5 py-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-primary">{copy.goodExampleModalLabel}</p>
+                <h3 className="text-base font-bold text-ink">{selectedGuideExample.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedGuideExample(null)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line text-slate-600 transition hover:bg-slate-100 hover:text-ink"
+                aria-label={copy.closePreview}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
             </div>
-            <p className="px-1 pt-3 text-sm font-semibold text-ink">{selectedGuideExample.projectName || (isId ? 'Contoh gambar sumber admin' : 'Admin source example')}</p>
+            <div className="p-5">
+              <div className="checkerboard flex max-h-[60vh] items-center justify-center overflow-hidden rounded-2xl border border-line p-4">
+                <img
+                  src={selectedGuideExample.src}
+                  alt={selectedGuideExample.title}
+                  className="max-h-[54vh] w-auto object-contain"
+                />
+              </div>
+              <p className="mt-3 text-sm text-slate-600">{selectedGuideExample.caption}</p>
+            </div>
           </div>
         </div>
       )}
-    </section>
+    </>
   );
 }

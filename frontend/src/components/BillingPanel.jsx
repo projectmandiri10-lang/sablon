@@ -1,4 +1,4 @@
-import { ExternalLink, QrCode, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
+import { Check, Copy, ExternalLink, QrCode, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -46,6 +46,7 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isCreatingQris, setIsCreatingQris] = useState(false);
   const [refreshingOrderId, setRefreshingOrderId] = useState('');
+  const [copiedNominal, setCopiedNominal] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const handledReturnRef = useRef('');
   const paymentsRef = useRef([]);
@@ -333,242 +334,394 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     };
   }, [copy.autoPaymentSuccess, onAutomaticPaymentSuccess, onRefreshBalance, session?.access_token, shouldPollAutomaticPayments]);
 
+  const quickTopupAmounts = [10000, 20000, 50000, 100000];
+
+  function copyExactNominal(value) {
+    if (!value) return;
+    navigator.clipboard?.writeText(String(value)).then(() => {
+      setCopiedNominal(true);
+      window.setTimeout(() => setCopiedNominal(false), 2000);
+    }).catch(() => {});
+  }
+
   return (
-    <div id="billing" className="space-y-5">
-      <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-spruce" aria-hidden="true" />
+    <div id="billing" className="space-y-6">
+      {/* Main Automatic Top-up Card */}
+      <section className="studio-card p-5 sm:p-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Wallet className="h-5 w-5" aria-hidden="true" />
+            </div>
             <div>
-              <h2 className="text-base font-semibold text-ink">{copy.autoTopup}</h2>
-              <p className="text-xs text-gray-600">{copy.autoTopupInfo}</p>
+              <h2 className="text-lg font-bold tracking-tight text-ink">{copy.autoTopup}</h2>
+              <p className="text-xs text-slate-500">{copy.autoTopupInfo}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={loadBillingData}
-            className="inline-flex min-h-10 items-center justify-center gap-2 border border-line bg-white px-3 py-2 text-sm font-semibold text-ink hover:border-spruce"
-          >
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            {copy.refreshBilling}
-          </button>
-        </div>
-
-        <div className="mb-4 border border-line bg-panel p-3 text-sm leading-6 text-gray-700">
-          <p>{copy.topupEmailLabel} <strong>{state.sessionEmail}</strong></p>
-        </div>
-
-        <div className="space-y-4 border border-line bg-white p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex items-center gap-2">
-              {selectedPaymentMethod === 'midtrans' ? (
-                <ExternalLink className="h-5 w-5 text-spruce" aria-hidden="true" />
-              ) : (
-                <QrCode className="h-5 w-5 text-spruce" aria-hidden="true" />
-              )}
-              <div>
-                <h3 className="text-sm font-bold text-ink">
-                  {selectedPaymentMethod === 'midtrans' ? copy.onlinePaymentTitle : copy.qrisTitle}
-                </h3>
-                <p className="text-xs text-gray-600">
-                  {selectedPaymentMethod === 'midtrans' ? copy.onlineMethod : state.interactiveQris.merchantName || copy.merchantName}
-                </p>
-              </div>
+          <div className="flex items-center gap-2.5">
+            <div className="hidden rounded-xl border border-line bg-slate-50 px-3 py-1.5 text-xs text-slate-600 sm:block">
+              {copy.topupEmailLabel} <strong className="text-ink">{state.sessionEmail}</strong>
             </div>
-            <div className="border border-line bg-panel px-3 py-2 text-xs text-gray-600">{copy.paymentMethodHelp}</div>
+            <button
+              type="button"
+              onClick={loadBillingData}
+              className="studio-btn-secondary !min-h-9 !rounded-xl !px-3 !py-1.5 !text-xs"
+            >
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>{copy.refreshBilling}</span>
+            </button>
           </div>
+        </div>
 
-          <p className="text-sm leading-6 text-gray-700">{selectedMethodInfo}</p>
-
-          <form className="grid gap-3 lg:grid-cols-[minmax(180px,260px)_minmax(0,1fr)_auto]" onSubmit={handleAutomaticPaymentSubmit}>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{copy.paymentMethodLabel}</span>
-              <select
-                value={selectedPaymentMethod}
-                onChange={(event) => {
-                  setSelectedPaymentMethod(event.target.value);
+        <div className="space-y-5">
+          {/* Method Selector Cards */}
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{copy.paymentMethodLabel}</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedPaymentMethod('interactive_qris');
                   setPaymentError('');
                   setNotice('');
                 }}
-                className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
+                className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
+                  selectedPaymentMethod === 'interactive_qris'
+                    ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20'
+                    : 'border-line bg-white hover:border-slate-300'
+                }`}
               >
-                <option value="interactive_qris">{copy.qrisMethod}</option>
-                <option value="midtrans" disabled={!state.midtrans.available}>
-                  {state.midtrans.available ? copy.onlineMethod : copy.onlineMethodPending}
-                </option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{copy.amountLabel}</span>
-              <input
-                type="number"
-                min={selectedMinimumAmountIdr}
-                step="1000"
-                value={amountInput}
-                onChange={(event) => setAmountInput(event.target.value)}
-                className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
-                placeholder={String(selectedMinimumAmountIdr)}
+                <div
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                    selectedPaymentMethod === 'interactive_qris' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  <QrCode className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-ink">{copy.qrisMethod}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {state.interactiveQris.merchantName || copy.merchantName}
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                disabled={!state.midtrans.available}
+                onClick={() => {
+                  setSelectedPaymentMethod('midtrans');
+                  setPaymentError('');
+                  setNotice('');
+                }}
+                className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
+                  selectedPaymentMethod === 'midtrans'
+                    ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20'
+                    : 'border-line bg-white hover:border-slate-300'
+                } ${!state.midtrans.available ? 'cursor-not-allowed opacity-60' : ''}`}
+              >
+                <div
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                    selectedPaymentMethod === 'midtrans' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  <ExternalLink className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-ink">
+                    {state.midtrans.available ? copy.onlineMethod : copy.onlineMethodPending}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">{copy.paymentMethodHelp}</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <p className="rounded-xl border border-line bg-slate-50/80 px-4 py-2.5 text-xs leading-5 text-slate-600">
+            {selectedMethodInfo}
+          </p>
+
+          {/* Top-up Form + Quick Preset Chips */}
+          <form className="space-y-3" onSubmit={handleAutomaticPaymentSubmit}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label htmlFor="billingAmountInput" className="text-xs font-bold text-slate-700">
+                    {copy.amountLabel}
+                  </label>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    {copy.minimumCreditInfo(formatRupiah(selectedMinimumAmountIdr))}
+                  </span>
+                </div>
+                <input
+                  id="billingAmountInput"
+                  type="number"
+                  min={selectedMinimumAmountIdr}
+                  step="1000"
+                  value={amountInput}
+                  onChange={(event) => setAmountInput(event.target.value)}
+                  className="studio-input font-mono text-base font-bold"
+                  placeholder={String(selectedMinimumAmountIdr)}
+                  disabled={automaticCheckoutDisabled}
+                />
+              </div>
+
+              <button
+                type="submit"
                 disabled={automaticCheckoutDisabled}
-              />
-              <p className="mt-1 text-xs text-gray-600">{copy.minimumCreditInfo(formatRupiah(selectedMinimumAmountIdr))}</p>
-            </label>
-            <button
-              type="submit"
-              disabled={automaticCheckoutDisabled}
-              className="inline-flex min-h-11 items-center justify-center gap-2 self-end border border-spruce bg-spruce px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300 disabled:text-gray-600"
-            >
-              {selectedMethodIcon}
-              {selectedMethodButtonLabel}
-            </button>
+                className="studio-btn-primary min-h-11 shrink-0 px-5"
+              >
+                {selectedMethodIcon}
+                <span>{selectedMethodButtonLabel}</span>
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold text-slate-500">
+                {isId ? 'Pilih cepat:' : 'Quick amount:'}
+              </span>
+              {quickTopupAmounts
+                .filter((preset) => preset >= selectedMinimumAmountIdr)
+                .map((preset) => {
+                  const active = Number(amountInput) === preset;
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      disabled={automaticCheckoutDisabled}
+                      onClick={() => setAmountInput(String(preset))}
+                      className={`rounded-lg border px-3 py-1 text-xs font-bold transition ${
+                        active
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-line bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white'
+                      }`}
+                    >
+                      {formatRupiah(preset)}
+                    </button>
+                  );
+                })}
+            </div>
           </form>
 
           {selectedPaymentMethod === 'midtrans' && !state.midtrans.available && (
-            <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm leading-6 text-amber-800">
               {copy.onlinePaymentMissing}
             </div>
           )}
           {selectedPaymentMethod === 'interactive_qris' && qrisClosedState.isClosed && (
-            <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm leading-6 text-amber-800">
               {qrisClosedState.message || copy.qrisClosed}
             </div>
           )}
           {selectedPaymentMethod === 'interactive_qris' && !state.interactiveQris.available && (
-            <div className="border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm leading-6 text-amber-800">
               {copy.qrisMissing}
             </div>
           )}
+
+          {/* Active QRIS Instruction Card */}
           {activeQrisInstruction ? (
-            <div className="grid gap-4 border border-line bg-panel p-3 lg:grid-cols-[280px_minmax(0,1fr)] lg:p-4">
-              <div className="flex items-start justify-center">
+            <div className="grid gap-5 rounded-2xl border border-primary/25 bg-gradient-to-br from-indigo-50/60 via-white to-violet-50/40 p-4 sm:p-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+              <div className="flex flex-col items-center justify-center">
                 {activeQrisInstruction.qrisPayload ? (
-                  <div className="w-full max-w-[280px] border border-line bg-white p-3 shadow-sm">
+                  <div className="w-full max-w-[260px] rounded-2xl border border-line bg-white p-3.5 shadow-sm">
                     <QRCodeCanvas
                       value={activeQrisInstruction.qrisPayload}
-                      size={256}
+                      size={240}
                       level="M"
-                      marginSize={4}
+                      marginSize={3}
                       className="h-auto w-full"
                     />
-                    <p className="mt-2 text-center text-xs leading-5 text-gray-600">{copy.qrisDynamicHint}</p>
+                    <p className="mt-2 text-center text-[11px] leading-4 text-slate-500">{copy.qrisDynamicHint}</p>
                   </div>
                 ) : activeQrisInstruction.qrImageUrl ? (
                   <img
                     src={activeQrisInstruction.qrImageUrl}
                     alt={state.interactiveQris.merchantName || copy.qrisTitle}
-                    className="h-auto w-full max-w-[280px] border border-line bg-white p-3 shadow-sm"
+                    className="h-auto w-full max-w-[260px] rounded-2xl border border-line bg-white p-3 shadow-sm"
                   />
                 ) : (
-                  <div className="flex h-72 w-full max-w-[280px] items-center justify-center border border-dashed border-line bg-white text-sm text-gray-500">
+                  <div className="flex h-64 w-full max-w-[260px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-sm text-slate-500">
                     QR belum diisi
                   </div>
                 )}
               </div>
-              <div className="space-y-2 text-sm leading-6 text-gray-700">
-                <p><strong>{copy.exactPayableAmount}:</strong> {formatRupiah(activeQrisInstruction.displayAmountIdr)}</p>
-                <p><strong>{copy.baseAmount}:</strong> {formatRupiah(activeQrisInstruction.baseAmountIdr)}</p>
-                <p><strong>{copy.uniqueCode}:</strong> {activeQrisInstruction.uniqueCode}</p>
-                <p><strong>{copy.expiresAt}:</strong> {formatPaymentTime(activeQrisInstruction.expiresAt, locale)}</p>
-                <p><strong>{copy.merchantName}:</strong> {activeQrisInstruction.merchantName || '-'}</p>
-                <p><strong>{copy.qrisInstructions}:</strong> {activeQrisInstruction.instructions}</p>
-                {activeQrisInstruction.contact && <p><strong>{copy.adminContact}:</strong> {activeQrisInstruction.contact}</p>}
+
+              <div className="flex flex-col justify-between gap-4">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-white px-4 py-3 shadow-sm">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        {copy.exactPayableAmount}
+                      </p>
+                      <p className="font-mono text-2xl font-extrabold text-primary">
+                        {formatRupiah(activeQrisInstruction.displayAmountIdr)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyExactNominal(activeQrisInstruction.displayAmountIdr)}
+                      className="studio-btn-secondary !min-h-9 !rounded-xl !px-3 !py-1.5 !text-xs"
+                    >
+                      {copiedNominal ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                          <span className="text-emerald-700">{isId ? 'Tersalin' : 'Copied'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span>{isId ? 'Salin nominal' : 'Copy amount'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
+                    <div className="rounded-xl border border-line bg-white/80 px-3 py-2">
+                      <span className="text-slate-500">{copy.baseAmount}:</span>{' '}
+                      <strong className="text-ink">{formatRupiah(activeQrisInstruction.baseAmountIdr)}</strong>
+                    </div>
+                    <div className="rounded-xl border border-line bg-white/80 px-3 py-2">
+                      <span className="text-slate-500">{copy.uniqueCode}:</span>{' '}
+                      <strong className="font-mono text-ink">{activeQrisInstruction.uniqueCode}</strong>
+                    </div>
+                    <div className="rounded-xl border border-line bg-white/80 px-3 py-2">
+                      <span className="text-slate-500">{copy.merchantName}:</span>{' '}
+                      <strong className="text-ink">{activeQrisInstruction.merchantName || '-'}</strong>
+                    </div>
+                    <div className="rounded-xl border border-line bg-white/80 px-3 py-2">
+                      <span className="text-slate-500">{copy.expiresAt}:</span>{' '}
+                      <strong className="text-ink">{formatPaymentTime(activeQrisInstruction.expiresAt, locale)}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-line bg-white/90 px-4 py-3 text-xs leading-5 text-slate-600">
+                  <p>
+                    <strong className="text-ink">{copy.qrisInstructions}:</strong> {activeQrisInstruction.instructions}
+                  </p>
+                  {activeQrisInstruction.contact && (
+                    <p className="mt-1">
+                      <strong className="text-ink">{copy.adminContact}:</strong> {activeQrisInstruction.contact}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           ) : selectedPaymentMethod === 'interactive_qris' ? (
-            <div className="border border-line bg-panel p-3 text-sm leading-6 text-gray-700">
+            <div className="rounded-xl border border-line bg-slate-50/70 px-4 py-3 text-xs leading-5 text-slate-600">
               {copy.waitingPayment}
             </div>
           ) : null}
         </div>
 
-        {notice && <div className="mt-4 border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-800">{notice}</div>}
-        {paymentError && <div className="mt-4 border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-700">{paymentError}</div>}
-        {configError && <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">{configError}</div>}
+        {notice && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800">{notice}</div>}
+        {paymentError && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">{paymentError}</div>}
+        {configError && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">{configError}</div>}
 
-        <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[920px] border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-line text-xs uppercase text-gray-600">
-                {copy.table.map((heading) => (
-                  <th key={heading} className="py-2 pr-3">{heading}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {payments.length === 0 ? (
-                <tr>
-                  <td colSpan="8" className="py-4 text-sm text-gray-600">{copy.noTransactions}</td>
+        {/* Transaction History Table */}
+        <div className="mt-6 overflow-hidden rounded-2xl border border-line">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] border-collapse text-left text-xs sm:text-sm">
+              <thead className="bg-slate-50">
+                <tr className="border-b border-line text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  {copy.table.map((heading) => (
+                    <th key={heading} className="px-3.5 py-3">{heading}</th>
+                  ))}
                 </tr>
-              ) : (
-                payments.map((payment) => (
-                  <tr key={payment.id} className="border-b border-line">
-                    <td className="py-2 pr-3">{formatPaymentTime(payment.created_at, locale)}</td>
-                    <td className="py-2 pr-3">{automaticPaymentProviderLabel(payment.provider)}</td>
-                    <td className="py-2 pr-3 font-medium text-ink">{payment.order_id}</td>
-                    <td className="py-2 pr-3">
-                      <div>{formatRupiah(payment.amount_idr || 0)}</div>
-                      {payment.provider === 'interactive_qris' && payment.base_amount_idr ? (
-                        <div className="text-xs text-gray-500">{copy.baseAmountNote(formatRupiah(payment.base_amount_idr || 0))}</div>
-                      ) : null}
-                    </td>
-                    <td className="py-2 pr-3">
-                      <span className={`inline-flex border px-2 py-1 text-xs font-semibold ${payment.credited_ledger_id ? 'border-spruce bg-primary/5 text-spruce' : 'border-line bg-panel text-gray-700'}`}>
-                        {payment.status}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-3">{automaticPaymentChannelLabel(payment)}</td>
-                    <td className="py-2 pr-3">{payment.credited_ledger_id ? copy.credited : copy.notYet}</td>
-                    <td className="py-2 pr-3">
-                      {isAutomaticPaymentRefreshable(payment) ? (
-                        <button
-                          type="button"
-                          onClick={() => handleRefreshPayment(payment.order_id)}
-                          disabled={refreshingOrderId === payment.order_id}
-                          className="inline-flex min-h-8 items-center justify-center gap-1 border border-spruce bg-white px-2 py-1 text-xs font-semibold text-spruce disabled:opacity-60"
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-                          {refreshingOrderId === payment.order_id ? copy.refreshingStatus : copy.refreshStatus}
-                        </button>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
+              </thead>
+              <tbody className="divide-y divide-line bg-white">
+                {payments.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="px-4 py-6 text-center text-sm text-slate-500">{copy.noTransactions}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  payments.map((payment) => (
+                    <tr key={payment.id} className="transition hover:bg-slate-50/70">
+                      <td className="px-3.5 py-3 text-slate-600">{formatPaymentTime(payment.created_at, locale)}</td>
+                      <td className="px-3.5 py-3 font-medium text-ink">{automaticPaymentProviderLabel(payment.provider)}</td>
+                      <td className="px-3.5 py-3 font-mono text-xs font-semibold text-ink">{payment.order_id}</td>
+                      <td className="px-3.5 py-3">
+                        <div className="font-bold text-ink">{formatRupiah(payment.amount_idr || 0)}</div>
+                        {payment.provider === 'interactive_qris' && payment.base_amount_idr ? (
+                          <div className="text-[11px] text-slate-500">{copy.baseAmountNote(formatRupiah(payment.base_amount_idr || 0))}</div>
+                        ) : null}
+                      </td>
+                      <td className="px-3.5 py-3">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                            payment.credited_ledger_id
+                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                              : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'
+                          }`}
+                        >
+                          {payment.status}
+                        </span>
+                      </td>
+                      <td className="px-3.5 py-3 text-slate-600">{automaticPaymentChannelLabel(payment)}</td>
+                      <td className="px-3.5 py-3 text-slate-600">{payment.credited_ledger_id ? copy.credited : copy.notYet}</td>
+                      <td className="px-3.5 py-3">
+                        {isAutomaticPaymentRefreshable(payment) ? (
+                          <button
+                            type="button"
+                            onClick={() => handleRefreshPayment(payment.order_id)}
+                            disabled={refreshingOrderId === payment.order_id}
+                            className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-primary/30 bg-white px-2.5 py-1 text-xs font-semibold text-primary transition hover:bg-primary/5 disabled:opacity-60"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                            {refreshingOrderId === payment.order_id ? copy.refreshingStatus : copy.refreshStatus}
+                          </button>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
-      <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <ShoppingBag className="h-5 w-5 text-spruce" aria-hidden="true" />
-          <h2 className="text-base font-semibold text-ink">{copy.manualShopeeTitle}</h2>
-        </div>
-        <div className="grid gap-3 text-sm leading-6 text-gray-700">
-          <p>{state.shopee.note}</p>
+      {/* Secondary Manual Shopee Top-up Card */}
+      <section className="studio-card p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-200">
+              <ShoppingBag className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-ink">{copy.manualShopeeTitle}</h2>
+              <p className="text-xs text-slate-500">{state.shopee.note}</p>
+            </div>
+          </div>
           <a
             href={state.shopee.url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-10 w-fit items-center justify-center border border-spruce bg-spruce px-3 py-2 text-sm font-bold text-white hover:bg-primary/90"
+            className="studio-btn-secondary !min-h-9 !rounded-xl !px-4 !py-1.5 !text-xs"
           >
             {copy.openShopee}
           </a>
-          {state.shopee.contact && <p>{copy.adminContact}: {state.shopee.contact}</p>}
         </div>
-        <div className="mt-5 grid gap-3">
-          <div className="border border-line bg-panel p-3">
-            <p className="text-xs font-semibold uppercase text-gray-600">{copy.accountEmail}</p>
-            <p className="mt-1 break-all text-sm font-semibold text-ink">{state.sessionEmail}</p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="studio-subcard p-3.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{copy.accountEmail}</p>
+            <p className="mt-1 break-all text-xs font-bold text-ink">{state.sessionEmail}</p>
           </div>
-          <div className="border border-line bg-panel p-3 text-sm leading-6 text-gray-700">
+          <div className="studio-subcard p-3.5 text-xs leading-5 text-slate-600">
             <p>{copy.shopeeStepOne}</p>
-            <p>{copy.shopeeStepTwo}</p>
+            <p className="mt-1">{copy.shopeeStepTwo}</p>
+            {state.shopee.contact && <p className="mt-1 font-semibold text-ink">{copy.adminContact}: {state.shopee.contact}</p>}
           </div>
           <div
-            className={`border p-3 text-sm leading-6 ${
-              state.aiRedraw.available ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'
+            className={`rounded-xl border p-3.5 text-xs font-semibold leading-5 ${
+              state.aiRedraw.available
+                ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800'
+                : 'border-amber-200 bg-amber-50/70 text-amber-800'
             }`}
           >
             {state.aiRedraw.available

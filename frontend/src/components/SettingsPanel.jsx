@@ -1,302 +1,309 @@
-import { Check, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, Shirt, SlidersHorizontal, Sticker } from 'lucide-react';
 import { PAPER_SIZE_OPTIONS } from '../lib/localPrint.js';
 import { INPUT_MODE_READY } from '../lib/modes.js';
 
-function Toggle({ checked, onChange, label, disabled }) {
+const WIDTH_PRESETS_CM = [8, 10, 20, 28];
+
+function getCopy(locale) {
+  const isId = locale !== 'en';
+  return {
+    stepLabel: isId ? '2. Pengaturan Output' : '2. Output Settings',
+    heading: isId ? 'Target & ukuran cetak' : 'Target & print size',
+    targetLabel: isId ? 'Jenis produksi' : 'Production target',
+    targets: [
+      {
+        value: 'sablon',
+        label: 'Sablon',
+        hint: isId ? 'Vector + film pisah warna' : 'Vector + separation films',
+        icon: Shirt
+      },
+      {
+        value: 'sticker',
+        label: 'Sticker',
+        hint: isId ? 'Vector + garis cutline' : 'Vector + contour cutline',
+        icon: Sticker
+      }
+    ],
+    widthLabel: isId ? 'Lebar desain aktual (cm)' : 'Actual artwork width (cm)',
+    widthHint: isId ? 'Tinggi mengikuti proporsi desain.' : 'Height scales proportionally.',
+    removeBgLabel: isId ? 'Hilangkan background' : 'Remove background',
+    removeBgHint: isId ? 'Hasil transparan tanpa warna latar.' : 'Outputs transparent background.',
+    advancedTitle: isId ? 'Pengaturan Lanjutan' : 'Advanced Settings',
+    advancedSubtitle: isId ? 'Vector, film warna, cutline, dan ukuran kertas PDF' : 'Vector, color films, cutline, and PDF paper size',
+    makeVectorLabel: isId ? 'Jadikan Vector (SVG/PDF)' : 'Convert to Vector (SVG/PDF)',
+    separateColorsLabel: isId ? 'Pecah warna sablon (film per warna)' : 'Color separation (film per color)',
+    underbaseLabel: isId ? 'Tambah film white underbase' : 'Include white underbase film',
+    includeBgLabel: isId ? 'Ikutkan background di ukuran film' : 'Include background in film size',
+    cutlineLabel: isId ? 'Buat garis cutline sticker' : 'Generate sticker cutline',
+    cutlineOffsetLabel: isId ? 'Offset cutline (mm)' : 'Cutline offset (mm)',
+    paperSizeLabel: isId ? 'Ukuran kertas PDF' : 'PDF paper size',
+    paperOrientationLabel: isId ? 'Orientasi kertas' : 'Orientation',
+    portraitLabel: 'Portrait',
+    landscapeLabel: 'Landscape'
+  };
+}
+
+function ToggleRow({ label, hint, checked, onChange, disabled }) {
   return (
-    <button
-      type="button"
-      onClick={() => !disabled && onChange(!checked)}
-      className={`flex w-full items-center justify-between gap-3 border px-3 py-3 text-left text-sm transition ${
-        checked ? 'border-spruce bg-primary/5 text-ink' : 'border-line bg-white text-gray-700'
-      } ${disabled ? 'cursor-not-allowed opacity-60' : 'hover:border-spruce'}`}
-      aria-pressed={checked}
-      disabled={disabled}
+    <label
+      className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-line bg-slate-50/70 px-3.5 py-2.5 transition hover:border-slate-300 ${
+        disabled ? 'cursor-not-allowed opacity-60' : ''
+      }`}
     >
-      <span className="font-medium">{label}</span>
-      <span className={`flex h-5 w-5 items-center justify-center border ${checked ? 'border-spruce bg-spruce text-white' : 'border-line bg-white'}`}>
-        {checked && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-ink">{label}</p>
+        {hint && <p className="mt-0.5 text-[11px] leading-4 text-slate-500">{hint}</p>}
+      </div>
+      <span className="relative inline-flex shrink-0 items-center">
+        <input
+          type="checkbox"
+          checked={Boolean(checked)}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked)}
+          className="peer sr-only"
+        />
+        <span className="h-5 w-9 rounded-full bg-slate-300 transition peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30" />
+        <span className="pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-4" />
       </span>
-    </button>
+    </label>
   );
 }
 
 export default function SettingsPanel({ locale = 'id', settings, inputMode, onChange, disabled }) {
-  const isId = locale === 'id';
-  const copy = {
-    sablon: isId ? 'Sablon' : 'Screen print',
-    vectorOnlyAuto: isId ? 'Vector only (otomatis)' : 'Vector only (automatic)',
-    readyModeNote: isId
-      ? 'Mode siap trace selalu menjalankan vector, pisah warna, dan contour sticker lewat jalur backend lokal.'
-      : 'Production-ready trace mode always runs vectoring, color separation, and sticker cutline generation through the local backend path.',
-    aiRedrawNote: isId
-      ? 'Harga promo perkenalan AI Redraw hanya Rp5.000 per gambar dan sudah termasuk pecah warna untuk sablon.'
-      : 'Introductory AI Redraw promo is only Rp5,000 per image and already includes screen-print color separation.',
-    filmSizeTitle: isId ? 'Ukuran film sablon' : 'Screen print film size',
-    horizontalWidth: isId ? 'Lebar gambar horizontal' : 'Horizontal artwork width',
-    widthHint: isId ? 'Yang diisi adalah lebar gambar dari sisi kiri ke kanan.' : 'Enter the artwork width from left to right, not the height.',
-    includeBackground: isId ? 'Sertakan background dalam ukuran' : 'Include background in size calculation',
-    underbaseFilm: isId ? 'Buat film dasar untuk bahan gelap' : 'Create underbase film for dark garments',
-    paperSize: isId ? 'Ukuran kertas' : 'Paper size',
-    paperOrientation: isId ? 'Orientasi kertas' : 'Paper orientation',
-    artworkWidth: isId ? 'Lebar artwork horizontal' : 'Horizontal artwork width',
-    cutlineOffset: isId ? 'Jarak garis potong' : 'Cutline offset',
-    stickerOutput: isId ? 'Output sticker' : 'Sticker output',
-    stickerCutline: isId ? 'Buat garis potong sticker' : 'Create sticker cutline',
-    portrait: isId ? 'Potret' : 'Portrait',
-    landscape: isId ? 'Lanskap' : 'Landscape'
-  };
+  const copy = getCopy(locale);
+  const effectiveReady = inputMode === INPUT_MODE_READY;
 
-  function update(key, value) {
-    onChange({ ...settings, [key]: value });
+  function patchSettings(partial) {
+    onChange({
+      ...settings,
+      ...partial
+    });
+  }
+
+  function setProductionType(type) {
+    patchSettings({
+      productionType: type,
+      separateColors: type === 'sablon',
+      makeVector: type === 'sablon' ? true : settings.makeVector,
+      stickerCutlineEnabled: type === 'sticker' ? true : settings.stickerCutlineEnabled
+    });
   }
 
   function setRemoveBackground(value) {
-    onChange({
-      ...settings,
+    patchSettings({
       removeBackground: value,
       includeBackgroundInFilmSize: value ? false : settings.includeBackgroundInFilmSize
     });
   }
 
-  function setProductionType(productionType) {
-    onChange({
-      ...settings,
-      productionType,
-      separateColors: productionType === 'sablon',
-      makeVector: productionType === 'sablon' ? true : settings.makeVector
-    });
-  }
-
   function setSeparateColors(value) {
-    onChange({
-      ...settings,
+    patchSettings({
       separateColors: value,
       makeVector: value ? true : settings.makeVector
     });
   }
 
   return (
-    <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <SlidersHorizontal className="h-5 w-5 text-spruce" aria-hidden="true" />
-        <h2 className="text-base font-semibold text-ink">{isId ? 'Pengaturan produksi' : 'Production settings'}</h2>
+    <section className="studio-card p-5">
+      <div className="mb-4">
+        <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+          {copy.stepLabel}
+        </span>
+        <h2 className="mt-2 text-base font-bold tracking-tight text-ink">{copy.heading}</h2>
       </div>
 
-      <div className="space-y-5">
+      <div className="space-y-4">
+        {/* Production Type Segmented Selector */}
         <div>
-          <span className="mb-2 block text-sm font-medium text-ink">{isId ? 'Jenis produksi' : 'Production type'}</span>
-          <div className="grid grid-cols-2 gap-2">
-            {['sablon', 'sticker'].map((type) => (
-              <button
-                key={type}
-                type="button"
-                disabled={disabled}
-                onClick={() => setProductionType(type)}
-                className={`border px-3 py-2.5 text-sm font-semibold capitalize transition ${
-                  settings.productionType === type ? 'border-spruce bg-spruce text-white' : 'border-line bg-white text-ink hover:border-spruce'
-                }`}
-              >
-                {type === 'sticker' ? 'Sticker' : copy.sablon}
-              </button>
-            ))}
+          <label className="mb-2 block text-xs font-bold text-slate-700">{copy.targetLabel}</label>
+          <div className="grid grid-cols-2 gap-2.5">
+            {copy.targets.map((target) => {
+              const Icon = target.icon;
+              const active = settings.productionType === target.value;
+              return (
+                <button
+                  key={target.value}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setProductionType(target.value)}
+                  className={`flex flex-col items-start rounded-xl border p-3 text-left transition ${
+                    active
+                      ? 'border-primary bg-primary/[0.05] ring-2 ring-primary/20'
+                      : 'border-line bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${
+                      active ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  </div>
+                  <span className="mt-2 text-xs font-bold text-ink">{target.label}</span>
+                  <span className="mt-0.5 text-[11px] leading-4 text-slate-500">{target.hint}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div className="grid gap-2">
-          <Toggle
-            checked={inputMode === INPUT_MODE_READY ? true : settings.makeVector}
-            onChange={(value) => update('makeVector', value)}
-            label={inputMode === INPUT_MODE_READY ? copy.vectorOnlyAuto : isId ? 'Buat versi vector' : 'Create vector version'}
-            disabled={disabled || settings.separateColors || inputMode === INPUT_MODE_READY}
-          />
-          <Toggle checked={settings.separateColors} onChange={setSeparateColors} label={isId ? 'Pecah warna untuk sablon' : 'Separate colors for screen print'} disabled={disabled} />
-        </div>
-
-        {inputMode === INPUT_MODE_READY && (
-          <div className="border border-spruce bg-primary/5 px-3 py-2 text-xs leading-5 text-ink">
-            {copy.readyModeNote}
+        {/* Width cm + Quick Presets */}
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="actualWidthCmInput" className="text-xs font-bold text-slate-700">
+              {copy.widthLabel}
+            </label>
+            <span className="text-[11px] text-slate-500">{copy.widthHint}</span>
           </div>
-        )}
-
-        {inputMode !== INPUT_MODE_READY && (
-          <div className="border border-spruce bg-primary/5 px-3 py-2 text-xs leading-5 text-ink">
-            {copy.aiRedrawNote}
-          </div>
-        )}
-
-        <div className="border border-line bg-panel p-3">
-          <Toggle
-            checked={settings.removeBackground}
-            onChange={setRemoveBackground}
-            label={isId ? 'Hilangkan background' : 'Remove background'}
-            disabled={disabled}
-          />
-          <p className="mt-2 text-xs text-gray-600">
-            {isId ? 'Ukuran dan output difokuskan ke objek utama saja. Background yang terdeteksi akan diabaikan.' : 'Sizing and output focus on the main subject only. Detected backgrounds will be ignored.'}
-          </p>
-        </div>
-
-        <div className="border border-spruce bg-primary/5 px-3 py-2.5 text-sm text-ink">
-          <p className="font-semibold">{isId ? 'Warna sablon otomatis' : 'Automatic screen-print colors'}</p>
-          <p className="mt-1 text-xs text-gray-700">
-            {isId ? 'Maksimal 6 warna tinta. Film dasar opsional dibuat terpisah, sehingga total maksimal 7 film.' : 'Maximum 6 ink colors. The optional underbase is generated separately, for a maximum of 7 films.'}
-          </p>
-        </div>
-
-        {settings.productionType === 'sticker' && (
-          <div className="border border-line bg-panel p-3">
-            <p className="mb-3 text-sm font-semibold text-ink">{copy.stickerOutput}</p>
-            <Toggle
-              checked={settings.stickerCutlineEnabled}
-              onChange={(value) => update('stickerCutlineEnabled', value)}
-              label={copy.stickerCutline}
+          <div className="mt-1.5 flex items-center gap-2">
+            <input
+              id="actualWidthCmInput"
+              type="number"
+              min="1"
+              max="100"
+              step="0.5"
               disabled={disabled}
+              value={settings.actualWidthCm ?? 10}
+              onChange={(event) => patchSettings({ actualWidthCm: event.target.value })}
+              className="studio-input w-24 text-center font-mono text-sm font-bold"
             />
-
-            {settings.stickerCutlineEnabled && (
-              <div className="mt-3 grid gap-3">
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">{copy.artworkWidth}</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      max="100"
-                      step="0.1"
-                      value={settings.actualWidthCm}
-                      onChange={(event) => update('actualWidthCm', event.target.value)}
-                      onWheel={(event) => event.currentTarget.blur()}
-                      disabled={disabled}
-                      className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                    />
-                    <span className="text-sm font-medium text-gray-700">cm</span>
-                  </div>
-                  <p className="mt-1.5 text-xs text-gray-600">{isId ? 'Isi ukuran dari kiri ke kanan gambar, bukan tinggi.' : 'Enter the size from the left side to the right side of the artwork, not the height.'}</p>
-                </label>
-
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink">{copy.cutlineOffset}</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="0.1"
-                      max="20"
-                      step="0.1"
-                      value={settings.stickerCutlineOffsetMm}
-                      onChange={(event) => update('stickerCutlineOffsetMm', event.target.value)}
-                      disabled={disabled}
-                      className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                    />
-                    <span className="text-sm font-medium text-gray-700">mm</span>
-                  </div>
-                </label>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium text-ink">{copy.paperSize}</span>
-                    <select
-                      value={settings.paperSize}
-                      onChange={(event) => update('paperSize', event.target.value)}
-                      disabled={disabled}
-                      className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                    >
-                      {PAPER_SIZE_OPTIONS.map((paperSize) => (
-                        <option key={paperSize} value={paperSize}>{paperSize}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium text-ink">{copy.paperOrientation}</span>
-                    <select
-                      value={settings.paperOrientation}
-                      onChange={(event) => update('paperOrientation', event.target.value)}
-                      disabled={disabled}
-                      className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                    >
-                      <option value="portrait">{copy.portrait}</option>
-                      <option value="landscape">{copy.landscape}</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {settings.separateColors && (
-          <div className="border border-line bg-panel p-3">
-            <p className="mb-3 text-sm font-semibold text-ink">{copy.filmSizeTitle}</p>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{copy.horizontalWidth}</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  step="0.1"
-                  value={settings.actualWidthCm}
-                  onChange={(event) => update('actualWidthCm', event.target.value)}
-                  onWheel={(event) => event.currentTarget.blur()}
-                  disabled={disabled}
-                  className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                />
-                <span className="text-sm font-medium text-gray-700">cm</span>
-              </div>
-              <p className="mt-1.5 text-xs text-gray-600">{copy.widthHint}</p>
-            </label>
-
-            <label className="mt-3 flex cursor-pointer items-center gap-3 border border-line bg-white px-3 py-2.5 text-sm">
-              <input
-                type="checkbox"
-                checked={settings.includeBackgroundInFilmSize}
-                disabled={disabled || settings.removeBackground}
-                onChange={(event) => update('includeBackgroundInFilmSize', event.target.checked)}
-              />
-              {copy.includeBackground}
-            </label>
-
-            <label className="mt-3 flex cursor-pointer items-center gap-3 border border-line bg-white px-3 py-2.5 text-sm">
-              <input
-                type="checkbox"
-                checked={settings.createUnderbaseFilm}
-                onChange={(event) => update('createUnderbaseFilm', event.target.checked)}
-                disabled={disabled}
-              />
-              {copy.underbaseFilm}
-            </label>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">{copy.paperSize}</span>
-                <select
-                  value={settings.paperSize}
-                  onChange={(event) => update('paperSize', event.target.value)}
-                  disabled={disabled}
-                  className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                >
-                  {PAPER_SIZE_OPTIONS.map((paperSize) => (
-                    <option key={paperSize} value={paperSize}>{paperSize}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">{copy.paperOrientation}</span>
-                <select
-                  value={settings.paperOrientation}
-                  onChange={(event) => update('paperOrientation', event.target.value)}
-                  disabled={disabled}
-                  className="w-full border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-spruce"
-                >
-                  <option value="portrait">{copy.portrait}</option>
-                  <option value="landscape">{copy.landscape}</option>
-                </select>
-              </label>
+            <div className="flex flex-1 flex-wrap gap-1.5">
+              {WIDTH_PRESETS_CM.map((cm) => {
+                const isSelected = Number(settings.actualWidthCm) === cm;
+                return (
+                  <button
+                    key={cm}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => patchSettings({ actualWidthCm: cm })}
+                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${
+                      isSelected
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-line bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white'
+                    }`}
+                  >
+                    {cm} cm
+                  </button>
+                );
+              })}
             </div>
           </div>
-        )}
+        </div>
+
+        {/* Essential Toggle: Remove Background */}
+        <ToggleRow
+          label={copy.removeBgLabel}
+          hint={copy.removeBgHint}
+          checked={settings.removeBackground}
+          onChange={setRemoveBackground}
+          disabled={disabled}
+        />
+
+        {/* Advanced Settings Accordion */}
+        <details className="group rounded-2xl border border-line bg-white">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3.5 py-3 text-xs font-bold text-ink">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+              <div>
+                <span>{copy.advancedTitle}</span>
+                <p className="text-[11px] font-normal text-slate-500">{copy.advancedSubtitle}</p>
+              </div>
+            </div>
+            <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180" aria-hidden="true" />
+          </summary>
+
+          <div className="space-y-2.5 border-t border-line p-3.5">
+            <ToggleRow
+              label={copy.makeVectorLabel}
+              checked={effectiveReady || settings.makeVector}
+              onChange={(value) => patchSettings({ makeVector: value })}
+              disabled={disabled || effectiveReady}
+            />
+            <ToggleRow
+              label={copy.separateColorsLabel}
+              checked={settings.separateColors}
+              onChange={setSeparateColors}
+              disabled={disabled}
+            />
+            {settings.separateColors && (
+              <ToggleRow
+                label={copy.underbaseLabel}
+                checked={settings.createUnderbaseFilm}
+                onChange={(value) => patchSettings({ createUnderbaseFilm: value })}
+                disabled={disabled}
+              />
+            )}
+            {!settings.removeBackground && (
+              <ToggleRow
+                label={copy.includeBgLabel}
+                checked={settings.includeBackgroundInFilmSize}
+                onChange={(value) => patchSettings({ includeBackgroundInFilmSize: value })}
+                disabled={disabled}
+              />
+            )}
+
+            <ToggleRow
+              label={copy.cutlineLabel}
+              checked={settings.stickerCutlineEnabled}
+              onChange={(value) => patchSettings({ stickerCutlineEnabled: value })}
+              disabled={disabled}
+            />
+            {settings.stickerCutlineEnabled && (
+              <div className="rounded-xl border border-line bg-slate-50/70 px-3.5 py-2.5">
+                <label htmlFor="cutlineOffsetInput" className="block text-xs font-semibold text-ink">
+                  {copy.cutlineOffsetLabel}
+                </label>
+                <input
+                  id="cutlineOffsetInput"
+                  type="number"
+                  min="0"
+                  max="20"
+                  step="0.5"
+                  disabled={disabled}
+                  value={settings.stickerCutlineOffsetMm ?? 2}
+                  onChange={(event) => patchSettings({ stickerCutlineOffsetMm: event.target.value })}
+                  className="studio-input mt-1.5 font-mono text-xs font-semibold"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <div>
+                <label htmlFor="paperSizeSelect" className="mb-1 block text-[11px] font-bold text-slate-600">
+                  {copy.paperSizeLabel}
+                </label>
+                <select
+                  id="paperSizeSelect"
+                  disabled={disabled}
+                  value={settings.paperSize || 'A4'}
+                  onChange={(event) => patchSettings({ paperSize: event.target.value })}
+                  className="studio-input !py-2 text-xs font-semibold"
+                >
+                  {PAPER_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="paperOrientationSelect" className="mb-1 block text-[11px] font-bold text-slate-600">
+                  {copy.paperOrientationLabel}
+                </label>
+                <select
+                  id="paperOrientationSelect"
+                  disabled={disabled}
+                  value={settings.paperOrientation || 'portrait'}
+                  onChange={(event) => patchSettings({ paperOrientation: event.target.value })}
+                  className="studio-input !py-2 text-xs font-semibold"
+                >
+                  <option value="portrait">{copy.portraitLabel}</option>
+                  <option value="landscape">{copy.landscapeLabel}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
     </section>
   );

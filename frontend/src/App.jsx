@@ -1,8 +1,9 @@
-import { CreditCard, LogOut, RefreshCw, ShoppingBag, Wand2 } from 'lucide-react';
+import { Archive, Coins, CreditCard, LogOut, RefreshCw, ShoppingBag, Sparkles, Wand2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import AdminPanel from './components/AdminPanel.jsx';
 import AuthPanel from './components/AuthPanel.jsx';
 import BillingPanel from './components/BillingPanel.jsx';
+import BrandMark from './components/BrandMark.jsx';
 import JobLibraryPanel from './components/JobLibraryPanel.jsx';
 import JobStatus from './components/JobStatus.jsx';
 import LandingPage, { AboutPage, ContactPage, PrivacyPage, TermsPage } from './components/LandingPage.jsx';
@@ -16,7 +17,7 @@ import { parseMidtransReturnParams, stripMidtransReturnParams } from './lib/bill
 import { loadStoredLocale, localeTag, resolveInitialLocale, saveStoredLocale } from './lib/locale.js';
 import { analyzeRasterForUpscale, normalizeLocalTraceSettings, processImageLocallyWithFallback } from './lib/localProcessor.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from './lib/modes.js';
-import { IMAGE_RETOUCH_PRICE_IDR, calculateJobPrice, formatRupiah } from './lib/pricing.js';
+import { IMAGE_RETOUCH_PRICE_IDR, READY_PROCESS_PRICE_IDR, calculateJobPrice, formatRupiah } from './lib/pricing.js';
 import { isAuthConfigured, getSession, onAuthStateChange, setSessionFromCallback, signOut as authSignOut } from './lib/auth.js';
 
 const SUPERUSER_ACCOUNT = ['jho.j80@gm', 'a', 'il.com'].join('');
@@ -958,52 +959,72 @@ export default function App() {
     if (publicRoute === 'about') return <AboutPage locale={locale} onNavigate={navigatePublicPath} />;
   }
 
+  const estimatedCostIdr =
+    settings.inputMode === INPUT_MODE_RETOUCH ? IMAGE_RETOUCH_PRICE_IDR : READY_PROCESS_PRICE_IDR;
+
   return (
     <main className="min-h-screen gradient-bg-subtle">
       {session && (
-        <div className="glass-nav">
-          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
+        <header className="glass-nav">
+          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setView('app');
+                  setAppSection('process');
+                }}
+                className="shrink-0 text-left transition hover:opacity-85"
+              >
+                <BrandMark compact />
+              </button>
+              <div className="hidden h-5 w-px bg-line sm:block" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-ink">{session?.user?.email}</p>
-                <p className="text-xs text-gray-600">{roleLabel}</p>
+                <p className="text-[11px] font-medium text-slate-500">{roleLabel}</p>
               </div>
-              <div className="inline-flex items-center gap-2 border border-line bg-white px-3 py-2 text-sm font-semibold text-ink">
-                <CreditCard className="h-4 w-4 text-spruce" aria-hidden="true" />
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-slate-50 px-3 py-1.5 text-xs font-bold text-ink">
+                <CreditCard className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                 <span>{balanceLabel}</span>
               </div>
               <button
                 type="button"
                 onClick={refreshBalance}
-                className="inline-flex h-9 w-9 items-center justify-center border border-line bg-white text-gray-700 hover:border-spruce hover:text-spruce"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white text-slate-600 transition hover:border-primary/40 hover:text-primary"
                 title={copy.labels.refreshBalance}
               >
-                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <nav className="flex flex-wrap gap-2">
+              <nav className="inline-flex items-center rounded-xl border border-line bg-slate-100/80 p-1">
                 {['app', 'billing', 'admin'].map((item) =>
                   item === 'admin' && !isSuperuser ? null : (
                     <button
                       key={item}
                       type="button"
                       onClick={() => setView(item)}
-                      className={`border px-3 py-2 text-sm font-semibold ${view === item ? 'border-spruce bg-spruce text-white' : 'border-line bg-white text-ink'}`}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition sm:text-sm ${
+                        view === item
+                          ? 'bg-white text-primary shadow-sm'
+                          : 'text-slate-600 hover:text-ink'
+                      }`}
                     >
                       {item === 'app' ? copy.labels.viewApp : item === 'billing' ? copy.labels.viewBilling : copy.labels.viewAdmin}
                     </button>
                   )
                 )}
               </nav>
-              <div className="inline-flex items-center overflow-hidden rounded-md border border-line bg-white">
+              <div className="inline-flex items-center overflow-hidden rounded-xl border border-line bg-slate-100/80 p-1">
                 {['id', 'en'].map((nextLocale) => (
                   <button
                     key={nextLocale}
                     type="button"
                     onClick={() => handleLocaleChange(nextLocale)}
-                    className={`px-3 py-2 text-xs font-semibold uppercase ${locale === nextLocale ? 'bg-spruce text-white' : 'text-ink hover:bg-panel'}`}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-bold uppercase transition ${
+                      locale === nextLocale ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-ink'
+                    }`}
                   >
                     {nextLocale}
                   </button>
@@ -1012,15 +1033,15 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setView('billing')}
-                className="inline-flex min-h-10 items-center gap-2 border border-spruce bg-spruce px-3 py-2 text-sm font-semibold text-white hover:bg-primary/90"
+                className="studio-btn-primary !min-h-9 !rounded-xl !px-3.5 !py-1.5 !text-xs sm:!text-sm"
               >
-                <ShoppingBag className="h-4 w-4" aria-hidden="true" />
+                <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
                 {copy.labels.topUp}
               </button>
               <button
                 type="button"
                 onClick={signOut}
-                className="inline-flex h-10 w-10 items-center justify-center border border-line bg-white text-gray-700 hover:border-tomato hover:text-tomato"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-white text-slate-600 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
                 title={copy.labels.logout}
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
@@ -1028,11 +1049,11 @@ export default function App() {
             </div>
           </div>
           {balanceError && (
-            <div className="mx-auto max-w-6xl px-4 pb-4 sm:px-6">
-              <p className="border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">{balanceError}</p>
+            <div className="mx-auto max-w-6xl px-4 pb-3 sm:px-6">
+              <p className="rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-medium text-amber-800">{balanceError}</p>
             </div>
           )}
-        </div>
+        </header>
       )}
 
       {!session && (
@@ -1046,7 +1067,7 @@ export default function App() {
           />
           {authCallbackError && (
             <div className="mx-auto max-w-6xl px-4 pb-4 sm:px-6">
-              <p className="border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm font-medium text-red-700">
                 {authCallbackError}
               </p>
             </div>
@@ -1055,7 +1076,7 @@ export default function App() {
       )}
 
       {session && view === 'billing' && (
-        <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
           <BillingPanel
             locale={locale}
             session={session}
@@ -1068,57 +1089,56 @@ export default function App() {
       )}
 
       {session && view === 'admin' && (
-        <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
           <AdminPanel session={session} enabled={isSuperuser} activeTab={adminTab} onActiveTabChange={setAdminTab} />
         </div>
       )}
 
       {session && view === 'app' && (
-        <form className="mx-auto grid max-w-6xl gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_380px]" onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
-              <div className="flex flex-wrap gap-2">
-                {[ 
-                  { key: 'process' },
-                  { key: 'history' }
-                ].map((section) => (
+        <form className="mx-auto grid max-w-6xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px]" onSubmit={handleSubmit}>
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white/95 p-2 shadow-card">
+              <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-slate-100/90 p-1">
+                {[
+                  { key: 'process', icon: Sparkles },
+                  { key: 'history', icon: Archive }
+                ].map(({ key, icon: Icon }) => (
                   <button
-                    key={section.key}
+                    key={key}
                     type="button"
                     onClick={() => {
-                      setAppSection(section.key);
-                      if (section.key === 'process') {
+                      setAppSection(key);
+                      if (key === 'process') {
                         setHistoryNotice('');
                       } else {
                         setProcessNotice('');
                       }
                     }}
-                    className={`inline-flex min-h-10 items-center justify-center border px-3 py-2 text-sm font-semibold transition ${
-                      appSection === section.key ? 'border-spruce bg-spruce text-white' : 'border-line bg-white text-ink hover:border-spruce'
+                    className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-semibold transition ${
+                      appSection === key
+                        ? 'bg-white text-primary shadow-sm'
+                        : 'text-slate-600 hover:text-ink'
                     }`}
                   >
-                    {section.key === 'process' ? copy.labels.processSection : copy.labels.historySection}
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    <span>{key === 'process' ? copy.labels.processSection : copy.labels.historySection}</span>
                   </button>
                 ))}
-                <button
-                  type="button"
-                  onClick={openExampleResults}
-                  className="inline-flex min-h-10 items-center justify-center border border-chart-3 bg-chart-3 px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-                >
-                  {copy.labels.examplesSection}
-                </button>
               </div>
-              <p className="mt-3 text-xs text-gray-600">
-                {isId
-                  ? 'Tombol Contoh hasil membuka galeri yang menggabungkan riwayat Anda dengan contoh job superadmin yang dipublish.'
-                  : 'The Example results button opens the gallery that merges your history with published superadmin example jobs.'}
-              </p>
-            </section>
+              <button
+                type="button"
+                onClick={openExampleResults}
+                className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-1.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
+              >
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{copy.labels.examplesSection}</span>
+              </button>
+            </div>
 
             {appSection === 'process' ? (
               <>
                 {processNotice && (
-                  <section className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800 shadow-sm">
+                  <section className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800 shadow-sm">
                     {processNotice}
                   </section>
                 )}
@@ -1168,7 +1188,7 @@ export default function App() {
             ) : (
               <>
                 {historyNotice && (
-                  <section className="border border-spruce bg-primary/5 px-4 py-3 text-sm text-ink shadow-sm">
+                  <section className="rounded-2xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm font-medium text-ink shadow-sm">
                     {historyNotice}
                   </section>
                 )}
@@ -1190,23 +1210,42 @@ export default function App() {
             )}
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
+          <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
             {appSection === 'process' ? (
               <>
                 <SettingsPanel locale={locale} settings={settings} inputMode={settings.inputMode} onChange={setSettings} disabled={isBusy} />
-                <button
-                  type="submit"
-                  disabled={!canSubmit}
-                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 border border-spruce bg-spruce px-4 py-3 text-sm font-bold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300 disabled:text-gray-600"
-                >
-                  <Wand2 className="h-5 w-5" aria-hidden="true" />
-                  <span>{isBusy ? copy.labels.processingButtonBusy : copy.labels.processingButtonIdle}</span>
-                </button>
+                <div className="studio-card space-y-3 p-4">
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <span className="inline-flex items-center gap-1.5 font-medium">
+                      <Coins className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                      {isId ? 'Estimasi biaya proses' : 'Estimated cost'}
+                    </span>
+                    <span className="font-bold text-ink">
+                      {balanceInfo.isUnlimited ? (isId ? 'Unlimited' : 'Unlimited') : formatRupiah(estimatedCostIdr)}
+                    </span>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!canSubmit}
+                    className="studio-btn-primary min-h-12 w-full text-sm font-bold shadow-md shadow-primary/20"
+                  >
+                    <Wand2 className="h-4 w-4" aria-hidden="true" />
+                    <span>{isBusy ? copy.labels.processingButtonBusy : copy.labels.processingButtonIdle}</span>
+                  </button>
+                  {!file && (
+                    <p className="text-center text-[11px] text-slate-500">
+                      {isId ? 'Pilih atau drop file desain terlebih dahulu' : 'Upload a design file first to start'}
+                    </p>
+                  )}
+                </div>
               </>
             ) : (
-              <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
-                <h2 className="text-base font-semibold text-ink">{copy.labels.activeHistoryTitle}</h2>
-                <p className="mt-2 text-sm leading-6 text-gray-600">
+              <section className="studio-card p-5">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Archive className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <h2 className="mt-3 text-base font-bold text-ink">{copy.labels.activeHistoryTitle}</h2>
+                <p className="mt-1.5 text-sm leading-6 text-slate-600">
                   {copy.labels.activeHistoryBody}
                 </p>
                 <button
@@ -1215,7 +1254,7 @@ export default function App() {
                     setAppSection('process');
                     setHistoryNotice('');
                   }}
-                  className="mt-4 inline-flex min-h-10 w-full items-center justify-center border border-spruce bg-white px-3 py-2 text-sm font-semibold text-spruce transition hover:bg-primary/5"
+                  className="studio-btn-secondary mt-4 w-full"
                 >
                   {copy.labels.backToProcess}
                 </button>

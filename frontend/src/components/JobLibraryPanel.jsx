@@ -1,4 +1,4 @@
-import { Archive, Eye, Sparkles, Trash2 } from 'lucide-react';
+import { Archive, ArrowLeft, Eye, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from '../lib/modes.js';
 import ResultPreview from './ResultPreview.jsx';
@@ -17,8 +17,8 @@ function ExamplePreview({ label, src }) {
   if (!src) return null;
   return (
     <div className="min-w-0">
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</p>
-      <div className="checkerboard flex h-20 items-center justify-center overflow-hidden border border-line bg-white p-2">
+      <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+      <div className="checkerboard flex h-24 items-center justify-center overflow-hidden rounded-xl border border-line bg-white p-2">
         <img className="h-full w-full object-contain" src={src} alt={label} loading="lazy" />
       </div>
     </div>
@@ -154,55 +154,79 @@ function mergeLibraryItems(localItem, exampleItem) {
   };
 }
 
-function LibraryCard({ locale = 'id', item, onOpen, onDelete, isDeleting }) {
+function LibraryCard({ locale = 'id', item, isSelected, onOpen, onDelete, isDeleting }) {
   const isId = locale === 'id';
   const productionLabel = productionLabels[item.productionType] || item.productionType;
   const inputLabel = inputModeLabels[item.inputMode] || item.inputMode;
 
   return (
-    <article className="border border-line bg-panel p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-ink">{item.projectName}</p>
-          <p className="mt-1 text-xs text-gray-600">
-            {productionLabel} - {inputLabel}
-          </p>
-          {item.updatedAt && <p className="mt-1 text-[11px] text-gray-500">{new Date(item.updatedAt).toLocaleString(isId ? 'id-ID' : 'en-US')}</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          {item.isExample && (
-            <span className="inline-flex items-center gap-1 border border-spruce bg-primary/5 px-2 py-1 text-[11px] font-semibold text-spruce">
-              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              {isId ? 'Contoh' : 'Example'}
-            </span>
-          )}
+    <article
+      className={`studio-subcard flex flex-col justify-between p-4 transition hover:shadow-md ${
+        isSelected ? 'border-primary ring-2 ring-primary/20' : ''
+      }`}
+    >
+      <div>
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-ink">{item.projectName}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-line">
+                {productionLabel}
+              </span>
+              <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-line">
+                {inputLabel}
+              </span>
+              {item.isExample && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200">
+                  <Sparkles className="h-3 w-3" aria-hidden="true" />
+                  {isId ? 'Contoh' : 'Example'}
+                </span>
+              )}
+            </div>
+            {item.updatedAt && (
+              <p className="mt-1.5 text-[11px] text-slate-400">
+                {new Date(item.updatedAt).toLocaleString(isId ? 'id-ID' : 'en-US')}
+              </p>
+            )}
+          </div>
+
           {item.canDelete && (
             <button
               type="button"
               onClick={() => onDelete(item)}
               disabled={isDeleting}
-              className="inline-flex h-9 w-9 items-center justify-center border border-tomato bg-white text-tomato transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
-              title={item.isExample ? (isId ? 'Hapus job dan cabut publikasi contoh' : 'Delete and unpublish this example job') : isId ? 'Hapus job' : 'Delete job'}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+              title={
+                item.isExample
+                  ? isId
+                    ? 'Hapus job dan cabut publikasi contoh'
+                    : 'Delete and unpublish this example job'
+                  : isId
+                    ? 'Hapus job'
+                    : 'Delete job'
+              }
             >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           )}
         </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2.5">
+          <ExamplePreview label={isId ? 'Sebelum' : 'Before'} src={item.sourcePreviewUrl} />
+          <ExamplePreview label={isId ? 'Sesudah' : 'After'} src={item.resultPreviewUrl || item.job?.files?.fullPng} />
+        </div>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <ExamplePreview label={isId ? 'Sebelum' : 'Before'} src={item.sourcePreviewUrl} />
-        <ExamplePreview label={isId ? 'Sesudah' : 'After'} src={item.resultPreviewUrl || item.job?.files?.fullPng} />
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3.5">
         <button
           type="button"
           onClick={() => onOpen(item)}
-          className="inline-flex min-h-9 items-center justify-center gap-2 border border-spruce bg-white px-3 py-2 text-xs font-semibold text-spruce transition hover:bg-primary/5"
+          className={`w-full justify-center !min-h-9 !rounded-xl !px-3 !py-1.5 !text-xs ${
+            isSelected ? 'studio-btn-primary' : 'studio-btn-secondary'
+          }`}
         >
           <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-          {isId ? 'Lihat hasil' : 'View result'}
+          <span>{isSelected ? (isId ? 'Sedang dibuka' : 'Selected') : isId ? 'Lihat hasil & download' : 'View & download'}</span>
         </button>
       </div>
     </article>
@@ -225,6 +249,7 @@ export default function JobLibraryPanel({
 }) {
   const isId = locale === 'id';
   const [internalSelectedKey, setInternalSelectedKey] = useState('');
+  const [filterTab, setFilterTab] = useState('all');
   const selectedKey = controlledSelectedKey ?? internalSelectedKey;
 
   function setSelectedKey(nextKey) {
@@ -249,8 +274,19 @@ export default function JobLibraryPanel({
       merged.set(item.selectionKey, existing ? mergeLibraryItems(existing, item) : item);
     });
 
-    return [...merged.values()].sort((left, right) => sortTimestamp(right.updatedAt || right.createdAt) - sortTimestamp(left.updatedAt || left.createdAt));
+    return [...merged.values()].sort(
+      (left, right) => sortTimestamp(right.updatedAt || right.createdAt) - sortTimestamp(left.updatedAt || left.createdAt)
+    );
   }, [currentUserId, exampleJobs, historyJobs]);
+
+  const filteredItems = useMemo(() => {
+    if (filterTab === 'history') return items.filter((item) => Boolean(item.localRecordId));
+    if (filterTab === 'examples') return items.filter((item) => item.isExample);
+    return items;
+  }, [items, filterTab]);
+
+  const historyCount = useMemo(() => items.filter((item) => Boolean(item.localRecordId)).length, [items]);
+  const exampleCount = useMemo(() => items.filter((item) => item.isExample).length, [items]);
 
   const selectedItem = useMemo(() => items.find((item) => item.selectionKey === selectedKey) || null, [items, selectedKey]);
 
@@ -261,43 +297,18 @@ export default function JobLibraryPanel({
   }, [items, selectedKey]);
 
   return (
-    <section className="border border-line bg-white p-4 shadow-sm sm:p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <Archive className="h-5 w-5 text-spruce" aria-hidden="true" />
-        <div>
-          <h2 className="text-base font-semibold text-ink">{isId ? 'Riwayat job & contoh hasil' : 'Job history and example results'}</h2>
-          <p className="text-xs text-gray-600">
-            {isId
-              ? 'Riwayat milik Anda di browser ini digabung dengan contoh hasil dari job superadmin yang dipublish dan siap dibuka atau didownload.'
-              : 'Your browser history is merged with published superadmin example jobs that are ready to open or download.'}
-          </p>
-        </div>
-      </div>
-
-      {historyError && <p className="mb-3 border border-line bg-panel px-3 py-2 text-sm text-gray-700">{historyError}</p>}
-      {exampleError && <p className="mb-3 border border-line bg-panel px-3 py-2 text-sm text-gray-700">{exampleError}</p>}
-
-      {items.length === 0 ? (
-        <div className="border border-dashed border-line bg-panel px-4 py-6 text-sm text-gray-600">
-          {isId ? 'Belum ada riwayat job di browser ini dan belum ada contoh pekerjaan yang dipublish.' : 'There is no job history in this browser yet and no published example jobs.'}
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {items.map((item) => (
-            <LibraryCard
-              key={item.id}
-              locale={locale}
-              item={item}
-              onOpen={(nextItem) => setSelectedKey(nextItem.selectionKey)}
-              onDelete={onDeleteJob}
-              isDeleting={deletingJobId === item.id || deletingJobId === item.jobId}
-            />
-          ))}
-        </div>
-      )}
-
+    <div className="space-y-5">
+      {/* Selected Result Detail pinned at TOP so users don't scroll past cards */}
       {selectedItem && (
-        <div className="mt-4 border-t border-line pt-4">
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setSelectedKey('')}
+            className="studio-btn-secondary !min-h-9 !rounded-xl !px-3.5 !py-1.5 !text-xs"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{isId ? 'Tutup detail & kembali ke galeri' : 'Close details'}</span>
+          </button>
           <ResultPreview
             locale={locale}
             job={selectedItem.job}
@@ -305,11 +316,21 @@ export default function JobLibraryPanel({
             sourcePreviewLabel={
               selectedItem.sourceFileName
                 ? `${isId ? 'Preview awal' : 'Original preview'}: ${selectedItem.sourceFileName}`
-                : isId ? 'Preview gambar awal' : 'Original image preview'
+                : isId
+                  ? 'Preview gambar awal'
+                  : 'Original image preview'
             }
-            heading={selectedItem.isExample ? (isId ? 'Detail contoh pekerjaan' : 'Example job details') : isId ? 'Detail riwayat job' : 'Job history details'}
+            heading={
+              selectedItem.isExample
+                ? isId
+                  ? 'Detail contoh pekerjaan'
+                  : 'Example job details'
+                : isId
+                  ? 'Detail riwayat job'
+                  : 'Job history details'
+            }
             historyView={true}
-            subheading={`${productionLabels[selectedItem.productionType] || selectedItem.productionType} - ${inputModeLabels[selectedItem.inputMode] || selectedItem.inputMode}`}
+            subheading={`${productionLabels[selectedItem.productionType] || selectedItem.productionType} · ${inputModeLabels[selectedItem.inputMode] || selectedItem.inputMode}`}
             showDelete={selectedItem.canDelete}
             onDelete={selectedItem.canDelete ? () => onDeleteJob(selectedItem) : undefined}
             onRetrace={selectedItem.localRecordId && onRetraceJob ? (factor) => onRetraceJob(selectedItem, factor) : undefined}
@@ -318,6 +339,82 @@ export default function JobLibraryPanel({
           />
         </div>
       )}
-    </section>
+
+      {/* Library Gallery */}
+      <section className="studio-card p-5 sm:p-6">
+        <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Archive className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold tracking-tight text-ink">
+                {isId ? 'Riwayat job & contoh hasil' : 'Job history & examples'}
+              </h2>
+              <p className="text-xs text-slate-500">
+                {isId
+                  ? 'Klik kartu mana saja untuk melihat preview lengkap dan download file.'
+                  : 'Select any card to inspect previews and download outputs.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-1 rounded-xl border border-line bg-slate-100/80 p-1">
+            {[
+              { key: 'all', label: isId ? 'Semua' : 'All', count: items.length },
+              { key: 'history', label: isId ? 'Riwayat Saya' : 'My History', count: historyCount },
+              { key: 'examples', label: isId ? 'Contoh Hasil' : 'Examples', count: exampleCount }
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setFilterTab(tab.key)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
+                  filterTab === tab.key ? 'bg-white text-primary shadow-sm' : 'text-slate-600 hover:text-ink'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className="rounded-full bg-slate-200/70 px-1.5 py-0.2 text-[10px] font-bold text-slate-700">
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {historyError && (
+          <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-800">
+            {historyError}
+          </p>
+        )}
+        {exampleError && (
+          <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-800">
+            {exampleError}
+          </p>
+        )}
+
+        {filteredItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-8 text-center text-sm text-slate-500">
+            {isId
+              ? 'Belum ada riwayat job atau contoh pada tab ini.'
+              : 'There are no jobs or examples in this view yet.'}
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {filteredItems.map((item) => (
+              <LibraryCard
+                key={item.id}
+                locale={locale}
+                item={item}
+                isSelected={selectedKey === item.selectionKey}
+                onOpen={(nextItem) => setSelectedKey(nextItem.selectionKey)}
+                onDelete={onDeleteJob}
+                isDeleting={deletingJobId === item.id || deletingJobId === item.jobId}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
