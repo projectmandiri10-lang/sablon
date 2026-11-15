@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildMidtransAuthHeader, buildMidtransSnapPayload, mapMidtransTransactionState, syncMidtransPaymentTransaction, verifyMidtransSignature } from './index.js';
+import { creditBalance, createPaymentTransaction, findLedgerByReference, insertLedger } from './db.js';
+import { createTestEnv, createTestUser } from './test-helpers.mjs';
 
 async function sha512Hex(value) {
   const bytes = new TextEncoder().encode(String(value || ''));
@@ -76,82 +78,66 @@ test('Midtrans transaction mapping only credits settlement or accepted capture',
 });
 
 test('Midtrans payment sync stays idempotent when duplicate ledger insert happens', async () => {
-  const originalFetch = globalThis.fetch;
-  const calls = [];
+  const env = createTestEnv();
+  await createTestUser(env, { id: 'user-1', email: 'user@example.com' });
+  const payment = await createPaymentTransaction(env, {
+    id: 'payment-1',
+    user_id: 'user-1',
+    provider: 'midtrans',
+    order_id: 'mt-123',
+    amount_idr: 25000,
+    status: 'pending',
+    credited_ledger_id: null
+  });
+
+  // Simulasikan race: proses lain sudah menyisipkan baris ledger, tetapi lookup pertama
+  // belum melihatnya sehingga insert menabrak unique index asli SQLite.
+  await insertLedger(env, {
+    userId: 'user-1',
+    amountIdr: 25000,
+    kind: 'credit',
+    reason: 'midtrans_payment',
+    referenceId: 'payment-1',
+    createdBy: 'user-1'
+  });
+  const existingLedger = await findLedgerByReference(env, 'payment-1', 'midtrans_payment');
+
   let ledgerLookupCount = 0;
-
-  globalThis.fetch = async (input, init = {}) => {
-    const url = String(input);
-    calls.push({ url, method: init.method || 'GET' });
-
-    if (url.includes('/rest/v1/credit_ledger?select=id&reference_id=eq.payment-1&reason=eq.midtrans_payment&limit=1')) {
-      ledgerLookupCount += 1;
-      const body = ledgerLookupCount >= 2 ? [{ id: 'ledger-1' }] : [];
-      return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  let ledgerInsertAttempts = 0;
+  const originalPrepare = env.DB.prepare.bind(env.DB);
+  env.DB.prepare = (sql) => {
+    const statement = originalPrepare(sql);
+    if (sql.includes('FROM credit_ledger WHERE reference_id')) {
+      const originalFirst = statement.first.bind(statement);
+      statement.first = async (...args) => {
+        ledgerLookupCount += 1;
+        if (ledgerLookupCount === 1) return null;
+        return originalFirst(...args);
+      };
     }
-
-    if (url.endsWith('/rest/v1/credit_ledger?select=id') && init.method === 'POST') {
-      return new Response(JSON.stringify({ message: 'duplicate key value violates unique constraint "credit_ledger_midtrans_reference_unique_idx"' }), {
-        status: 409,
-        headers: { 'Content-Type': 'application/json' }
-      });
+    if (sql.startsWith('INSERT INTO credit_ledger')) {
+      const originalRun = statement.run.bind(statement);
+      statement.run = async (...args) => {
+        ledgerInsertAttempts += 1;
+        return originalRun(...args);
+      };
     }
-
-    if (url.includes('/rest/v1/payment_transactions?id=eq.payment-1&select=*') && init.method === 'PATCH') {
-      const patch = JSON.parse(init.body);
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'payment-1',
-            user_id: 'user-1',
-            provider: 'midtrans',
-            order_id: 'mt-123',
-            amount_idr: 25000,
-            status: patch.status,
-            payment_type: patch.payment_type,
-            credited_ledger_id: patch.credited_ledger_id || 'ledger-1',
-            paid_at: patch.paid_at,
-            expired_at: patch.expired_at,
-            updated_at: new Date().toISOString()
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    throw new Error(`Unexpected fetch ${url}`);
+    return statement;
   };
 
-  try {
-    const env = {
-      SUPABASE_URL: 'https://example.supabase.co',
-      SUPABASE_SERVICE_ROLE_KEY: 'service-role'
-    };
-    const payment = {
-      id: 'payment-1',
-      user_id: 'user-1',
-      order_id: 'mt-123',
-      amount_idr: 25000,
-      credited_ledger_id: null
-    };
-    const sourceData = {
-      transaction_status: 'settlement',
-      status_code: '200',
-      gross_amount: '25000.00',
-      payment_type: 'bank_transfer',
-      transaction_id: 'txn-1',
-      settlement_time: '2026-07-01 10:00:00'
-    };
+  const sourceData = {
+    transaction_status: 'settlement',
+    status_code: '200',
+    gross_amount: '25000.00',
+    payment_type: 'bank_transfer',
+    transaction_id: 'txn-1',
+    settlement_time: '2026-07-01 10:00:00'
+  };
 
-    const updated = await syncMidtransPaymentTransaction(env, payment, sourceData, { createdBy: 'user-1' });
-    assert.equal(updated.credited_ledger_id, 'ledger-1');
-    assert.equal(updated.status, 'settlement');
-    assert.equal(ledgerLookupCount, 2);
-    assert.equal(
-      calls.filter((entry) => entry.url.endsWith('/rest/v1/credit_ledger?select=id') && entry.method === 'POST').length,
-      1
-    );
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  const updated = await syncMidtransPaymentTransaction(env, payment, sourceData, { createdBy: 'user-1' });
+  assert.equal(updated.credited_ledger_id, existingLedger.id);
+  assert.equal(updated.status, 'settlement');
+  assert.equal(ledgerLookupCount, 2);
+  assert.equal(ledgerInsertAttempts, 1);
+  assert.equal(await creditBalance(env, 'user-1'), 25000);
 });

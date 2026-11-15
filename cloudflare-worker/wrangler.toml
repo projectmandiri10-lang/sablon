@@ -4,6 +4,7 @@ compatibility_date = "2026-06-13"
 
 [vars]
 APP_BASE_URL = "https://sablon-5gx.pages.dev"
+WORKER_BASE_URL = "https://sablon.jho-j80.workers.dev"
 MIDTRANS_MERCHANT_ID = "M020138519"
 MIDTRANS_CLIENT_KEY = "Mid-client-poSk7Xki68kLxq8F"
 MIDTRANS_IS_PRODUCTION = "0"
@@ -19,11 +20,9 @@ AI_REDRAW_INPUT_MAX_EDGE = "1080"
 AI_REDRAW_PRESET = "standard"
 AI_REDRAW_PRIMARY_PROVIDER = "aivene_image"
 AI_REDRAW_FALLBACK_PROVIDER = "openai_image"
-SUPABASE_URL = "https://wrjhedlygozqtsdallzr.supabase.co"
 GOOGLE_OAUTH_CLIENT_ID = "49504893574-iaabog19f870a4irea4jf7vo40ud8cj4.apps.googleusercontent.com"
-GOOGLE_OAUTH_CALLBACK_URL = "https://wrjhedlygozqtsdallzr.supabase.co/auth/v1/callback"
-GOOGLE_OAUTH_REDIRECT_TO = "https://sablon-5gx.pages.dev"
-VITE_GOOGLE_OAUTH_REDIRECT_TO = "https://sablon-5gx.pages.dev"
+# Redirect URI OAuth Google harus sama dengan yang terdaftar di Google Cloud Console.
+GOOGLE_OAUTH_REDIRECT_TO = "https://sablon.jho-j80.workers.dev/api/auth/google/callback"
 LOGO_RESTORE_ENABLED = "1"
 LOGO_RESTORE_STRICT_SPOTS = "1"
 REQUIRE_PROCESSOR_AUTH = "1"
@@ -33,6 +32,15 @@ INTERACTIVE_QRIS_UNIQUE_DIGITS = "2"
 # Isi setelah backend processor berhasil deploy ke Cloud Run.
 # PROCESSOR_BASE_URL = "https://design-mudah-processor-xxxxx.a.run.app"
 
-# Secrets tetap diset di dashboard Cloudflare Worker > Settings > Variables and Secrets.
-# Recommended: AIVENE_API_KEY, OPENAI_API_KEY, SUPABASE_SERVICE_ROLE_KEY, MIDTRANS_SERVER_KEY,
-# SIGNUP_BONUS_HASH_SALT, dan GOOGLE_OAUTH_CLIENT_SECRET
+[[d1_databases]]
+binding = "DB"
+database_name = "sablon-db"
+database_id = "d0a7a071-89f8-4931-9c6b-58b3cc7f4191"
+
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "sablon-assets"
+
+# Secrets diset via `npx wrangler secret put <NAMA>` atau dashboard Cloudflare Worker > Settings > Variables and Secrets.
+# Wajib: AUTH_JWT_SECRET, GOOGLE_OAUTH_CLIENT_SECRET, MIDTRANS_SERVER_KEY, SIGNUP_BONUS_HASH_SALT,
+# INTERACTIVE_QRIS_WEBHOOK_SECRET, AIVENE_API_KEY, OPENAI_API_KEY

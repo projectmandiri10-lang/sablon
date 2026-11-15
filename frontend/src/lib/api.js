@@ -18,7 +18,7 @@ export function toUserApiError(error, fallbackMessage) {
     return new Error('Koneksi ke layanan belum tersambung. Periksa URL API aplikasi.');
   }
   if (isMissingSchemaError(message)) {
-    return new Error('Schema Supabase belum lengkap di project baru ini. Jalankan migration database cloudflare-free-tier agar tabel profiles dan relasinya terbentuk.');
+    return new Error('Struktur database aplikasi belum lengkap. Jalankan migration D1 (cloudflare-worker/d1) agar tabel profiles dan relasinya terbentuk.');
   }
   if (isNetworkLikeError(message)) {
     return new Error(fallbackMessage || 'Koneksi ke layanan belum tersambung. Coba lagi beberapa saat.');

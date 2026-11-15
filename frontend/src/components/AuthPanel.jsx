@@ -1,18 +1,8 @@
 import { LogIn } from 'lucide-react';
 import { useState } from 'react';
 import BrandMark from './BrandMark.jsx';
-import { isSupabaseConfigured, supabase, SUPABASE_URL } from '../lib/supabase.js';
-
-const runtimeConfig = window.__APP_CONFIG__ || {};
-const GOOGLE_REDIRECT_TO = runtimeConfig.googleOAuthRedirectTo || import.meta.env.VITE_GOOGLE_OAUTH_REDIRECT_TO || window.location.origin;
-
-function buildGoogleAuthUrl() {
-  if (!SUPABASE_URL) return '';
-  const authUrl = new URL(`${SUPABASE_URL.replace(/\/+$/, '')}/auth/v1/authorize`);
-  authUrl.searchParams.set('provider', 'google');
-  authUrl.searchParams.set('redirect_to', GOOGLE_REDIRECT_TO);
-  return authUrl.toString();
-}
+import { API_BASE_URL } from '../lib/api.js';
+import { isAuthConfigured, signIn, signInWithGoogle as startGoogleSignIn, signUp } from '../lib/auth.js';
 
 export default function AuthPanel({ locale = 'id', onSignedIn }) {
   const [mode, setMode] = useState('login');
@@ -22,10 +12,10 @@ export default function AuthPanel({ locale = 'id', onSignedIn }) {
   const [isBusy, setIsBusy] = useState(false);
   const isId = locale === 'id';
   const copy = {
-    unavailable: isId ? 'Supabase belum dikonfigurasi. Isi SUPABASE_URL dan SUPABASE_PUBLISHABLE_KEY di environment aplikasi.' : 'Supabase is not configured yet. Fill SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in the app environment.',
-    unavailableShort: isId ? 'Supabase belum dikonfigurasi.' : 'Supabase is not configured yet.',
+    unavailable: isId ? 'Layanan auth belum dikonfigurasi. Isi VITE_API_BASE_URL di environment aplikasi.' : 'Auth service is not configured yet. Fill VITE_API_BASE_URL in the app environment.',
+    unavailableShort: isId ? 'Layanan auth belum dikonfigurasi.' : 'Auth service is not configured yet.',
     loginSuccess: isId ? 'Login berhasil.' : 'Signed in successfully.',
-    registerSuccess: isId ? 'Register berhasil. Cek email jika konfirmasi diwajibkan.' : 'Sign-up successful. Check your email if confirmation is required.',
+    registerSuccess: isId ? 'Register berhasil.' : 'Sign-up successful.',
     authFailed: isId ? 'Auth gagal.' : 'Authentication failed.',
     redirectingGoogle: isId ? 'Mengarahkan ke login Google...' : 'Redirecting to Google sign-in...',
     googleFailed: isId ? 'Login Google gagal.' : 'Google sign-in failed.',
@@ -42,7 +32,7 @@ export default function AuthPanel({ locale = 'id', onSignedIn }) {
 
   async function submit(event) {
     event.preventDefault();
-    if (!isSupabaseConfigured) {
+    if (!isAuthConfigured) {
       setMessage(copy.unavailable);
       return;
     }
@@ -51,9 +41,8 @@ export default function AuthPanel({ locale = 'id', onSignedIn }) {
     try {
       const result =
         mode === 'login'
-          ? await supabase.auth.signInWithPassword({ email, password })
-          : await supabase.auth.signUp({ email, password });
-      if (result.error) throw result.error;
+          ? await signIn({ email, password })
+          : await signUp({ email, password });
       if (result.data.session) onSignedIn?.(result.data.session);
       setMessage(mode === 'login' ? copy.loginSuccess : copy.registerSuccess);
     } catch (error) {
@@ -63,29 +52,22 @@ export default function AuthPanel({ locale = 'id', onSignedIn }) {
     }
   }
 
-  async function signInWithGoogle() {
-    if (!isSupabaseConfigured) {
+  function signInWithGoogle() {
+    if (!isAuthConfigured) {
       setMessage(copy.unavailableShort);
       return;
     }
     setIsBusy(true);
     setMessage(copy.redirectingGoogle);
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: GOOGLE_REDIRECT_TO,
-        skipBrowserRedirect: true
-      }
-    });
-    if (error) {
+    try {
+      startGoogleSignIn();
+    } catch (error) {
       setMessage(error.message || copy.googleFailed);
       setIsBusy(false);
-      return;
     }
-    window.location.href = data?.url || googleAuthUrl;
   }
 
-  const googleAuthUrl = buildGoogleAuthUrl();
+  const googleAuthUrl = isAuthConfigured ? `${API_BASE_URL}/api/auth/google` : '';
 
   const googleIcon = (
     <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">

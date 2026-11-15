@@ -17,11 +17,9 @@ import { loadStoredLocale, localeTag, resolveInitialLocale, saveStoredLocale } f
 import { analyzeRasterForUpscale, normalizeLocalTraceSettings, processImageLocallyWithFallback } from './lib/localProcessor.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from './lib/modes.js';
 import { IMAGE_RETOUCH_PRICE_IDR, calculateJobPrice, formatRupiah } from './lib/pricing.js';
-import { isSupabaseConfigured, supabase } from './lib/supabase.js';
+import { isAuthConfigured, getSession, onAuthStateChange, setSessionFromCallback, signOut as authSignOut } from './lib/auth.js';
 
 const SUPERUSER_ACCOUNT = ['jho.j80@gm', 'a', 'il.com'].join('');
-const FALLBACK_SESSION_STORAGE_KEY = 'easyredesignpro.supabaseFallbackSession';
-const LEGACY_FALLBACK_SESSION_STORAGE_KEY = 'designmudahfree.supabaseFallbackSession';
 const LEGAL_PATHS = new Set(['/privacy', '/terms', '/contact', '/about']);
 const DASHBOARD_VIEWS = new Set(['app', 'billing', 'admin']);
 const APP_SECTIONS = new Set(['process', 'history']);
@@ -271,85 +269,6 @@ function cleanAuthCallbackUrl() {
   window.history.replaceState({}, document.title, window.location.pathname || '/');
 }
 
-function decodeBase64UrlJson(value) {
-  if (!value) return null;
-  try {
-    const normalized = value.replaceAll('-', '+').replaceAll('_', '/');
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-    const decoded = window.atob(padded);
-    const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes));
-  } catch {
-    return null;
-  }
-}
-
-function buildFallbackSession(accessToken, refreshToken, params) {
-  const claims = decodeBase64UrlJson(accessToken.split('.')[1]);
-  if (!claims?.sub) return null;
-
-  const now = Math.floor(Date.now() / 1000);
-  const expiresAt = Number(params.get('expires_at') || claims.exp || now + Number(params.get('expires_in') || 3600));
-  if (expiresAt <= now) return null;
-
-  return {
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    token_type: params.get('token_type') || 'bearer',
-    expires_at: expiresAt,
-    expires_in: Math.max(0, expiresAt - now),
-    user: {
-      id: claims.sub,
-      aud: claims.aud || 'authenticated',
-      role: claims.role || 'authenticated',
-      email: claims.email || '',
-      phone: claims.phone || '',
-      app_metadata: claims.app_metadata || {},
-      user_metadata: claims.user_metadata || {},
-      created_at: claims.iat ? new Date(claims.iat * 1000).toISOString() : '',
-      updated_at: ''
-    }
-  };
-}
-
-function saveFallbackSession(session) {
-  try {
-    window.localStorage.setItem(FALLBACK_SESSION_STORAGE_KEY, JSON.stringify(session));
-    window.localStorage.removeItem(LEGACY_FALLBACK_SESSION_STORAGE_KEY);
-  } catch {
-    // Browser storage can be unavailable in hardened/private profiles.
-  }
-}
-
-function loadFallbackSession() {
-  try {
-    const raw = window.localStorage.getItem(FALLBACK_SESSION_STORAGE_KEY) || window.localStorage.getItem(LEGACY_FALLBACK_SESSION_STORAGE_KEY);
-    const session = raw ? JSON.parse(raw) : null;
-    if (!session?.access_token || !session?.user?.id) return null;
-    if (session.expires_at && session.expires_at <= Math.floor(Date.now() / 1000)) {
-      window.localStorage.removeItem(FALLBACK_SESSION_STORAGE_KEY);
-      window.localStorage.removeItem(LEGACY_FALLBACK_SESSION_STORAGE_KEY);
-      return null;
-    }
-    if (!window.localStorage.getItem(FALLBACK_SESSION_STORAGE_KEY)) {
-      window.localStorage.setItem(FALLBACK_SESSION_STORAGE_KEY, JSON.stringify(session));
-      window.localStorage.removeItem(LEGACY_FALLBACK_SESSION_STORAGE_KEY);
-    }
-    return session;
-  } catch {
-    return null;
-  }
-}
-
-function clearFallbackSession() {
-  try {
-    window.localStorage.removeItem(FALLBACK_SESSION_STORAGE_KEY);
-    window.localStorage.removeItem(LEGACY_FALLBACK_SESSION_STORAGE_KEY);
-  } catch {
-    // Browser storage can be unavailable in hardened/private profiles.
-  }
-}
-
 export default function App() {
   const initialDashboardState = parseDashboardSearch(window.location.search || '');
   const browserLanguage = typeof navigator !== 'undefined' ? navigator.language : '';
@@ -487,102 +406,62 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return undefined;
+    if (!isAuthConfigured) return undefined;
     let isMounted = true;
 
     async function bootstrapAuth() {
       try {
         const { hashParams, queryParams } = getAuthCallbackParams();
         const callbackError =
+          hashParams.get('auth_error') ||
           hashParams.get('error_description') ||
           queryParams.get('error_description') ||
           hashParams.get('error') ||
           queryParams.get('error');
-        const accessToken = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
 
         if (callbackError) {
-          if (isMounted) setAuthCallbackError(callbackError);
           cleanAuthCallbackUrl();
+          if (isMounted) setAuthCallbackError(callbackError);
           return;
         }
 
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
         if (accessToken && refreshToken) {
-          const fallbackSession = buildFallbackSession(accessToken, refreshToken, hashParams);
-          let result;
-          try {
-            result = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken
-            });
-          } catch (error) {
-            cleanAuthCallbackUrl();
-            if (!isMounted) return;
-            if (fallbackSession) {
-              saveFallbackSession(fallbackSession);
-              setAuthCallbackError('');
-              setSession(fallbackSession);
-              restoreDashboardStateFromUrl();
-              return;
-            }
-            throw error;
-          }
-          const { data, error } = result;
+          const callbackSession = setSessionFromCallback(hashParams);
           cleanAuthCallbackUrl();
           if (!isMounted) return;
-          if (error) {
-            if (fallbackSession) {
-              saveFallbackSession(fallbackSession);
-              setAuthCallbackError('');
-              setSession(fallbackSession);
-              restoreDashboardStateFromUrl();
-              return;
-            }
-            setAuthCallbackError(error.message || copy.messages.oauthCallbackError);
-            return;
+          if (callbackSession) {
+            setAuthCallbackError('');
+            setSession(callbackSession);
+            restoreDashboardStateFromUrl();
+          } else {
+            setAuthCallbackError(copy.messages.oauthCallbackError);
           }
-          setAuthCallbackError('');
-          clearFallbackSession();
-          setSession(data.session || null);
-          if (data.session) restoreDashboardStateFromUrl();
           return;
         }
 
-        const { data, error } = await supabase.auth.getSession();
+        const { data } = await getSession();
         if (!isMounted) return;
-        const fallbackSession = loadFallbackSession();
-        if (error) {
-          if (!fallbackSession) setAuthCallbackError(error.message || 'Session login tidak bisa dibaca.');
-        } else {
-          setAuthCallbackError('');
-        }
-        const nextSession = data.session || fallbackSession;
-        setSession(nextSession || null);
-        if (nextSession) restoreDashboardStateFromUrl();
+        setAuthCallbackError('');
+        setSession(data.session || null);
+        if (data.session) restoreDashboardStateFromUrl();
       } catch (error) {
         cleanAuthCallbackUrl();
         if (isMounted) {
-          const fallbackSession = loadFallbackSession();
-          if (fallbackSession) {
-            setAuthCallbackError('');
-            setSession(fallbackSession);
-            restoreDashboardStateFromUrl();
-          } else {
-            setAuthCallbackError(error instanceof Error ? error.message : copy.messages.oauthCallbackError);
-          }
+          setAuthCallbackError(error instanceof Error ? error.message : copy.messages.oauthCallbackError);
         }
       }
     }
 
     bootstrapAuth();
-    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
+    const { data: listener } = onAuthStateChange((event, nextSession) => {
+      if (!isMounted) return;
       if (nextSession) {
-        clearFallbackSession();
         setSession(nextSession);
         setAuthCallbackError('');
         restoreDashboardStateFromUrl();
       } else if (event === 'SIGNED_OUT') {
-        clearFallbackSession();
         setSession(null);
       }
     });
@@ -663,8 +542,7 @@ export default function App() {
   }, []);
 
   async function signOut() {
-    if (supabase) await supabase.auth.signOut();
-    clearFallbackSession();
+    await authSignOut();
     window.history.replaceState({}, document.title, window.location.pathname || '/');
     setSession(null);
     setBalance(null);

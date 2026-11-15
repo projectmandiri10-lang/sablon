@@ -9,16 +9,15 @@ import {
   updateExampleJobsSetting
 } from './example-jobs.js';
 import {
-  buildDateRangeQuery,
   buildFinanceCsv,
   buildFinanceSummary,
-  buildTimestampRangeQuery,
   BUSINESS_FINANCE_CASH_DIRECTIONS,
   BUSINESS_FINANCE_ENTRY_TYPES,
   BUSINESS_FINANCE_TAX_TREATMENTS,
   DEFAULT_TAX_CODE,
   filterFinanceTransactions,
   isSuccessfulGatewayPayment,
+  nextDateOnly,
   normalizeBusinessLedgerTransaction,
   normalizeFinanceRange,
   normalizeGatewayPaymentTransaction,
@@ -26,6 +25,79 @@ import {
   normalizeLedgerTransaction,
   normalizeManualPaymentTransaction
 } from './admin-finance.js';
+import {
+  countGrantedSignupBonusClaims,
+  createBusinessFinanceEntry,
+  createJob,
+  createManualPayment,
+  createPaymentTransaction,
+  createProfile,
+  creditBalance,
+  deleteUserCascade,
+  expireStaleInteractiveQrisPayments,
+  findJobByAiLedgerId,
+  findLedgerByReference,
+  getAppSetting,
+  getAuthProfileByEmail,
+  getJobById,
+  getLedgerById,
+  getManualPaymentById,
+  getPaymentTransactionByOrderId,
+  getPricing,
+  getProfile,
+  getProfileRaw,
+  insertLedger,
+  insertSignupBonusClaim,
+  isDuplicateConstraintError,
+  listActivePendingInteractiveQrisPayments,
+  listAdminJobs,
+  listAdminManualPayments,
+  listAdminMidtransPaymentsRows,
+  listAdminOverviewJobs,
+  listAdminOverviewLedger,
+  listAdminOverviewManualPayments,
+  listAdminOverviewProfiles,
+  listAdminPaymentTransactionsRows,
+  listAppSettings,
+  listBusinessFinanceEntriesRows,
+  listExampleJobs,
+  listFinanceGatewayPaymentsRows,
+  listFinanceJobsRows,
+  listFinanceLedgerRows,
+  listFinanceManualPaymentsRows,
+  listJobsByIds,
+  listPricingRules,
+  listProfileEmails,
+  listProfileRoles,
+  listProfilesWithBalance,
+  listPublicAppSettings,
+  listTaxRulesRows,
+  listUserAutomaticPayments,
+  listUserMidtransPayments,
+  unpublishOtherExampleJobs,
+  updateJob,
+  updateManualPayment,
+  updatePaymentTransactionById,
+  updateProfile,
+  upsertAppSetting,
+  upsertPricingRule,
+  upsertTaxRule
+} from './db.js';
+import { deleteObjects, getObject, putObject } from './storage.js';
+import {
+  buildGoogleAuthStart,
+  createAuthSession,
+  exchangeGoogleCode,
+  generateSaltHex,
+  hashPasswordHex,
+  MIN_PASSWORD_LENGTH,
+  revokeRefreshSession,
+  rotateRefreshSession,
+  verifyAccessToken,
+  verifyGoogleState,
+  verifyPasswordHash,
+  workerBaseUrl
+} from './auth.js';
 import {
   AIVENE_IMAGE_REDRAW_PROVIDER,
   HYBRID_REDRAW_PRESETS,
@@ -59,8 +131,6 @@ const DEFAULT_INTERACTIVE_QRIS_INSTRUCTIONS = 'Scan QRIS merchant lalu bayar ses
 const INTERACTIVE_QRIS_ASSET_PREFIX = 'app-assets/qris';
 const INTERACTIVE_QRIS_ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const INTERACTIVE_QRIS_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const AUTOMATIC_PAYMENT_SELECT_FIELDS =
-  'id,user_id,provider,order_id,external_transaction_id,amount_idr,base_amount_idr,unique_code,currency,status,payment_type,redirect_url,credited_ledger_id,paid_at,expired_at,created_at,updated_at';
 const SIGNUP_BONUS_REASON = 'signup_free_credit';
 const SIGNUP_BONUS_AMOUNT_IDR = 5000;
 const SIGNUP_BONUS_MAX_MATCHED_CLAIMS = 2;
@@ -79,10 +149,6 @@ function requireEnvValue(env, key) {
     throw new Error(`Worker belum dikonfigurasi: ${key} kosong.`);
   }
   return value;
-}
-
-function supabaseBaseUrl(env) {
-  return requireEnvValue(env, 'SUPABASE_URL').replace(/\/+$/, '');
 }
 
 function hasEnvValue(env, key) {
@@ -445,10 +511,6 @@ function bearerToken(request) {
   return header.startsWith('Bearer ') ? header.slice(7) : '';
 }
 
-function storageBaseUrl(env) {
-  return `${supabaseBaseUrl(env)}/storage/v1`;
-}
-
 function encodeStoragePath(path) {
   return String(path || '')
     .split('/')
@@ -573,7 +635,7 @@ function buildInteractiveQrisInstruction(payment = {}, settingValue = {}, env = 
 }
 
 function interactiveQrisAssetPublicUrl(env, path) {
-  return `${storageBaseUrl(env)}/object/public/${EXAMPLE_JOBS_BUCKET}/${encodeStoragePath(path)}`;
+  return `${workerBaseUrl(env)}/api/assets/${EXAMPLE_JOBS_BUCKET}/${encodeStoragePath(path)}`;
 }
 
 function normalizeInteractiveQrisImageExtension(file) {
@@ -709,11 +771,6 @@ export function mapMidtransTransactionState(data = {}) {
   };
 }
 
-function isDuplicateConstraintError(error) {
-  const message = String(error?.message || '').toLowerCase();
-  return message.includes('duplicate key') || message.includes('unique constraint');
-}
-
 function calculateDynamicJobPrice({ inputMode = 'ready_trace', separationFilmCount = 0, aiAlreadyCharged = false } = {}, pricing = DEFAULT_PRICING) {
   const basePrice =
     inputMode === 'ai_redraw'
@@ -729,7 +786,7 @@ export function normalizeAiRedrawModelConfig(value = {}, env = {}) {
 }
 
 function examplePublicUrl(env, path) {
-  return `${storageBaseUrl(env)}/object/public/${EXAMPLE_JOBS_BUCKET}/${encodeStoragePath(path)}`;
+  return `${workerBaseUrl(env)}/api/assets/${EXAMPLE_JOBS_BUCKET}/${encodeStoragePath(path)}`;
 }
 
 function exampleJobPath(jobId, filename) {
@@ -740,22 +797,8 @@ function exampleJobPrefix(jobId) {
   return `jobs/${jobId}`;
 }
 
-function notDeletedQuery(column = 'deleted_at') {
-  return `${column}=is.null`;
-}
-
 function jobIsDeleted(job = {}) {
   return Boolean(job?.deleted_at);
-}
-
-function isMissingJobsPublishColumnsError(error) {
-  const message = error instanceof Error ? error.message : String(error || '');
-  return /(is_example_public|example_published_at|deleted_at)/i.test(message) && /(jobs|column|schema cache)/i.test(message);
-}
-
-function isMissingProfilesTableError(error) {
-  const message = error instanceof Error ? error.message : String(error || '');
-  return /public\.profiles/i.test(message) && /(schema cache|does not exist|relation)/i.test(message);
 }
 
 function buildFallbackProfile(authUser = {}) {
@@ -772,84 +815,6 @@ function buildFallbackProfile(authUser = {}) {
     created_at: authUser.created_at || new Date().toISOString(),
     updated_at: authUser.updated_at || authUser.created_at || new Date().toISOString()
   };
-}
-
-function withLegacyJobPublishDefaults(rows = []) {
-  return (rows || []).map((row) => ({
-    ...row,
-    is_example_public: row?.is_example_public === true,
-    example_published_at: row?.example_published_at || null,
-    deleted_at: row?.deleted_at || null
-  }));
-}
-
-async function queryJobsWithPublishFallback(env, primaryPath, fallbackPath) {
-  try {
-    return await supabaseFetch(env, primaryPath, {});
-  } catch (error) {
-    if (!isMissingJobsPublishColumnsError(error) || !fallbackPath) throw error;
-    const legacyRows = await supabaseFetch(env, fallbackPath, {});
-    return withLegacyJobPublishDefaults(legacyRows);
-  }
-}
-
-async function getJobByIdWithPublishFallback(env, jobId, baseSelect, fallbackSelect = baseSelect) {
-  const primaryPath = `/rest/v1/jobs?id=eq.${encodeURIComponent(jobId)}&select=${baseSelect}&limit=1`;
-  const fallbackPath = `/rest/v1/jobs?id=eq.${encodeURIComponent(jobId)}&select=${fallbackSelect}&limit=1`;
-  const rows = await queryJobsWithPublishFallback(env, primaryPath, fallbackPath);
-  return rows?.[0] || null;
-}
-
-async function patchJobPublishState(env, jobId, patch, fallbackJob) {
-  try {
-    const rows = await supabaseFetch(env, `/rest/v1/jobs?id=eq.${encodeURIComponent(jobId)}&select=*`, {
-      method: 'PATCH',
-      prefer: 'return=representation',
-      body: patch
-    });
-    return {
-      job: rows?.[0] || { ...fallbackJob, ...patch },
-      usedLegacyFallback: false
-    };
-  } catch (error) {
-    if (!isMissingJobsPublishColumnsError(error)) throw error;
-    return {
-      job: {
-        ...fallbackJob,
-        ...patch
-      },
-      usedLegacyFallback: true
-    };
-  }
-}
-
-async function softDeleteJobWithFallback(env, jobId, deletedAt, fallbackJob) {
-  try {
-    const rows = await supabaseFetch(env, `/rest/v1/jobs?id=eq.${encodeURIComponent(jobId)}&select=*`, {
-      method: 'PATCH',
-      prefer: 'return=representation',
-      body: {
-        deleted_at: deletedAt,
-        is_example_public: false,
-        example_published_at: null
-      }
-    });
-    return {
-      job: rows?.[0] || { ...fallbackJob, deleted_at: deletedAt, is_example_public: false, example_published_at: null },
-      usedLegacyFallback: false
-    };
-  } catch (error) {
-    if (!isMissingJobsPublishColumnsError(error)) throw error;
-    return {
-      job: {
-        ...fallbackJob,
-        deleted_at: deletedAt,
-        is_example_public: false,
-        example_published_at: null
-      },
-      usedLegacyFallback: true
-    };
-  }
 }
 
 function buildLegacyExampleSettingEntry(env, job, artifacts) {
@@ -899,26 +864,6 @@ async function clearLegacyExampleSettingIfMatches(env, job) {
   return nextExamples;
 }
 
-async function unpublishOtherExampleJobs(env, job) {
-  try {
-    return await supabaseFetch(
-      env,
-      `/rest/v1/jobs?production_type=eq.${encodeURIComponent(job.production_type)}&id=neq.${encodeURIComponent(job.id)}&is_example_public=eq.true&select=id,is_example_public,example_published_at`,
-      {
-        method: 'PATCH',
-        prefer: 'return=representation',
-        body: {
-          is_example_public: false,
-          example_published_at: null
-        }
-      }
-    );
-  } catch (error) {
-    if (isMissingJobsPublishColumnsError(error)) return [];
-    throw error;
-  }
-}
-
 async function listLegacyPublishedExampleJobs(env) {
   const exampleSetting = await getAppSetting(env, 'example_jobs');
   const currentExamples = normalizeExampleJobsSetting(exampleSetting?.value);
@@ -926,14 +871,7 @@ async function listLegacyPublishedExampleJobs(env) {
   if (entries.length === 0) return [];
 
   const jobIds = [...new Set(entries.map((entry) => entry.jobId).filter(Boolean))];
-  const jobRows =
-    jobIds.length > 0
-      ? await supabaseFetch(
-          env,
-          `/rest/v1/jobs?select=id,user_id,project_name,input_mode,production_type,status,settings,manifest,created_at&id=in.(${jobIds.join(',')})&status=eq.done&order=created_at.desc&limit=50`,
-          {}
-        )
-      : [];
+  const jobRows = jobIds.length > 0 ? await listJobsByIds(env, jobIds) : [];
   const jobsById = new Map((jobRows || []).map((job) => [job.id, job]));
 
   return entries
@@ -1032,8 +970,9 @@ function handleHealth(env) {
     service: 'sablon',
     message: 'Worker API aktif. Gunakan endpoint /api/... dari aplikasi frontend.',
     config: {
-      supabaseUrl: hasEnvValue(env, 'SUPABASE_URL'),
-      supabaseServiceRoleKey: hasEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY'),
+      d1Configured: Boolean(env.DB),
+      r2Configured: Boolean(env.ASSETS),
+      authConfigured: hasEnvValue(env, 'AUTH_JWT_SECRET'),
       aiveneConfigured: redrawAvailability.aiveneConfigured,
       openAiConfigured: redrawAvailability.openAiConfigured,
       midtransConfigured: isMidtransConfigured(env),
@@ -1045,7 +984,14 @@ function handleHealth(env) {
     },
     endpoints: [
       'GET /api/app-config',
+      'POST /api/auth/signup',
+      'POST /api/auth/login',
+      'POST /api/auth/refresh',
+      'POST /api/auth/logout',
+      'GET /api/auth/google',
+      'GET /api/auth/google/callback',
       'POST /api/auth/signup-bonus',
+      'GET /api/assets/example-jobs/*',
       'GET /api/payments/automatic',
       'POST /api/payments/interactive-qris/checkout',
       'POST /api/payments/interactive-qris/webhook',
@@ -1075,103 +1021,6 @@ function handleHealth(env) {
   });
 }
 
-async function supabaseFetch(env, path, { method = 'GET', token, body, prefer } = {}) {
-  const serviceRoleKey = requireEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY');
-  const response = await fetch(`${supabaseBaseUrl(env)}${path}`, {
-    method,
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${token || serviceRoleKey}`,
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(prefer ? { Prefer: prefer } : {})
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    throw new Error(data?.message || data?.error || `Supabase request failed: ${response.status}`);
-  }
-  return data;
-}
-
-async function storageFetch(env, path, { method = 'GET', body, headers = {} } = {}) {
-  const serviceRoleKey = requireEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY');
-  const response = await fetch(`${storageBaseUrl(env)}${path}`, {
-    method,
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-      ...headers
-    },
-    body
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    throw new Error(data?.message || data?.error || data?.msg || `Supabase storage request failed: ${response.status}`);
-  }
-  return data;
-}
-
-async function uploadStorageObject(env, bucket, path, bytes, contentType) {
-  return storageFetch(env, `/object/${encodeURIComponent(bucket)}/${encodeStoragePath(path)}`, {
-    method: 'POST',
-    body: bytes,
-    headers: {
-      'Content-Type': contentType,
-      'cache-control': '3600',
-      'x-upsert': 'true'
-    }
-  });
-}
-
-async function deleteStorageObjects(env, bucket, prefixes) {
-  const filtered = [...new Set((prefixes || []).filter(Boolean))];
-  if (filtered.length === 0) return null;
-  return storageFetch(env, `/object/${encodeURIComponent(bucket)}`, {
-    method: 'DELETE',
-    body: JSON.stringify({ prefixes: filtered }),
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-}
-
-async function copyStorageObject(env, bucket, sourceKey, destinationKey) {
-  return storageFetch(env, '/object/copy', {
-    method: 'POST',
-    body: JSON.stringify({
-      bucketId: bucket,
-      sourceKey,
-      destinationKey
-    }),
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-}
-
-async function getPricing(env) {
-  try {
-    const rows = await supabaseFetch(env, '/rest/v1/pricing_rules?select=key,amount_idr,active,description&order=key.asc', {});
-    return rows.reduce(
-      (pricing, row) => ({
-        ...pricing,
-        [row.key]: row.active === false ? pricing[row.key] : Number(row.amount_idr) || pricing[row.key]
-      }),
-      { ...DEFAULT_PRICING }
-    );
-  } catch (_err) {
-    return { ...DEFAULT_PRICING };
-  }
-}
-
-async function getAppSetting(env, key) {
-  const rows = await supabaseFetch(env, `/rest/v1/app_settings?select=key,value,is_public,description,updated_at&key=eq.${encodeURIComponent(key)}&limit=1`, {});
-  return rows?.[0] || null;
-}
-
 async function getAiRedrawModelConfig(env) {
   try {
     const setting = await getAppSetting(env, 'ai_redraw_model');
@@ -1179,31 +1028,6 @@ async function getAiRedrawModelConfig(env) {
   } catch (_error) {
     return normalizeAiRedrawModelConfig({}, env);
   }
-}
-
-async function upsertAppSetting(env, { key, value, isPublic = true, description = '' }) {
-  const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=*', {
-    method: 'POST',
-    prefer: 'resolution=merge-duplicates,return=representation',
-    body: {
-      key,
-      value,
-      is_public: isPublic,
-      description,
-      updated_at: formatDate(new Date())
-    }
-  });
-  return rows?.[0] || null;
-}
-
-async function listProfilesWithBalance(env) {
-  const rows = await supabaseFetch(env, '/rest/v1/profiles?select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at&order=created_at.desc', {});
-  return Promise.all(
-    rows.map(async (profile) => ({
-      ...profile,
-      balance: profile.is_unlimited ? null : await creditBalance(env, profile.id)
-    }))
-  );
 }
 
 function withUserEmails(rows, users) {
@@ -1214,177 +1038,12 @@ function withUserEmails(rows, users) {
   }));
 }
 
-async function getPaymentTransactionByOrderId(env, orderId) {
-  const rows = await supabaseFetch(
-    env,
-    `/rest/v1/payment_transactions?select=*&provider=eq.${encodeURIComponent(MIDTRANS_PROVIDER)}&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
-    {}
-  );
-  return rows?.[0] || null;
-}
-
-async function listUserMidtransPayments(env, userId) {
-  return supabaseFetch(
-    env,
-    `/rest/v1/payment_transactions?select=${AUTOMATIC_PAYMENT_SELECT_FIELDS}&provider=eq.${encodeURIComponent(MIDTRANS_PROVIDER)}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=20`,
-    {}
-  );
-}
-
-async function listAdminMidtransPaymentsRows(env) {
-  return supabaseFetch(
-    env,
-    `/rest/v1/payment_transactions?select=${AUTOMATIC_PAYMENT_SELECT_FIELDS}&provider=eq.${encodeURIComponent(MIDTRANS_PROVIDER)}&order=created_at.desc&limit=100`,
-    {}
-  );
-}
-
-async function listUserAutomaticPayments(env, userId) {
-  return supabaseFetch(
-    env,
-    `/rest/v1/payment_transactions?select=${AUTOMATIC_PAYMENT_SELECT_FIELDS}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=50`,
-    {}
-  );
-}
-
-async function listAdminPaymentTransactionsRows(env) {
-  return supabaseFetch(env, `/rest/v1/payment_transactions?select=${AUTOMATIC_PAYMENT_SELECT_FIELDS}&order=created_at.desc&limit=200`, {});
-}
-
-async function listActivePendingInteractiveQrisPayments(env) {
-  const now = new Date().toISOString();
-  return supabaseFetch(
-    env,
-    `/rest/v1/payment_transactions?select=${AUTOMATIC_PAYMENT_SELECT_FIELDS}&provider=eq.${encodeURIComponent(INTERACTIVE_QRIS_PROVIDER)}&status=eq.pending&expired_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=500`,
-    {}
-  );
-}
-
-async function expireStaleInteractiveQrisPayments(env) {
-  const now = new Date().toISOString();
-  return supabaseFetch(
-    env,
-    `/rest/v1/payment_transactions?provider=eq.${encodeURIComponent(INTERACTIVE_QRIS_PROVIDER)}&status=eq.pending&expired_at=lt.${encodeURIComponent(now)}&select=id,status,expired_at`,
-    {
-      method: 'PATCH',
-      prefer: 'return=representation',
-      body: { status: 'expired' }
-    }
-  );
-}
-
-async function listProfileEmails(env) {
-  return supabaseFetch(env, '/rest/v1/profiles?select=id,email', {});
-}
-
 function withCreatedByEmails(rows, users) {
   const emailById = new Map(users.map((user) => [user.id, user.email]));
   return rows.map((row) => ({
     ...row,
     created_by_email: row.created_by ? emailById.get(row.created_by) || '' : ''
   }));
-}
-
-async function listFinanceManualPaymentsRows(env, range) {
-  return supabaseFetch(
-    env,
-    `/rest/v1/manual_payments?select=id,user_id,marketplace,order_ref,amount_idr,status,notes,approved_by,approved_at,created_at&status=eq.approved&${buildTimestampRangeQuery('approved_at', range)}&order=approved_at.desc&limit=5000`,
-    {}
-  );
-}
-
-async function listFinanceGatewayPaymentsRows(env, range) {
-  return supabaseFetch(
-    env,
-    `/rest/v1/payment_transactions?select=id,user_id,provider,order_id,external_transaction_id,amount_idr,currency,status,payment_type,credited_ledger_id,paid_at,created_at&${buildTimestampRangeQuery('paid_at', range)}&order=paid_at.desc&limit=5000`,
-    {}
-  );
-}
-
-async function listFinanceLedgerRows(env, range) {
-  return supabaseFetch(
-    env,
-    `/rest/v1/credit_ledger?select=id,user_id,amount_idr,kind,reason,reference_id,created_by,metadata,created_at&${buildTimestampRangeQuery('created_at', range)}&order=created_at.desc&limit=5000`,
-    {}
-  );
-}
-
-async function listFinanceJobsRows(env, range) {
-  return queryJobsWithPublishFallback(
-    env,
-    `/rest/v1/jobs?select=id,user_id,project_name,input_mode,production_type,status,price_idr,separation_film_count,created_at&${buildTimestampRangeQuery('created_at', range)}&${notDeletedQuery()}&order=created_at.desc&limit=5000`,
-    `/rest/v1/jobs?select=id,user_id,project_name,input_mode,production_type,status,price_idr,separation_film_count,created_at&${buildTimestampRangeQuery('created_at', range)}&order=created_at.desc&limit=5000`
-  );
-}
-
-async function listBusinessFinanceEntriesRows(env, range) {
-  return supabaseFetch(
-    env,
-    `/rest/v1/business_finance_entries?select=id,entry_date,entry_type,cash_direction,amount_idr,counterparty,document_ref,note,tax_treatment,created_by,created_at&${buildDateRangeQuery('entry_date', range)}&order=entry_date.desc&limit=5000`,
-    {}
-  );
-}
-
-async function listTaxRulesRows(env) {
-  return supabaseFetch(
-    env,
-    '/rest/v1/tax_rules?select=id,tax_code,rate_percent,effective_from,effective_to,note,created_at&order=effective_from.desc&limit=500',
-    {}
-  );
-}
-
-async function createBusinessFinanceEntry(env, payload) {
-  const rows = await supabaseFetch(env, '/rest/v1/business_finance_entries?select=*', {
-    method: 'POST',
-    prefer: 'return=representation',
-    body: payload
-  });
-  return rows?.[0] || null;
-}
-
-async function upsertTaxRule(env, payload) {
-  if (payload.id) {
-    const { id, ...patch } = payload;
-    const rows = await supabaseFetch(env, `/rest/v1/tax_rules?id=eq.${encodeURIComponent(payload.id)}&select=*`, {
-      method: 'PATCH',
-      prefer: 'return=representation',
-      body: patch
-    });
-    return rows?.[0] || null;
-  }
-  const rows = await supabaseFetch(env, '/rest/v1/tax_rules?select=*', {
-    method: 'POST',
-    prefer: 'return=representation',
-    body: payload
-  });
-  return rows?.[0] || null;
-}
-
-async function createPaymentTransaction(env, payload) {
-  const rows = await supabaseFetch(env, '/rest/v1/payment_transactions?select=*', {
-    method: 'POST',
-    prefer: 'return=representation',
-    body: payload
-  });
-  return rows?.[0] || null;
-}
-
-async function updatePaymentTransactionById(env, paymentId, patch) {
-  const rows = await supabaseFetch(env, `/rest/v1/payment_transactions?id=eq.${encodeURIComponent(paymentId)}&select=*`, {
-    method: 'PATCH',
-    prefer: 'return=representation',
-    body: patch
-  });
-  return rows?.[0] || null;
-}
-
-async function findLedgerByReference(env, referenceId, reason) {
-  const rows = await supabaseFetch(
-    env,
-    `/rest/v1/credit_ledger?select=id&reference_id=eq.${encodeURIComponent(referenceId)}&reason=eq.${encodeURIComponent(reason)}&limit=1`,
-    {}
-  );
-  return rows?.[0] || null;
 }
 
 function normalizeEmail(value) {
@@ -1466,13 +1125,17 @@ function normalizeTaxRulePayload(body = {}) {
 
 async function loadAdminFinanceData(env, range) {
   const normalizedRange = normalizeFinanceRange(range);
+  const timestampRange = {
+    from: `${normalizedRange.from}T00:00:00.000Z`,
+    toExclusive: `${nextDateOnly(normalizedRange.to)}T00:00:00.000Z`
+  };
   const [users, manualPayments, gatewayPayments, ledgerEntries, businessEntries, jobs, taxRules] = await Promise.all([
     listProfileEmails(env),
-    listFinanceManualPaymentsRows(env, normalizedRange),
-    listFinanceGatewayPaymentsRows(env, normalizedRange),
-    listFinanceLedgerRows(env, normalizedRange),
+    listFinanceManualPaymentsRows(env, timestampRange),
+    listFinanceGatewayPaymentsRows(env, timestampRange),
+    listFinanceLedgerRows(env, timestampRange),
     listBusinessFinanceEntriesRows(env, normalizedRange),
-    listFinanceJobsRows(env, normalizedRange),
+    listFinanceJobsRows(env, timestampRange),
     listTaxRulesRows(env)
   ]);
 
@@ -1514,81 +1177,12 @@ function buildAdminFinanceTransactionsPayload(dataset, filters = {}) {
   return filtered;
 }
 
-async function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function supabaseAuthAdminFetch(env, path, { method = 'GET', body } = {}) {
-  const serviceRoleKey = requireEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY');
-  const response = await fetch(`${supabaseBaseUrl(env)}/auth/v1${path}`, {
-    method,
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-      ...(body ? { 'Content-Type': 'application/json' } : {})
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    throw new Error(data?.msg || data?.message || data?.error?.message || `Supabase auth admin request failed: ${response.status}`);
-  }
-  return data;
-}
-
 async function getUser(env, request) {
   const token = bearerToken(request);
   if (!token) throw new Error('Login dibutuhkan.');
-  const serviceRoleKey = requireEnvValue(env, 'SUPABASE_SERVICE_ROLE_KEY');
-  const response = await fetch(`${supabaseBaseUrl(env)}/auth/v1/user`, {
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${token}`
-    }
-  });
-  const user = await response.json().catch(() => null);
-  if (!response.ok || !user?.id) throw new Error('Session tidak valid.');
-  return { token, user };
-}
-
-async function getProfile(env, userId) {
-  try {
-    const rows = await supabaseFetch(
-      env,
-      `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at`,
-      {}
-    );
-    const profile = rows?.[0];
-    if (!profile || profile.is_active === false) throw new Error('Akun tidak aktif.');
-    return profile;
-  } catch (error) {
-    if (!isMissingProfilesTableError(error)) throw error;
-    return null;
-  }
-}
-
-async function getProfileRaw(env, userId) {
-  try {
-    const rows = await supabaseFetch(
-      env,
-      `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,full_name,role,is_unlimited,is_active,deleted_at,created_at`,
-      {}
-    );
-    return rows?.[0] || null;
-  } catch (error) {
-    if (!isMissingProfilesTableError(error)) throw error;
-    return null;
-  }
-}
-
-async function waitForProfile(env, userId, attempts = 5) {
-  for (let index = 0; index < attempts; index += 1) {
-    const profile = await getProfileRaw(env, userId);
-    if (profile) return profile;
-    if (index < attempts - 1) await sleep(200);
-  }
-  throw new Error('Profile user baru belum muncul di database.');
+  const payload = await verifyAccessToken(env, token);
+  if (!payload?.sub) throw new Error('Session tidak valid.');
+  return { token, user: { id: payload.sub, email: payload.email, user_metadata: {} } };
 }
 
 async function requireUser(env, request) {
@@ -1603,79 +1197,6 @@ async function requireAdmin(env, request) {
     throw new Error('Akses admin ditolak.');
   }
   return auth;
-}
-
-async function creditBalance(env, userId) {
-  try {
-    const rows = await supabaseFetch(
-      env,
-      `/rest/v1/credit_ledger?user_id=eq.${encodeURIComponent(userId)}&select=amount_idr`,
-      {}
-    );
-    return rows.reduce((sum, row) => sum + (Number(row.amount_idr) || 0), 0);
-  } catch (error) {
-    if (!isMissingProfilesTableError(error)) throw error;
-    return 0;
-  }
-}
-
-async function insertLedger(env, { userId, amountIdr, kind, reason, referenceId, createdBy, metadata }) {
-  const rows = await supabaseFetch(env, '/rest/v1/credit_ledger?select=id', {
-    method: 'POST',
-    prefer: 'return=representation',
-    body: {
-      user_id: userId,
-      amount_idr: amountIdr,
-      kind,
-      reason,
-      reference_id: referenceId || null,
-      created_by: createdBy || userId,
-      metadata: metadata || {}
-    }
-  });
-  return rows?.[0];
-}
-
-async function getSignupBonusClaimByUserId(env, userId) {
-  const rows = await supabaseFetch(
-    env,
-    `/rest/v1/signup_bonus_claims?select=*&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
-    {}
-  );
-  return rows?.[0] || null;
-}
-
-async function countGrantedSignupBonusClaims(env, { deviceIdHash = '', ipHash = '' } = {}) {
-  const counts = { device: 0, ip: 0 };
-
-  if (deviceIdHash) {
-    const rows = await supabaseFetch(
-      env,
-      `/rest/v1/signup_bonus_claims?select=id&bonus_granted=eq.true&device_id_hash=eq.${encodeURIComponent(deviceIdHash)}`,
-      {}
-    );
-    counts.device = rows.length;
-  }
-
-  if (ipHash) {
-    const rows = await supabaseFetch(
-      env,
-      `/rest/v1/signup_bonus_claims?select=id&bonus_granted=eq.true&ip_hash=eq.${encodeURIComponent(ipHash)}`,
-      {}
-    );
-    counts.ip = rows.length;
-  }
-
-  return counts;
-}
-
-async function insertSignupBonusClaim(env, payload) {
-  const rows = await supabaseFetch(env, '/rest/v1/signup_bonus_claims?select=*', {
-    method: 'POST',
-    prefer: 'return=representation',
-    body: payload
-  });
-  return rows?.[0] || null;
 }
 
 async function ensureSignupBonusLedger(env, claim) {
@@ -1834,12 +1355,7 @@ export async function syncInteractiveQrisPaymentTransaction(env, payment, source
 
 async function validateAiLedgerForCommit(env, { userId, ledgerId, expectedAmountIdr }) {
   if (!ledgerId) throw new Error('AI Redraw belum terdebit. Silakan proses ulang dari tombol upload.');
-  const ledgerRows = await supabaseFetch(
-    env,
-    `/rest/v1/credit_ledger?select=id,user_id,amount_idr,kind,reason,reference_id&id=eq.${encodeURIComponent(ledgerId)}&limit=1`,
-    {}
-  );
-  const ledger = ledgerRows?.[0];
+  const ledger = await getLedgerById(env, ledgerId);
   if (
     !ledger ||
     ledger.user_id !== userId ||
@@ -1850,15 +1366,11 @@ async function validateAiLedgerForCommit(env, { userId, ledgerId, expectedAmount
     throw new Error('AI Redraw belum terdebit. Silakan proses ulang dari tombol upload.');
   }
 
-  const refundRows = await supabaseFetch(
-    env,
-    `/rest/v1/credit_ledger?select=id&reference_id=eq.${encodeURIComponent(ledgerId)}&reason=eq.ai_redraw_refund&limit=1`,
-    {}
-  );
-  if (refundRows?.length) throw new Error('AI Redraw sudah direfund. Silakan proses ulang dari tombol upload.');
+  const refund = await findLedgerByReference(env, ledgerId, 'ai_redraw_refund');
+  if (refund?.id) throw new Error('AI Redraw sudah direfund. Silakan proses ulang dari tombol upload.');
 
-  const usedRows = await supabaseFetch(env, `/rest/v1/jobs?select=id&ai_ledger_id=eq.${encodeURIComponent(ledgerId)}&limit=1`, {});
-  if (usedRows?.length) throw new Error('AI Redraw sudah pernah dicatat. Silakan proses ulang dari tombol upload.');
+  const usedJob = await findJobByAiLedgerId(env, ledgerId);
+  if (usedJob?.id) throw new Error('AI Redraw sudah pernah dicatat. Silakan proses ulang dari tombol upload.');
 
   return ledger;
 }
@@ -1879,7 +1391,7 @@ async function handleBalance(env, request) {
 async function handleQuote(env, request) {
   const { profile } = await requireUser(env, request);
   const body = await readJson(request);
-  const pricing = await getPricing(env);
+  const pricing = await getPricing(env, DEFAULT_PRICING);
   const priceIdr = calculateDynamicJobPrice(body, pricing);
   const balance = profile.is_unlimited ? null : await creditBalance(env, profile.id);
   return json({ priceIdr, balance, isUnlimited: profile.is_unlimited, canRun: profile.is_unlimited || balance >= priceIdr });
@@ -1888,7 +1400,7 @@ async function handleQuote(env, request) {
 async function handleCommitJob(env, request) {
   const { user, profile } = await requireUser(env, request);
   const body = await readJson(request);
-  const pricing = await getPricing(env);
+  const pricing = await getPricing(env, DEFAULT_PRICING);
   const priceIdr = calculateDynamicJobPrice({
     inputMode: body.inputMode,
     separationFilmCount: body.separationFilmCount,
@@ -1903,23 +1415,18 @@ async function handleCommitJob(env, request) {
     });
   }
 
-  const jobRows = await supabaseFetch(env, '/rest/v1/jobs?select=*', {
-    method: 'POST',
-    prefer: 'return=representation',
-    body: {
-      user_id: user.id,
-      project_name: body.projectName || 'Project Vector',
-      input_mode: body.inputMode,
-      production_type: body.productionType,
-      status: 'done',
-      price_idr: (body.inputMode === 'ai_redraw' ? pricing.ai_redraw : 0) + priceIdr,
-      separation_film_count: Number(body.separationFilmCount) || 0,
-      settings: body.settings || {},
-      manifest: body.manifest || {},
-      ai_ledger_id: body.aiLedgerId || null
-    }
+  const job = await createJob(env, {
+    user_id: user.id,
+    project_name: body.projectName || 'Project Vector',
+    input_mode: body.inputMode,
+    production_type: body.productionType,
+    status: 'done',
+    price_idr: (body.inputMode === 'ai_redraw' ? pricing.ai_redraw : 0) + priceIdr,
+    separation_film_count: Number(body.separationFilmCount) || 0,
+    settings: body.settings || {},
+    manifest: body.manifest || {},
+    ai_ledger_id: body.aiLedgerId || null
   });
-  let job = jobRows?.[0];
 
   if (!profile.is_unlimited && priceIdr > 0) {
     await insertLedger(env, {
@@ -1942,7 +1449,7 @@ async function handleAiRedraw(env, request) {
   if (!availability.aiRedrawAvailable) {
     throw new Error('AI redraw belum diaktifkan di deploy ini. Isi secret AIVENE_API_KEY atau OPENAI_API_KEY di Worker.');
   }
-  const pricing = await getPricing(env);
+  const pricing = await getPricing(env, DEFAULT_PRICING);
   await ensureCredit(env, profile, pricing.ai_redraw);
   const form = await request.formData();
   const image = form.get('image');
@@ -2228,12 +1735,7 @@ async function handleJobArtifactsUpload(env, request, jobId) {
     throw new Error('Hanya superadmin yang boleh mengunggah artefak contoh.');
   }
 
-  const job = await getJobByIdWithPublishFallback(
-    env,
-    jobId,
-    'id,user_id,project_name,input_mode,production_type,status,settings,manifest,deleted_at',
-    'id,user_id,project_name,input_mode,production_type,status,settings,manifest'
-  );
+  const job = await getJobById(env, jobId);
   if (!job) throw new Error('Job tidak ditemukan.');
   if (jobIsDeleted(job)) throw new Error('Job ini sudah dihapus.');
   if (job.user_id !== user.id) throw new Error('Hanya job milik Anda sendiri yang boleh dijadikan contoh.');
@@ -2289,20 +1791,20 @@ async function handleJobArtifactsUpload(env, request, jobId) {
   const separationZipPath = separationZip ? exampleJobPath(job.id, 'separation-films.zip') : '';
   const manifestPath = exampleJobPath(job.id, 'manifest.json');
 
-  await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, sourcePreviewPath, await fileToUint8Array(sourcePreview), sourcePreview.type || 'image/png');
-  await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, resultPreviewPath, await fileToUint8Array(fullPng), fullPng.type || 'image/png');
-  await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, fullSvgPath, await fileToUint8Array(fullSvg), fullSvg.type || 'image/svg+xml');
-  await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, fullPdfPath, await fileToUint8Array(fullPdf), fullPdf.type || 'application/pdf');
-  await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, zipPath, await fileToUint8Array(zip), zip.type || 'application/zip');
+  await putObject(env, EXAMPLE_JOBS_BUCKET, sourcePreviewPath, await fileToUint8Array(sourcePreview), sourcePreview.type || 'image/png');
+  await putObject(env, EXAMPLE_JOBS_BUCKET, resultPreviewPath, await fileToUint8Array(fullPng), fullPng.type || 'image/png');
+  await putObject(env, EXAMPLE_JOBS_BUCKET, fullSvgPath, await fileToUint8Array(fullSvg), fullSvg.type || 'image/svg+xml');
+  await putObject(env, EXAMPLE_JOBS_BUCKET, fullPdfPath, await fileToUint8Array(fullPdf), fullPdf.type || 'application/pdf');
+  await putObject(env, EXAMPLE_JOBS_BUCKET, zipPath, await fileToUint8Array(zip), zip.type || 'application/zip');
 
   if (stickerCutlineSvgPath) {
-    await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, stickerCutlineSvgPath, await fileToUint8Array(stickerCutlineSvg), stickerCutlineSvg.type || 'image/svg+xml');
+    await putObject(env, EXAMPLE_JOBS_BUCKET, stickerCutlineSvgPath, await fileToUint8Array(stickerCutlineSvg), stickerCutlineSvg.type || 'image/svg+xml');
   }
   if (stickerCutlinePdfPath) {
-    await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, stickerCutlinePdfPath, await fileToUint8Array(stickerCutlinePdf), stickerCutlinePdf.type || 'application/pdf');
+    await putObject(env, EXAMPLE_JOBS_BUCKET, stickerCutlinePdfPath, await fileToUint8Array(stickerCutlinePdf), stickerCutlinePdf.type || 'application/pdf');
   }
   if (separationZipPath) {
-    await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, separationZipPath, await fileToUint8Array(separationZip), separationZip.type || 'application/zip');
+    await putObject(env, EXAMPLE_JOBS_BUCKET, separationZipPath, await fileToUint8Array(separationZip), separationZip.type || 'application/zip');
   }
 
   const uploadedSeparations = [];
@@ -2313,9 +1815,9 @@ async function handleJobArtifactsUpload(env, request, jobId) {
     const pdfPath = exampleJobPath(job.id, `separations/film-${slug}.pdf`);
     const previewPath = exampleJobPath(job.id, `separations/film-${slug}-preview.png`);
 
-    await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, svgPath, await fileToUint8Array(separationSvgs[index]), separationSvgs[index].type || 'image/svg+xml');
-    await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, pdfPath, await fileToUint8Array(separationPdfs[index]), separationPdfs[index].type || 'application/pdf');
-    await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, previewPath, await fileToUint8Array(separationPreviews[index]), separationPreviews[index].type || 'image/png');
+    await putObject(env, EXAMPLE_JOBS_BUCKET, svgPath, await fileToUint8Array(separationSvgs[index]), separationSvgs[index].type || 'image/svg+xml');
+    await putObject(env, EXAMPLE_JOBS_BUCKET, pdfPath, await fileToUint8Array(separationPdfs[index]), separationPdfs[index].type || 'application/pdf');
+    await putObject(env, EXAMPLE_JOBS_BUCKET, previewPath, await fileToUint8Array(separationPreviews[index]), separationPreviews[index].type || 'image/png');
 
     uploadedSeparations.push({
       index: separation.index,
@@ -2352,7 +1854,7 @@ async function handleJobArtifactsUpload(env, request, jobId) {
     updatedAt: new Date().toISOString()
   };
 
-  await uploadStorageObject(
+  await putObject(
     env,
     EXAMPLE_JOBS_BUCKET,
     manifestPath,
@@ -2376,16 +1878,12 @@ async function handleJobArtifactsUpload(env, request, jobId) {
     ...(job.manifest || {}),
     exampleArtifacts
   };
-  const updatedRows = await supabaseFetch(env, `/rest/v1/jobs?id=eq.${encodeURIComponent(job.id)}&select=*`, {
-    method: 'PATCH',
-    prefer: 'return=representation',
-    body: { manifest: nextManifest }
-  });
+  const updatedJob = await updateJob(env, job.id, { manifest: nextManifest });
 
   return json({
     jobId: job.id,
     exampleArtifacts,
-    job: updatedRows?.[0] || { ...job, manifest: nextManifest }
+    job: updatedJob || { ...job, manifest: nextManifest }
   });
 }
 
@@ -2403,21 +1901,31 @@ async function handleAdminUsers(env, request) {
     const initialCreditIdr = Math.max(0, Number.parseInt(body.initialCreditIdr, 10) || 0);
 
     if (!email || !email.includes('@')) throw new Error('Email user baru tidak valid.');
-    if (password.length < 6) throw new Error('Password minimal 6 karakter.');
+    if (password.length < MIN_PASSWORD_LENGTH) throw new Error('Password minimal 6 karakter.');
 
-    const created = await supabaseAuthAdminFetch(env, '/admin/users', {
-      method: 'POST',
-      body: {
+    const existing = await getAuthProfileByEmail(env, email);
+    if (existing) throw new Error('Email sudah terdaftar.');
+
+    const salt = generateSaltHex();
+    const passwordHash = await hashPasswordHex(password, salt);
+    const isSuperuser = email === SUPERUSER_EMAIL;
+    let profile;
+    try {
+      profile = await createProfile(env, {
+        id: crypto.randomUUID(),
         email,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: fullName || email.split('@')[0]
-        }
-      }
-    });
+        fullName: fullName || email.split('@')[0],
+        role: isSuperuser ? 'superuser' : 'user',
+        isUnlimited: isSuperuser,
+        passwordHash,
+        salt,
+        authProvider: 'password'
+      });
+    } catch (createError) {
+      if (isDuplicateConstraintError(createError)) throw new Error('Email sudah terdaftar.');
+      throw createError;
+    }
 
-    const profile = await waitForProfile(env, created.user?.id);
     const patch = sanitizeUserPatch(
       {
         full_name: fullName || profile.full_name,
@@ -2431,12 +1939,7 @@ async function handleAdminUsers(env, request) {
 
     let updatedProfile = profile;
     if (Object.keys(patch).length > 0) {
-      const rows = await supabaseFetch(env, `/rest/v1/profiles?id=eq.${encodeURIComponent(profile.id)}&select=*`, {
-        method: 'PATCH',
-        prefer: 'return=representation',
-        body: patch
-      });
-      updatedProfile = rows?.[0] || profile;
+      updatedProfile = (await updateProfile(env, profile.id, patch)) || profile;
     }
 
     if (initialCreditIdr > 0 && !updatedProfile.is_unlimited) {
@@ -2465,9 +1968,7 @@ async function handleAdminUsers(env, request) {
   if (body.action === 'delete') {
     if (body.userId === admin.user.id) throw new Error('Akun yang sedang dipakai tidak bisa dihapus.');
     if (isProtectedSuperuser(existingProfile)) throw new Error('Akun whitelist utama tidak bisa dihapus.');
-    await supabaseAuthAdminFetch(env, `/admin/users/${encodeURIComponent(body.userId)}`, {
-      method: 'DELETE'
-    });
+    await deleteUserCascade(env, body.userId);
     return json({ deleted: true, userId: body.userId });
   }
 
@@ -2481,12 +1982,7 @@ async function handleAdminUsers(env, request) {
     });
   }
 
-  const rows = await supabaseFetch(env, `/rest/v1/profiles?id=eq.${encodeURIComponent(body.userId)}&select=*`, {
-    method: 'PATCH',
-    prefer: 'return=representation',
-    body: allowed
-  });
-  const user = rows?.[0];
+  const user = await updateProfile(env, body.userId, allowed);
   return json({
     user: {
       ...user,
@@ -2500,19 +1996,15 @@ async function handleCreateManualPayment(env, request) {
   const body = await readJson(request);
   const amountIdr = Number.parseInt(body.amountIdr, 10);
   if (!Number.isInteger(amountIdr) || amountIdr <= 0) throw new Error('Nominal pembayaran tidak valid.');
-  const rows = await supabaseFetch(env, '/rest/v1/manual_payments?select=*', {
-    method: 'POST',
-    prefer: 'return=representation',
-    body: {
-      user_id: user.id,
-      marketplace: 'shopee',
-      order_ref: body.orderRef || '',
-      amount_idr: amountIdr,
-      notes: body.notes || '',
-      status: 'pending'
-    }
+  const payment = await createManualPayment(env, {
+    user_id: user.id,
+    marketplace: 'shopee',
+    order_ref: body.orderRef || '',
+    amount_idr: amountIdr,
+    notes: body.notes || '',
+    status: 'pending'
   });
-  return json({ payment: rows?.[0] });
+  return json({ payment });
 }
 
 async function handleCreateMidtransCheckout(env, request) {
@@ -2635,7 +2127,7 @@ async function handleAdminInteractiveQrisImageUpload(env, request) {
   }
 
   const assetPath = buildInteractiveQrisAssetPath(file);
-  await uploadStorageObject(env, EXAMPLE_JOBS_BUCKET, assetPath, bytes, contentType);
+  await putObject(env, EXAMPLE_JOBS_BUCKET, assetPath, bytes, contentType);
   return json({
     url: interactiveQrisAssetPublicUrl(env, assetPath),
     path: assetPath
@@ -2734,6 +2226,153 @@ async function handleInteractiveQrisWebhook(env, request) {
     }
   );
   return json({ received: true, payment: updated });
+}
+
+async function grantSignupBonusForNewProfile(env, request, profile, { deviceId = '' } = {}) {
+  try {
+    const deviceIdHash = await hashSignupBonusIdentifier(env, deviceId);
+    const ipHash = await hashSignupBonusIdentifier(env, extractRequestIp(request));
+    const counts = await countGrantedSignupBonusClaims(env, { deviceIdHash, ipHash });
+    const granted = shouldGrantSignupBonus({ deviceGrantedClaims: counts.device, ipGrantedClaims: counts.ip });
+    const claim = await insertSignupBonusClaim(env, {
+      user_id: profile.id,
+      email: profile.email,
+      device_id_hash: deviceIdHash || null,
+      ip_hash: ipHash || null,
+      country_code: getViewerCountryCode(request) || null,
+      bonus_granted: granted,
+      reason: granted ? SIGNUP_BONUS_REASON : 'limit_reached',
+      metadata: { source: 'signup', deviceGrantedClaims: counts.device, ipGrantedClaims: counts.ip }
+    });
+    await ensureSignupBonusLedger(env, claim);
+  } catch (bonusError) {
+    // Bonus tidak boleh menggagalkan signup; guard device/IP tetap dicatat bila memungkinkan.
+    console.error('Bonus signup gagal diproses:', bonusError?.message || bonusError);
+  }
+}
+
+async function handleAuthSignup(env, request) {
+  const body = await readJson(request);
+  const email = normalizeEmail(body.email);
+  const password = String(body.password || '');
+  const fullName = String(body.fullName || '').trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Email tidak valid.');
+  if (password.length < MIN_PASSWORD_LENGTH) throw new Error('Password minimal 6 karakter.');
+
+  const existing = await getAuthProfileByEmail(env, email);
+  if (existing) throw new Error('Email sudah terdaftar. Silakan login.');
+
+  const salt = generateSaltHex();
+  const passwordHash = await hashPasswordHex(password, salt);
+  const isSuperuser = email === SUPERUSER_EMAIL;
+  let profile;
+  try {
+    profile = await createProfile(env, {
+      id: crypto.randomUUID(),
+      email,
+      fullName: fullName || email.split('@')[0],
+      role: isSuperuser ? 'superuser' : 'user',
+      isUnlimited: isSuperuser,
+      passwordHash,
+      salt,
+      authProvider: 'password'
+    });
+  } catch (createError) {
+    if (isDuplicateConstraintError(createError)) throw new Error('Email sudah terdaftar. Silakan login.');
+    throw createError;
+  }
+
+  await grantSignupBonusForNewProfile(env, request, profile, { deviceId: String(body.deviceId || '') });
+  return json(await createAuthSession(env, profile));
+}
+
+async function handleAuthLogin(env, request) {
+  const body = await readJson(request);
+  const email = normalizeEmail(body.email);
+  const password = String(body.password || '');
+  if (!email || !password) throw new Error('Email dan password wajib diisi.');
+
+  const profile = await getAuthProfileByEmail(env, email);
+  if (!profile) throw new Error('Email atau password salah.');
+  if (!profile.password_hash) throw new Error('Akun ini terdaftar melalui Google. Silakan login dengan Google.');
+  if (profile.is_active === false) throw new Error('Akun tidak aktif.');
+
+  const valid = await verifyPasswordHash(password, profile.salt, profile.password_hash);
+  if (!valid) throw new Error('Email atau password salah.');
+  return json(await createAuthSession(env, profile));
+}
+
+async function handleAuthRefresh(env, request) {
+  const body = await readJson(request);
+  return json(await rotateRefreshSession(env, body.refresh_token));
+}
+
+async function handleAuthLogout(env, request) {
+  const body = await readJson(request);
+  await revokeRefreshSession(env, body.refresh_token);
+  return json({ success: true });
+}
+
+async function handleGoogleAuthStart(env) {
+  const { url } = await buildGoogleAuthStart(env);
+  return Response.redirect(url, 302);
+}
+
+async function handleGoogleAuthCallback(env, request) {
+  const frontendBase = appBaseUrl(env);
+  const redirectWithError = (message) => Response.redirect(`${frontendBase}/#auth_error=${encodeURIComponent(message)}`, 302);
+  try {
+    const url = new URL(request.url);
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
+    if (url.searchParams.get('error') || !code || !state) return redirectWithError('Login Google dibatalkan.');
+
+    const statePayload = await verifyGoogleState(env, state);
+    if (!statePayload) return redirectWithError('State OAuth Google tidak valid. Silakan coba lagi.');
+
+    const googleUser = await exchangeGoogleCode(env, code);
+    const email = normalizeEmail(googleUser.email);
+    let profile = await getAuthProfileByEmail(env, email);
+    if (!profile) {
+      const isSuperuser = email === SUPERUSER_EMAIL;
+      profile = await createProfile(env, {
+        id: crypto.randomUUID(),
+        email,
+        fullName: String(googleUser.name || '').trim() || email.split('@')[0],
+        role: isSuperuser ? 'superuser' : 'user',
+        isUnlimited: isSuperuser,
+        authProvider: 'google'
+      });
+      await grantSignupBonusForNewProfile(env, request, profile);
+    }
+    if (profile.is_active === false) return redirectWithError('Akun tidak aktif.');
+
+    const session = await createAuthSession(env, profile);
+    // Format hash implicit-flow Supabase agar parsing callback frontend tetap dipakai.
+    const hash = [
+      `access_token=${encodeURIComponent(session.access_token)}`,
+      `refresh_token=${encodeURIComponent(session.refresh_token)}`,
+      `expires_at=${session.expires_at}`,
+      'token_type=bearer'
+    ].join('&');
+    return Response.redirect(`${frontendBase}/#${hash}`, 302);
+  } catch (callbackError) {
+    return redirectWithError(callbackError?.message || 'Login Google gagal.');
+  }
+}
+
+async function handlePublicAsset(env, assetPath) {
+  const cleanPath = String(assetPath || '').replace(/^\/+/, '');
+  if (!cleanPath || cleanPath.split('/').includes('..')) return error('Aset tidak ditemukan.', 404);
+  const object = await getObject(env, EXAMPLE_JOBS_BUCKET, cleanPath);
+  if (!object) return error('Aset tidak ditemukan.', 404);
+  return new Response(object.body, {
+    headers: {
+      'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream',
+      'Cache-Control': object.httpMetadata?.cacheControl || 'public, max-age=3600',
+      ...corsHeaders
+    }
+  });
 }
 
 async function handleSignupBonusClaim(env, request) {
@@ -2872,7 +2511,7 @@ async function handleAdminFinanceExport(env, request) {
 }
 
 async function handleAppConfig(env, request) {
-  const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=key,value,is_public&is_public=eq.true&order=key.asc', {});
+  const rows = await listPublicAppSettings(env);
   const aiRedrawModel = await getAiRedrawModelConfig(env);
   const redrawAvailability = buildAiRedrawAvailability(aiRedrawModel, env);
   const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
@@ -2905,15 +2544,11 @@ async function handleAppConfig(env, request) {
 async function handleAdminOverview(env, request) {
   await requireAdmin(env, request);
   const [users, jobs, payments, gatewayPayments, ledger] = await Promise.all([
-    supabaseFetch(env, '/rest/v1/profiles?select=id,is_active,is_unlimited,deleted_at', {}),
-    queryJobsWithPublishFallback(
-      env,
-      `/rest/v1/jobs?select=id,price_idr,production_type,input_mode,created_at,deleted_at&${notDeletedQuery()}&order=created_at.desc&limit=500`,
-      '/rest/v1/jobs?select=id,price_idr,production_type,input_mode,created_at&order=created_at.desc&limit=500'
-    ),
-    supabaseFetch(env, '/rest/v1/manual_payments?select=id,status,amount_idr,created_at&order=created_at.desc&limit=500', {}),
+    listAdminOverviewProfiles(env),
+    listAdminOverviewJobs(env),
+    listAdminOverviewManualPayments(env),
     listAdminPaymentTransactionsRows(env),
-    supabaseFetch(env, '/rest/v1/credit_ledger?select=amount_idr,kind,reason,created_at&order=created_at.desc&limit=500', {})
+    listAdminOverviewLedger(env)
   ]);
   const now = Date.now();
   const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
@@ -2941,12 +2576,8 @@ async function handleAdminOverview(env, request) {
 async function handleAdminJobs(env, request) {
   await requireAdmin(env, request);
   const [users, jobs, exampleSetting] = await Promise.all([
-    supabaseFetch(env, '/rest/v1/profiles?select=id,email,role', {}),
-    queryJobsWithPublishFallback(
-      env,
-      `/rest/v1/jobs?select=id,user_id,project_name,input_mode,production_type,status,price_idr,separation_film_count,created_at,manifest,is_example_public,example_published_at,deleted_at&${notDeletedQuery()}&order=created_at.desc&limit=100`,
-      '/rest/v1/jobs?select=id,user_id,project_name,input_mode,production_type,status,price_idr,separation_film_count,created_at,manifest&order=created_at.desc&limit=100'
-    ),
+    listProfileRoles(env),
+    listAdminJobs(env),
     getAppSetting(env, 'example_jobs')
   ]);
   const decorated = decorateAdminJobs(jobs, users, exampleSetting?.value);
@@ -2957,21 +2588,7 @@ async function handleAdminJobs(env, request) {
 
 async function handleExampleJobs(env, request) {
   await requireUser(env, request);
-  let profiles = [];
-  let jobs = [];
-  try {
-    [profiles, jobs] = await Promise.all([
-      supabaseFetch(env, '/rest/v1/profiles?select=id,email,role', {}),
-      queryJobsWithPublishFallback(
-        env,
-        `/rest/v1/jobs?select=id,user_id,project_name,input_mode,production_type,status,settings,manifest,created_at,is_example_public,example_published_at,deleted_at&is_example_public=eq.true&status=eq.done&${notDeletedQuery()}&order=created_at.desc&limit=200`,
-        null
-      )
-    ]);
-  } catch (error) {
-    if (!isMissingJobsPublishColumnsError(error) && !isMissingProfilesTableError(error)) throw error;
-    return json({ exampleJobs: await listLegacyPublishedExampleJobs(env) });
-  }
+  const [profiles, jobs] = await Promise.all([listProfileRoles(env), listExampleJobs(env)]);
 
   const superuserIds = new Set(profiles.filter((profile) => isSuperuserProfile(profile, profile.email)).map((profile) => profile.id));
   const exampleJobs = jobs
@@ -2993,21 +2610,21 @@ async function handleExampleJobs(env, request) {
 
 async function handleAdminPayments(env, request) {
   await requireAdmin(env, request);
-  const users = await supabaseFetch(env, '/rest/v1/profiles?select=id,email', {});
-  const payments = await supabaseFetch(env, '/rest/v1/manual_payments?select=id,user_id,marketplace,order_ref,amount_idr,status,notes,rejected_reason,approved_at,created_at,updated_at&order=created_at.desc&limit=100', {});
+  const users = await listProfileEmails(env);
+  const payments = await listAdminManualPayments(env);
   return json({ payments: withUserEmails(payments, users) });
 }
 
 async function handleAdminMidtransPayments(env, request) {
   await requireAdmin(env, request);
-  const users = await supabaseFetch(env, '/rest/v1/profiles?select=id,email', {});
+  const users = await listProfileEmails(env);
   const payments = await listAdminMidtransPaymentsRows(env);
   return json({ payments: withUserEmails(payments, users) });
 }
 
 async function handleAdminPaymentTransactions(env, request) {
   await requireAdmin(env, request);
-  const users = await supabaseFetch(env, '/rest/v1/profiles?select=id,email', {});
+  const users = await listProfileEmails(env);
   const payments = await listAdminPaymentTransactionsRows(env);
   return json({ payments: withUserEmails(payments, users) });
 }
@@ -3015,47 +2632,38 @@ async function handleAdminPaymentTransactions(env, request) {
 async function handleRejectPayment(env, request, paymentId) {
   const admin = await requireAdmin(env, request);
   const body = await readJson(request);
-  const updated = await supabaseFetch(env, `/rest/v1/manual_payments?id=eq.${encodeURIComponent(paymentId)}&select=*`, {
-    method: 'PATCH',
-    prefer: 'return=representation',
-    body: {
-      status: 'rejected',
-      rejected_reason: body.reason || '',
-      approved_by: admin.user.id,
-      approved_at: null
-    }
+  const updated = await updateManualPayment(env, paymentId, {
+    status: 'rejected',
+    rejected_reason: body.reason || '',
+    approved_by: admin.user.id,
+    approved_at: null
   });
-  return json({ payment: updated?.[0] });
+  return json({ payment: updated });
 }
 
 async function handleAdminPricingRules(env, request) {
   await requireAdmin(env, request);
   if (request.method === 'GET') {
-    const rules = await supabaseFetch(env, '/rest/v1/pricing_rules?select=key,amount_idr,active,description,updated_at&order=key.asc', {});
+    const rules = await listPricingRules(env);
     return json({ rules });
   }
 
   const body = await readJson(request);
   const amountIdr = Number.parseInt(body.amountIdr, 10);
   if (!body.key || !Number.isInteger(amountIdr) || amountIdr < 0) throw new Error('Aturan harga tidak valid.');
-  const rows = await supabaseFetch(env, '/rest/v1/pricing_rules?select=*', {
-    method: 'POST',
-    prefer: 'resolution=merge-duplicates,return=representation',
-    body: {
-      key: body.key,
-      amount_idr: amountIdr,
-      active: body.active !== false,
-      description: body.description || '',
-      updated_at: formatDate(new Date())
-    }
+  const rule = await upsertPricingRule(env, {
+    key: body.key,
+    amountIdr,
+    active: body.active !== false,
+    description: body.description || ''
   });
-  return json({ rule: rows?.[0] });
+  return json({ rule });
 }
 
 async function handleAdminSettings(env, request) {
   await requireAdmin(env, request);
   if (request.method === 'GET') {
-    const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=key,value,is_public,description,updated_at&order=key.asc', {});
+    const rows = await listAppSettings(env);
     return json({ settings: rows });
   }
 
@@ -3072,31 +2680,18 @@ async function handleAdminSettings(env, request) {
       throw new Error('Payload QRIS statis tidak valid. Pastikan teks EMVCo lengkap dan CRC benar.');
     }
   }
-  const rows = await supabaseFetch(env, '/rest/v1/app_settings?select=*', {
-    method: 'POST',
-    prefer: 'resolution=merge-duplicates,return=representation',
-    body: {
-      key: body.key,
-      value: normalizedValue,
-      is_public: body.isPublic !== false,
-      description: body.description || '',
-      updated_at: formatDate(new Date())
-    }
+  const setting = await upsertAppSetting(env, {
+    key: body.key,
+    value: normalizedValue,
+    isPublic: body.isPublic !== false,
+    description: body.description || ''
   });
-  return json({ setting: rows?.[0] });
+  return json({ setting });
 }
 
 async function handleSetExampleJob(env, request, jobId) {
   await requireAdmin(env, request);
-  const [job, profiles] = await Promise.all([
-    getJobByIdWithPublishFallback(
-      env,
-      jobId,
-      'id,user_id,project_name,input_mode,production_type,status,settings,manifest,is_example_public,example_published_at,deleted_at,created_at',
-      'id,user_id,project_name,input_mode,production_type,status,settings,manifest,created_at'
-    ),
-    supabaseFetch(env, '/rest/v1/profiles?select=id,email,role', {})
-  ]);
+  const [job, profiles] = await Promise.all([getJobById(env, jobId), listProfileRoles(env)]);
 
   if (!job) throw new Error('Job tidak ditemukan.');
   if (jobIsDeleted(job)) throw new Error('Job ini sudah dihapus.');
@@ -3112,16 +2707,11 @@ async function handleSetExampleJob(env, request, jobId) {
   const artifacts = getExampleArtifactsFromManifest(job.manifest);
   const publishedAt = formatDate(new Date());
   const replacedJobs = await unpublishOtherExampleJobs(env, job);
-  const publishResult = await patchJobPublishState(
-    env,
-    job.id,
-    {
+  const updatedJob =
+    (await updateJob(env, job.id, {
       is_example_public: true,
       example_published_at: publishedAt
-    },
-    job
-  );
-  const updatedJob = publishResult.job;
+    })) || { ...job, is_example_public: true, example_published_at: publishedAt };
   const nextExamples = await syncLegacyExampleSetting(env, updatedJob, artifacts);
 
   return json({
@@ -3136,15 +2726,7 @@ async function handleSetExampleJob(env, request, jobId) {
 
 async function handleUnsetExampleJob(env, request, jobId) {
   await requireAdmin(env, request);
-  const [job, profiles] = await Promise.all([
-    getJobByIdWithPublishFallback(
-      env,
-      jobId,
-      'id,user_id,project_name,input_mode,production_type,status,settings,manifest,is_example_public,example_published_at,deleted_at,created_at',
-      'id,user_id,project_name,input_mode,production_type,status,settings,manifest,created_at'
-    ),
-    supabaseFetch(env, '/rest/v1/profiles?select=id,email,role', {})
-  ]);
+  const [job, profiles] = await Promise.all([getJobById(env, jobId), listProfileRoles(env)]);
 
   if (!job) throw new Error('Job tidak ditemukan.');
   if (jobIsDeleted(job)) throw new Error('Job ini sudah dihapus.');
@@ -3152,37 +2734,28 @@ async function handleUnsetExampleJob(env, request, jobId) {
   const owner = profiles.find((profile) => profile.id === job.user_id);
   if (!owner || !isSuperuserProfile(owner, owner.email)) throw new Error('Hanya job milik superadmin yang bisa dicabut dari contoh.');
 
-  const publishResult = await patchJobPublishState(
-    env,
-    job.id,
-    {
+  const updatedJob =
+    (await updateJob(env, job.id, {
       is_example_public: false,
       example_published_at: null
-    },
-    job
-  );
+    })) || { ...job, is_example_public: false, example_published_at: null };
   await clearLegacyExampleSettingIfMatches(env, job);
 
   return json({
     jobId: job.id,
     isExamplePublic: false,
-    job: publishResult.job
+    job: updatedJob
   });
 }
 
 async function handleDeleteJob(env, request, jobId) {
   const { user } = await requireUser(env, request);
-  const job = await getJobByIdWithPublishFallback(
-    env,
-    jobId,
-    'id,user_id,production_type,status,manifest,is_example_public,example_published_at,deleted_at',
-    'id,user_id,production_type,status,manifest'
-  );
+  const job = await getJobById(env, jobId);
   if (!job) throw new Error('Job tidak ditemukan.');
   if (job.user_id !== user.id) throw new Error('Hanya pemilik job yang boleh menghapus job ini.');
   const hasExampleArtifacts = Boolean(getExampleArtifactsFromManifest(job.manifest));
   if (!jobIsDeleted(job) && hasExampleArtifacts) {
-    await deleteStorageObjects(env, EXAMPLE_JOBS_BUCKET, [exampleJobPrefix(job.id)]);
+    await deleteObjects(env, EXAMPLE_JOBS_BUCKET, [exampleJobPrefix(job.id)]);
   }
   await clearLegacyExampleSettingIfMatches(env, job);
   if (jobIsDeleted(job)) {
@@ -3190,14 +2763,19 @@ async function handleDeleteJob(env, request, jobId) {
   }
 
   const deletedAt = formatDate(new Date());
-  const deleteResult = await softDeleteJobWithFallback(env, job.id, deletedAt, job);
+  const deletedJob =
+    (await updateJob(env, job.id, {
+      deleted_at: deletedAt,
+      is_example_public: false,
+      example_published_at: null
+    })) || { ...job, deleted_at: deletedAt, is_example_public: false, example_published_at: null };
 
   return json({
     jobId: job.id,
     deleted: true,
     deletedAt,
-    metadataDeleted: deleteResult.usedLegacyFallback === false,
-    job: deleteResult.job
+    metadataDeleted: true,
+    job: deletedJob
   });
 }
 
@@ -3219,8 +2797,7 @@ async function handleAdminCredits(env, request) {
 
 async function handleApprovePayment(env, request, paymentId) {
   const admin = await requireAdmin(env, request);
-  const rows = await supabaseFetch(env, `/rest/v1/manual_payments?id=eq.${encodeURIComponent(paymentId)}&select=*`, {});
-  const payment = rows?.[0];
+  const payment = await getManualPaymentById(env, paymentId);
   if (!payment) throw new Error('Pembayaran tidak ditemukan.');
   if (payment.status === 'approved') return json({ payment });
   await insertLedger(env, {
@@ -3231,12 +2808,12 @@ async function handleApprovePayment(env, request, paymentId) {
     referenceId: payment.id,
     createdBy: admin.user.id
   });
-  const updated = await supabaseFetch(env, `/rest/v1/manual_payments?id=eq.${encodeURIComponent(paymentId)}&select=*`, {
-    method: 'PATCH',
-    prefer: 'return=representation',
-    body: { status: 'approved', approved_by: admin.user.id, approved_at: new Date().toISOString() }
+  const updated = await updateManualPayment(env, paymentId, {
+    status: 'approved',
+    approved_by: admin.user.id,
+    approved_at: new Date().toISOString()
   });
-  return json({ payment: updated?.[0] });
+  return json({ payment: updated });
 }
 
 export default {
@@ -3246,6 +2823,12 @@ export default {
     try {
       if ((url.pathname === '/' || url.pathname === '/health') && request.method === 'GET') return handleHealth(env);
       if (url.pathname === '/api/app-config' && request.method === 'GET') return await handleAppConfig(env, request);
+      if (url.pathname === '/api/auth/signup' && request.method === 'POST') return await handleAuthSignup(env, request);
+      if (url.pathname === '/api/auth/login' && request.method === 'POST') return await handleAuthLogin(env, request);
+      if (url.pathname === '/api/auth/refresh' && request.method === 'POST') return await handleAuthRefresh(env, request);
+      if (url.pathname === '/api/auth/logout' && request.method === 'POST') return await handleAuthLogout(env, request);
+      if (url.pathname === '/api/auth/google' && request.method === 'GET') return await handleGoogleAuthStart(env);
+      if (url.pathname === '/api/auth/google/callback' && request.method === 'GET') return await handleGoogleAuthCallback(env, request);
       if (url.pathname === '/api/auth/signup-bonus' && request.method === 'POST') return await handleSignupBonusClaim(env, request);
       if (url.pathname === '/api/payments/interactive-qris/webhook' && request.method === 'POST') return await handleInteractiveQrisWebhook(env, request);
       if (url.pathname === '/api/payments/interactive-qris/checkout' && request.method === 'POST') return await handleCreateInteractiveQrisCheckout(env, request);
@@ -3289,6 +2872,8 @@ export default {
       if (approveMatch && request.method === 'POST') return await handleApprovePayment(env, request, approveMatch[1]);
       const rejectMatch = url.pathname.match(/^\/api\/admin\/manual-payments\/([^/]+)\/reject$/);
       if (rejectMatch && request.method === 'POST') return await handleRejectPayment(env, request, rejectMatch[1]);
+      const assetMatch = url.pathname.match(/^\/api\/assets\/example-jobs\/(.+)$/);
+      if (assetMatch && request.method === 'GET') return await handlePublicAsset(env, decodeURIComponent(assetMatch[1]));
       return error('Endpoint tidak ditemukan.', 404);
     } catch (err) {
       const message = err.message || 'Server error.';

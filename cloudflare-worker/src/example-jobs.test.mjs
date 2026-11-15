@@ -12,6 +12,7 @@ import {
 } from './example-jobs.js';
 
 const workerSource = fs.readFileSync(path.join(import.meta.dirname, 'index.js'), 'utf8');
+const dbSource = fs.readFileSync(path.join(import.meta.dirname, 'db.js'), 'utf8');
 
 function completeArtifacts(productionType = 'sticker') {
   return {
@@ -196,10 +197,8 @@ test('whitelist email still counts as superuser fallback', () => {
 });
 
 test('publishing a new example replaces the previous job of the same production type', () => {
-  assert.match(workerSource, /async function unpublishOtherExampleJobs/);
-  assert.match(workerSource, /production_type=eq\.\$\{encodeURIComponent\(job\.production_type\)\}/);
-  assert.match(workerSource, /id=neq\.\$\{encodeURIComponent\(job\.id\)\}/);
-  assert.match(workerSource, /is_example_public: false/);
   assert.match(workerSource, /const replacedJobs = await unpublishOtherExampleJobs\(env, job\)/);
   assert.match(workerSource, /replacedJobIds/);
+  assert.match(dbSource, /export async function unpublishOtherExampleJobs/);
+  assert.match(dbSource, /UPDATE jobs SET is_example_public = 0, example_published_at = NULL WHERE production_type = \? AND id <> \? AND is_example_public = 1/);
 });

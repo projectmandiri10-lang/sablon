@@ -5,4 +5,8 @@ node_modules/
 dist/
 build/
 .wrangler/
+.dev.vars
+.qoder/
+push-trace.log
+supabase/.temp/
 .DS_Store
