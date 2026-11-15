@@ -29,10 +29,7 @@ Tambahkan variabel ini ke Worker runtime:
   - Bukan secret.
   - URL aplikasi Pages yang akan menerima redirect balik dari Midtrans, misalnya `https://your-app.pages.dev`.
 
-Variabel terkait Supabase yang tetap dibutuhkan:
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+Data transaksi disimpan di D1 (`payment_transactions`); tidak ada variabel Supabase yang dibutuhkan lagi.
 
 Contoh kontrak lokal sudah ditambahkan ke [`.env.example`](./.env.example).
 
