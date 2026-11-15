@@ -43,14 +43,14 @@ function getCopy(locale) {
       },
       {
         value: INPUT_MODE_READY,
-        title: isId ? 'Gambar bersih / siap trace' : 'Clean / ready-to-trace artwork',
-        badge: isId ? 'Direct Trace · Rp3.000' : 'Direct Trace · Rp3,000',
+        title: isId ? 'Pecah warna dan buat pola cutting sticker' : 'Color separation & sticker cutline pattern',
+        badge: isId ? 'Langsung Proses · Rp2.000' : 'Direct Process · Rp2,000',
         description: isId
-          ? 'Langsung ubah ke SVG, PDF cetak, cutline, dan film warna.'
-          : 'Directly converts to SVG, print PDF, cutline, and color films.',
+          ? 'Untuk gambar bersih: langsung pecah warna sablon, buat pola cutting sticker, SVG, dan PDF cetak.'
+          : 'For clean artwork: directly separate screen-print colors, generate sticker cutline patterns, SVG, and print PDF.',
         costNote: isId
-          ? 'Rp3.000 flat per proses'
-          : 'Rp3,000 flat per process',
+          ? 'Rp2.000 flat per gambar'
+          : 'Rp2,000 flat per image',
         icon: FileImage
       }
     ],
@@ -307,7 +307,7 @@ export default function UploadBox({
                 <div className="min-w-0 flex-1">
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
                     <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>{inputMode === INPUT_MODE_READY ? 'Ready Trace' : 'AI Redraw'}</span>
+                    <span>{inputMode === INPUT_MODE_READY ? (locale === 'en' ? 'Color Separation & Cutline' : 'Pecah Warna & Pola Cutting Sticker') : 'AI Redraw'}</span>
                   </div>
                   <p className="mt-1.5 truncate text-sm font-bold text-ink">{file.name}</p>
                   <p className="text-xs text-slate-500">{formatFileSizeMb(file.size)}</p>

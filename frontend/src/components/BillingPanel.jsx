@@ -1,9 +1,8 @@
-import { Check, Copy, ExternalLink, QrCode, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
+import { Check, Copy, QrCode, RefreshCw, Wallet } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   createInteractiveQrisCheckout,
-  createMidtransCheckout,
   getAppConfig,
   listAutomaticPayments,
   refreshMidtransPayment,
@@ -39,11 +38,9 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
   const [appConfig, setAppConfig] = useState({ settings: {}, features: {} });
   const [payments, setPayments] = useState([]);
   const [amountInput, setAmountInput] = useState('2000');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('interactive_qris');
   const [notice, setNotice] = useState('');
   const [configError, setConfigError] = useState('');
   const [paymentError, setPaymentError] = useState('');
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isCreatingQris, setIsCreatingQris] = useState(false);
   const [refreshingOrderId, setRefreshingOrderId] = useState('');
   const [copiedNominal, setCopiedNominal] = useState(false);
@@ -58,30 +55,17 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     minimumAmount: (amount) => (isId ? `Nominal minimal ${amount}.` : `Minimum amount is ${amount}.`),
     checkoutError: isId ? 'Checkout pembayaran gagal dibuat.' : 'Failed to create the payment checkout.',
     qrisCheckoutError: isId ? 'Instruksi QRIS otomatis belum bisa dibuat.' : 'The automatic QRIS instruction could not be created yet.',
-    autoTopup: isId ? 'Pembayaran otomatis' : 'Automatic payments',
+    autoTopup: isId ? 'Top Up QRIS Otomatis' : 'Automatic QRIS Top-up',
     refreshBilling: isId ? 'Refresh billing' : 'Refresh billing',
     autoTopupInfo: isId
-      ? 'Pilih metode pembayaran otomatis yang tersedia. Saldo akan bertambah otomatis setelah sistem menerima status pembayaran yang valid.'
-      : 'Choose any available automatic payment method. Credits will be added automatically after the payment status is verified.',
+      ? 'Saldo akan bertambah otomatis 1:1 setelah pembayaran QRIS terverifikasi oleh sistem.'
+      : 'Credits will be added automatically 1:1 once your QRIS payment is verified.',
     topupEmailLabel: isId ? 'Email akun Anda yang dipakai untuk top up:' : 'Your account email used for top-up:',
     amountLabel: isId ? 'Nominal top up' : 'Top-up amount',
-    paymentMethodLabel: isId ? 'Metode pembayaran' : 'Payment method',
-    paymentMethodHelp: isId ? 'QRIS menjadi pilihan utama. Metode online lain tersedia melalui halaman pembayaran.' : 'QRIS is the default option. Other online methods are available through the payment page.',
-    qrisMethod: isId ? 'QRIS' : 'QRIS',
-    onlineMethod: isId ? 'E-wallet, VA, kartu, dan metode lain' : 'E-wallet, VA, cards, and other methods',
-    onlineMethodPending: isId
-      ? 'E-wallet, VA, kartu, dan metode lain (segera hadir)'
-      : 'E-wallet, VA, cards, and other methods (coming soon)',
     minimumCreditInfo: (amount) =>
       isId ? `Minimum ${amount}. Credit akan bertambah 1:1 sesuai nominal pembayaran yang terverifikasi.` : `Minimum ${amount}. Credits increase 1:1 based on the verified payment amount.`,
-    openCheckout: isId ? 'Membuka checkout...' : 'Opening checkout...',
-    continuePayment: isId ? 'Lanjutkan Pembayaran' : 'Continue to Payment',
     createQris: isId ? 'Buat Instruksi QRIS' : 'Create QRIS instruction',
     creatingQris: isId ? 'Membuat instruksi...' : 'Creating instruction...',
-    onlinePaymentTitle: isId ? 'Pembayaran online' : 'Online payment',
-    onlinePaymentInfo: isId
-      ? 'Gunakan metode online untuk membayar melalui e-wallet, virtual account, kartu, atau kanal lain yang tersedia.'
-      : 'Use online payment to pay with e-wallets, virtual accounts, cards, or any available channel.',
     qrisTitle: isId ? 'QRIS otomatis' : 'Automatic QRIS',
     qrisInfo: isId
       ? 'Sistem akan membuat nominal unik yang harus dibayar ke QRIS merchant statis. Setelah notifikasi pembayaran masuk, saldo akan dikreditkan otomatis.'
@@ -92,8 +76,7 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     qrisDynamicHint: isId
       ? 'Scan QR ini dengan aplikasi pembayaran — nominal sudah termasuk kode unik, tidak perlu mengetik manual.'
       : 'Scan this QR with your payment app — the amount already includes the unique code, no manual typing needed.',
-    onlinePaymentMissing: isId ? 'Metode pembayaran online belum tersedia saat ini. Silakan pilih QRIS atau hubungi admin.' : 'Online payment is not available right now. Please choose QRIS or contact admin.',
-    qrisMissing: isId ? 'QRIS otomatis belum aktif saat ini. Silakan pilih metode lain atau hubungi admin.' : 'Automatic QRIS is not available right now. Please choose another method or contact admin.',
+    qrisMissing: isId ? 'QRIS otomatis belum aktif saat ini. Silakan hubungi admin.' : 'Automatic QRIS is not available right now. Please contact admin.',
     qrisClosed: isId ? 'QRIS sedang tutup pada jam ini.' : 'QRIS is currently closed at this time.',
     qrisCreated: isId ? 'Instruksi QRIS otomatis berhasil dibuat. Bayar sesuai nominal unik di bawah ini.' : 'The automatic QRIS instruction has been created. Pay the exact unique amount below.',
     autoPaymentSuccess: isId
@@ -112,11 +95,6 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     notYet: isId ? 'Belum' : 'Not yet',
     refreshStatus: isId ? 'Refresh status' : 'Refresh status',
     refreshingStatus: isId ? 'Memeriksa...' : 'Checking...',
-    accountEmail: isId ? 'Email akun EasyRedesign Pro' : 'EasyRedesign Pro account email',
-    manualShopeeTitle: isId ? 'Pembayaran manual Shopee' : 'Manual Shopee payment',
-    openShopee: isId ? 'Buka Shopee Marketplace' : 'Open Shopee Marketplace',
-    shopeeStepOne: isId ? 'Setelah checkout di Shopee, kirim email akun di atas melalui chat Shopee.' : 'After checking out on Shopee, send the account email above through Shopee chat.',
-    shopeeStepTwo: isId ? 'Admin akan top up credit manual ke akun tersebut dalam 5-15 menit pada jam kerja.' : 'Admin will manually top up that account within 5-15 minutes during business hours.',
     baseAmountNote: (amount) => (isId ? `Dasar ${amount}` : `Base ${amount}`),
     table: isId
       ? ['Waktu', 'Metode', 'Order', 'Nominal', 'Status', 'Kanal', 'Saldo', 'Aksi']
@@ -154,12 +132,6 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
   useEffect(() => {
     paymentsRef.current = payments;
   }, [payments]);
-
-  useEffect(() => {
-    if (selectedPaymentMethod === 'midtrans' && !state.midtrans.available) {
-      setSelectedPaymentMethod('interactive_qris');
-    }
-  }, [selectedPaymentMethod, state.midtrans.available]);
 
   async function handleRefreshPayment(orderId, options = {}) {
     if (!orderId) return;
@@ -205,27 +177,6 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
     onReturnHandled?.();
   }, [returnState?.isReturn, returnState?.orderId, returnState?.status, session?.access_token]);
 
-  async function submitMidtransCheckout(amountIdr) {
-    if (!Number.isInteger(amountIdr) || amountIdr < state.midtrans.minimumAmountIdr) {
-      setPaymentError(copy.minimumAmount(formatRupiah(state.midtrans.minimumAmountIdr)));
-      return;
-    }
-
-    setIsCheckingOut(true);
-    setPaymentError('');
-    setNotice('');
-    try {
-      const data = await createMidtransCheckout({ amountIdr }, session?.access_token);
-      if (!data?.redirectUrl) {
-        throw new Error('Metode pembayaran belum mengembalikan link checkout.');
-      }
-      window.location.assign(data.redirectUrl);
-    } catch (error) {
-      setPaymentError(toUserApiError(error, copy.checkoutError).message);
-      setIsCheckingOut(false);
-    }
-  }
-
   async function submitInteractiveQrisCheckout(amountIdr) {
     if (qrisClosedState.isClosed) {
       setPaymentError(qrisClosedState.message || copy.qrisClosed);
@@ -258,32 +209,18 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
 
   const qrisClosedState = resolveInteractiveQrisClosedState(state.interactiveQris, clockNow);
   const shouldPollAutomaticPayments = hasPendingAutomaticPayments(payments, clockNow);
-  const selectedMinimumAmountIdr =
-    selectedPaymentMethod === 'midtrans' ? state.midtrans.minimumAmountIdr : state.interactiveQris.minimumAmountIdr;
-  const selectedMethodAvailable = selectedPaymentMethod === 'midtrans' ? state.midtrans.available : state.interactiveQris.available;
-  const selectedMethodBusy = selectedPaymentMethod === 'midtrans' ? isCheckingOut : isCreatingQris;
-  const selectedMethodClosed = selectedPaymentMethod === 'interactive_qris' && qrisClosedState.isClosed;
+  const selectedMinimumAmountIdr = state.interactiveQris.minimumAmountIdr;
+  const selectedMethodAvailable = state.interactiveQris.available;
+  const selectedMethodBusy = isCreatingQris;
+  const selectedMethodClosed = qrisClosedState.isClosed;
   const automaticCheckoutDisabled = !selectedMethodAvailable || selectedMethodClosed || selectedMethodBusy;
-  const selectedMethodInfo =
-    selectedPaymentMethod === 'midtrans'
-      ? copy.onlinePaymentInfo
-      : state.interactiveQris.qrPayload
-        ? copy.qrisDynamicInfo
-        : copy.qrisInfo;
-  const selectedMethodButtonLabel =
-    selectedPaymentMethod === 'midtrans'
-      ? isCheckingOut ? copy.openCheckout : copy.continuePayment
-      : isCreatingQris ? copy.creatingQris : copy.createQris;
-  const selectedMethodIcon =
-    selectedPaymentMethod === 'midtrans' ? <ExternalLink className="h-4 w-4" aria-hidden="true" /> : <QrCode className="h-4 w-4" aria-hidden="true" />;
+  const selectedMethodInfo = state.interactiveQris.qrPayload ? copy.qrisDynamicInfo : copy.qrisInfo;
+  const selectedMethodButtonLabel = isCreatingQris ? copy.creatingQris : copy.createQris;
+  const selectedMethodIcon = <QrCode className="h-4 w-4" aria-hidden="true" />;
 
   async function handleAutomaticPaymentSubmit(event) {
     event.preventDefault();
     const amountIdr = Number.parseInt(amountInput, 10);
-    if (selectedPaymentMethod === 'midtrans') {
-      await submitMidtransCheckout(amountIdr);
-      return;
-    }
     await submitInteractiveQrisCheckout(amountIdr);
   }
 
@@ -374,66 +311,29 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
         </div>
 
         <div className="space-y-5">
-          {/* Method Selector Cards */}
-          <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{copy.paymentMethodLabel}</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedPaymentMethod('interactive_qris');
-                  setPaymentError('');
-                  setNotice('');
-                }}
-                className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
-                  selectedPaymentMethod === 'interactive_qris'
-                    ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20'
-                    : 'border-line bg-white hover:border-slate-300'
-                }`}
-              >
-                <div
-                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                    selectedPaymentMethod === 'interactive_qris' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  <QrCode className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-ink">{copy.qrisMethod}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {state.interactiveQris.merchantName || copy.merchantName}
-                  </p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                disabled={!state.midtrans.available}
-                onClick={() => {
-                  setSelectedPaymentMethod('midtrans');
-                  setPaymentError('');
-                  setNotice('');
-                }}
-                className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
-                  selectedPaymentMethod === 'midtrans'
-                    ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20'
-                    : 'border-line bg-white hover:border-slate-300'
-                } ${!state.midtrans.available ? 'cursor-not-allowed opacity-60' : ''}`}
-              >
-                <div
-                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                    selectedPaymentMethod === 'midtrans' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  <ExternalLink className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-ink">
-                    {state.midtrans.available ? copy.onlineMethod : copy.onlineMethodPending}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">{copy.paymentMethodHelp}</p>
-                </div>
-              </button>
+          {/* QRIS-Only Header Banner + AI Redraw Status */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/25 bg-primary/[0.04] p-4">
+            <div className="flex items-center gap-3">
+              <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
+                <QrCode className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-ink">{copy.qrisTitle}</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {state.interactiveQris.merchantName || copy.merchantName}
+                </p>
+              </div>
+            </div>
+            <div
+              className={`rounded-xl border px-3 py-1.5 text-xs font-semibold ${
+                state.aiRedraw.available
+                  ? 'border-emerald-200 bg-emerald-50/80 text-emerald-800'
+                  : 'border-amber-200 bg-amber-50/80 text-amber-800'
+              }`}
+            >
+              {state.aiRedraw.available
+                ? 'Fitur redraw AI aktif untuk akun ini.'
+                : 'Fitur redraw AI belum aktif. Fitur dasar tetap bisa digunakan.'}
             </div>
           </div>
 
@@ -503,17 +403,12 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
             </div>
           </form>
 
-          {selectedPaymentMethod === 'midtrans' && !state.midtrans.available && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm leading-6 text-amber-800">
-              {copy.onlinePaymentMissing}
-            </div>
-          )}
-          {selectedPaymentMethod === 'interactive_qris' && qrisClosedState.isClosed && (
+          {qrisClosedState.isClosed && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm leading-6 text-amber-800">
               {qrisClosedState.message || copy.qrisClosed}
             </div>
           )}
-          {selectedPaymentMethod === 'interactive_qris' && !state.interactiveQris.available && (
+          {!state.interactiveQris.available && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm leading-6 text-amber-800">
               {copy.qrisMissing}
             </div>
@@ -609,11 +504,11 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
                 </div>
               </div>
             </div>
-          ) : selectedPaymentMethod === 'interactive_qris' ? (
+          ) : (
             <div className="rounded-xl border border-line bg-slate-50/70 px-4 py-3 text-xs leading-5 text-slate-600">
               {copy.waitingPayment}
             </div>
-          ) : null}
+          )}
         </div>
 
         {notice && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800">{notice}</div>}
@@ -681,52 +576,6 @@ export default function BillingPanel({ locale = 'id', session, returnState = nul
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-      </section>
-
-      {/* Secondary Manual Shopee Top-up Card */}
-      <section className="studio-card p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-200">
-              <ShoppingBag className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-ink">{copy.manualShopeeTitle}</h2>
-              <p className="text-xs text-slate-500">{state.shopee.note}</p>
-            </div>
-          </div>
-          <a
-            href={state.shopee.url}
-            target="_blank"
-            rel="noreferrer"
-            className="studio-btn-secondary !min-h-9 !rounded-xl !px-4 !py-1.5 !text-xs"
-          >
-            {copy.openShopee}
-          </a>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="studio-subcard p-3.5">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{copy.accountEmail}</p>
-            <p className="mt-1 break-all text-xs font-bold text-ink">{state.sessionEmail}</p>
-          </div>
-          <div className="studio-subcard p-3.5 text-xs leading-5 text-slate-600">
-            <p>{copy.shopeeStepOne}</p>
-            <p className="mt-1">{copy.shopeeStepTwo}</p>
-            {state.shopee.contact && <p className="mt-1 font-semibold text-ink">{copy.adminContact}: {state.shopee.contact}</p>}
-          </div>
-          <div
-            className={`rounded-xl border p-3.5 text-xs font-semibold leading-5 ${
-              state.aiRedraw.available
-                ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800'
-                : 'border-amber-200 bg-amber-50/70 text-amber-800'
-            }`}
-          >
-            {state.aiRedraw.available
-              ? 'Fitur redraw AI aktif untuk akun ini.'
-              : 'Fitur redraw AI belum aktif. Fitur dasar tetap bisa digunakan.'}
           </div>
         </div>
       </section>

@@ -35,13 +35,13 @@ import { DEFAULT_INTERACTIVE_QRIS_CLOSED_HOURS, normalizeInteractiveQrisClosedHo
 import { isValidQrisPayload } from '../../../shared/qrisPayload.js';
 
 const pricingLabels = {
-  [INPUT_MODE_READY]: 'Gambar siap proses',
+  [INPUT_MODE_READY]: 'Pecah warna dan buat pola cutting sticker',
   [INPUT_MODE_RETOUCH]: 'Gambar ulang',
   separation_film: 'Film separasi'
 };
 
 const inputModeLabels = {
-  [INPUT_MODE_READY]: 'Siap proses',
+  [INPUT_MODE_READY]: 'Pecah warna & pola cutting sticker',
   [INPUT_MODE_RETOUCH]: 'Gambar ulang'
 };
 
@@ -818,66 +818,6 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
 
       {resolvedActiveTab === 'payments' && (
         <div className="space-y-6">
-          <div>
-            <h3 className="mb-3 text-sm font-bold text-ink">Pembayaran manual Shopee</h3>
-            <div className="overflow-hidden rounded-2xl border border-line">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[940px] border-collapse text-left text-xs sm:text-sm">
-                  <thead className="bg-slate-50">
-                    <tr className="border-b border-line text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      <th className="px-3.5 py-3">User</th>
-                      <th className="px-3.5 py-3">Nominal</th>
-                      <th className="px-3.5 py-3">Order Shopee</th>
-                      <th className="px-3.5 py-3">Status</th>
-                      <th className="px-3.5 py-3">Catatan</th>
-                      <th className="px-3.5 py-3">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line bg-white">
-                    {payments.map((payment) => (
-                      <tr key={payment.id} className="transition hover:bg-slate-50/70">
-                        <td className="px-3.5 py-3 font-medium text-ink">{payment.user_email}</td>
-                        <td className="px-3.5 py-3 font-bold text-ink">{formatRupiah(payment.amount_idr)}</td>
-                        <td className="px-3.5 py-3 font-mono text-xs">{payment.order_ref || '-'}</td>
-                        <td className="px-3.5 py-3"><StatusBadge status={payment.status} /></td>
-                        <td className="px-3.5 py-3 text-slate-600">{payment.notes || payment.rejected_reason || '-'}</td>
-                        <td className="px-3.5 py-3">
-                          {payment.status === 'pending' ? (
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => approvePayment(payment.id)}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                                title="Approve"
-                              >
-                                <Check className="h-4 w-4" aria-hidden="true" />
-                              </button>
-                              <input
-                                value={rejectReasonByPayment[payment.id] || ''}
-                                onChange={(event) => setRejectReasonByPayment((current) => ({ ...current, [payment.id]: event.target.value }))}
-                                className="w-36 rounded-lg border border-line px-2.5 py-1 text-xs"
-                                placeholder="Alasan tolak"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => rejectPayment(payment.id)}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
-                                title="Reject"
-                              >
-                                <X className="h-4 w-4" aria-hidden="true" />
-                              </button>
-                            </div>
-                          ) : (
-                            '-'
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
 
           <div>
             <h3 className="mb-3 text-sm font-bold text-ink">Transaksi pembayaran otomatis</h3>
@@ -1185,28 +1125,6 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
               <button type="button" onClick={saveAiModelSetting} className="studio-btn-primary w-fit">
                 <Save className="h-4 w-4" aria-hidden="true" />
                 Simpan pipeline redraw
-              </button>
-            </div>
-          </div>
-
-          <div className="studio-subcard p-5">
-            <h3 className="mb-4 text-sm font-bold text-ink">Pembayaran Shopee</h3>
-            <div className="grid gap-3.5">
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-bold text-slate-700">Link Shopee</span>
-                <input value={shopeeDraft.url} onChange={(event) => setShopeeDraft((current) => ({ ...current, url: event.target.value }))} className="studio-input" />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-bold text-slate-700">Catatan pembayaran</span>
-                <textarea value={shopeeDraft.note} onChange={(event) => setShopeeDraft((current) => ({ ...current, note: event.target.value }))} className="studio-input min-h-24" />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-bold text-slate-700">Kontak admin</span>
-                <input value={shopeeDraft.contact} onChange={(event) => setShopeeDraft((current) => ({ ...current, contact: event.target.value }))} className="studio-input" />
-              </label>
-              <button type="button" onClick={saveShopeeSetting} className="studio-btn-primary w-fit">
-                <Save className="h-4 w-4" aria-hidden="true" />
-                Simpan setting
               </button>
             </div>
           </div>

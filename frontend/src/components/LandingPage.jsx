@@ -88,7 +88,7 @@ const howItWorks = [
     number: '02',
     icon: Wand2,
     title: 'Pilih Mode',
-    description: `AI Redesign Premium (${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}) atau Vector Siap Proses (${formatRupiah(READY_PROCESS_PRICE_IDR)}).`,
+    description: `AI Redesign Premium (${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}) atau Pecah Warna & Buat Pola Cutting Sticker (${formatRupiah(READY_PROCESS_PRICE_IDR)}).`,
     detail: 'Pilih output: Sablon atau Sticker'
   },
   {
@@ -110,12 +110,12 @@ const pricingCards = [
     features: ['AI Image-to-Image', 'Termasuk pecah warna sablon', 'Sablon + Sticker mode', 'High Quality Output', 'Hasil dalam 1-3 menit']
   },
   {
-    title: 'Vector Siap Proses',
+    title: 'Pecah Warna & Buat Pola Cutting Sticker',
     price: READY_PROCESS_PRICE_IDR,
-    description: 'Untuk file SVG vector murni yang diproses tanpa AI sebagai jalur separasi warna dan contour sticker',
+    description: 'Untuk gambar yang sudah bersih dan siap dipisah warna film sablon serta dibuat pola contour cutting sticker tanpa proses AI.',
     icon: Zap,
     popular: false,
-    features: ['Direct Processing', 'Sablon + Sticker mode', 'High Quality Output', 'Fast Processing (30-60s)', 'Hemat budget']
+    features: ['Pecah warna film sablon', 'Pola contour cutting sticker', 'Output SVG & PDF siap cetak', 'Proses cepat (30-60 detik)', 'Hemat budget (Rp2.000/gambar)']
   }
 ];
 
@@ -124,7 +124,7 @@ const creditPackages = [
     name: 'Paket Basic',
     balanceIdr: 10000,
     price: 10000,
-    callout: 'Cukup untuk 2 AI Redesign promo yang sudah termasuk pecah warna atau 5 job Vector Siap Proses.',
+    callout: 'Cukup untuk 2 AI Redesign promo yang sudah termasuk pecah warna atau 5 job Pecah Warna & Pola Cutting Sticker.',
     aiRedesign: 2,
     readyToTrace: 5
   },
@@ -160,7 +160,7 @@ const testimonials = [
     role: 'Seller Kaos Online',
     initials: 'SR',
     quote:
-      'Mode Vector Siap Proses sangat cocok untuk file vector yang tinggal dipisah warna dan dibuat contour sticker. Prosesnya cepat dan hasilnya memuaskan.',
+      'Mode Pecah Warna & Buat Pola Cutting Sticker sangat cocok untuk desain bersih yang tinggal dipisah warna dan dibuat pola contour sticker. Prosesnya cepat dan hasilnya memuaskan.',
     rating: 5
   },
   {
@@ -182,12 +182,12 @@ const faqItems = [
   {
     question: 'Berapa harga per gambar?',
     answer:
-      `Kami menawarkan dua mode harga: AI Redesign Premium seharga ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per gambar dan harga ini sudah termasuk pecah warna sablon. Vector Siap Proses tetap seharga ${formatRupiah(READY_PROCESS_PRICE_IDR)} per gambar. Anda dapat membeli saldo dalam paket melalui Shopee atau top up otomatis.`
+      `Kami menawarkan dua mode harga: AI Redesign Premium seharga ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per gambar dan harga ini sudah termasuk pecah warna sablon. Mode Pecah Warna & Buat Pola Cutting Sticker seharga ${formatRupiah(READY_PROCESS_PRICE_IDR)} per gambar. Anda dapat membeli saldo melalui top up QRIS otomatis.`
   },
   {
-    question: 'Apa perbedaan AI Redesign dan Vector Siap Proses?',
+    question: 'Apa perbedaan AI Redesign dan Pecah Warna & Buat Pola Cutting Sticker?',
     answer:
-      'AI Redesign Premium menggunakan image-to-image untuk menggambar ulang desain sulit. Vector Siap Proses memproses file SVG tanpa AI sebagai jalur vector-only, cocok untuk separasi warna dan contour sticker.'
+      'AI Redesign Premium menggunakan image-to-image untuk menggambar ulang desain sulit atau foto kaos buram. Mode Pecah Warna & Buat Pola Cutting Sticker memproses gambar yang sudah bersih tanpa AI untuk separasi warna sablon dan pola cutting sticker.'
   },
   {
     question: 'Format output apa saja?',
@@ -197,12 +197,12 @@ const faqItems = [
   {
     question: 'Bagaimana cara membeli credit?',
     answer:
-      'Anda dapat membeli credit melalui produk Shopee kami. Pilih paket credit yang sesuai, lalu setelah pembayaran dikonfirmasi, credit akan ditambahkan ke akun Anda.'
+      'Anda dapat membeli credit secara instan melalui top up QRIS otomatis di menu Billing. Scan QRIS sesuai nominal unik dan saldo akan masuk otomatis ke akun Anda.'
   },
   {
     question: 'Berapa lama proses gambar?',
     answer:
-      'Mode Vector Siap Proses biasanya selesai dalam 30-60 detik. Mode AI Redesign membutuhkan waktu sekitar 1-3 menit.'
+      'Mode Pecah Warna & Buat Pola Cutting Sticker biasanya selesai dalam 30-60 detik. Mode AI Redesign membutuhkan waktu sekitar 1-3 menit.'
   },
   {
     question: 'Apakah gambar saya aman?',
@@ -212,7 +212,7 @@ const faqItems = [
 ];
 
 const trustBadges = [
-  { icon: ShieldCheck, text: 'Tanpa Kartu Kredit', subtext: 'Bayar via Shopee' },
+  { icon: ShieldCheck, text: 'Tanpa Kartu Kredit', subtext: 'Top up via QRIS otomatis' },
   { icon: Sparkles, text: 'AI Redraw Promo Rp5.000', subtext: 'Sudah termasuk pecah warna' },
   { icon: Clock, text: 'Daftar 30 Detik', subtext: 'Proses instan' },
   { icon: Zap, text: 'Hasil Instan', subtext: 'Siap dalam hitungan detik' }
@@ -253,7 +253,7 @@ const privacySections = [
           'Alamat IP, jenis browser, sistem operasi, dan perangkat yang digunakan',
           'Halaman yang Anda kunjungi, waktu akses, log keamanan, dan aktivitas akun',
           'Data cookie dan teknologi serupa',
-          'Data transaksi dari kanal pembayaran yang aktif, termasuk Midtrans atau penyedia pembayaran lain bila digunakan'
+          'Data transaksi dari kanal pembayaran QRIS otomatis yang aktif'
         ]
       }
     ]
@@ -276,7 +276,7 @@ const privacySections = [
     title: '4. Pembagian Informasi',
     list: [
       'Penyedia layanan pihak ketiga yang membantu operasional platform, termasuk hosting, storage, email, analitik, dukungan pelanggan, dan pemrosesan gambar',
-      'Midtrans, bank, e-wallet, payment network, marketplace, atau penyedia pembayaran lain sejauh diperlukan untuk memproses pembayaran, refund, chargeback, rekonsiliasi, dan pencegahan fraud',
+      'Penyedia layanan pembayaran QRIS, bank, atau e-wallet sejauh diperlukan untuk memproses pembayaran, rekonsiliasi, dan pencegahan fraud',
       'Pihak berwenang, regulator, pengadilan, atau instansi pemerintah bila diwajibkan oleh hukum atau proses hukum yang sah',
       'Perlindungan hak, properti, keamanan platform, pengguna, atau publik',
       'Transaksi bisnis seperti akuisisi atau penggabungan'
@@ -345,10 +345,10 @@ const termsSections = [
     list: [
       'Platform: situs web dan layanan EasyRedesign Pro',
       'Pengguna: individu yang mendaftar dan menggunakan layanan',
-      'Layanan: seluruh fitur AI Redesign dan Vector Siap Proses',
+      'Layanan: seluruh fitur AI Redesign serta Pecah Warna & Buat Pola Cutting Sticker',
       'Credit: unit pembayaran untuk mengakses layanan',
       'Gambar: file yang diunggah untuk diproses',
-      'Payment gateway: Midtrans atau penyedia pembayaran lain yang kami aktifkan untuk memproses transaksi'
+      'Kanal pembayaran: sistem pembayaran QRIS otomatis yang kami aktifkan untuk memproses transaksi top up credit'
     ]
   },
   {
@@ -357,12 +357,12 @@ const termsSections = [
     list: [
       `AI Redesign Premium: ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per gambar`,
       'Harga AI Redesign sudah termasuk pecah warna sablon',
-      `Vector Siap Proses: ${formatRupiah(READY_PROCESS_PRICE_IDR)} per gambar`,
+      `Pecah Warna & Buat Pola Cutting Sticker: ${formatRupiah(READY_PROCESS_PRICE_IDR)} per gambar`,
       'Download film separasi sablon tidak dikenakan biaya tambahan per warna',
       'Output sablon dan sticker',
       'Penyimpanan hasil pada galeri pribadi pengguna'
     ],
-    afterList: ['Waktu pemrosesan bervariasi, Vector Siap Proses sekitar 30-60 detik dan AI Redesign sekitar 1-3 menit.']
+    afterList: ['Waktu pemrosesan bervariasi, Pecah Warna & Buat Pola Cutting Sticker sekitar 30-60 detik dan AI Redesign sekitar 1-3 menit.']
   },
   {
     icon: Scale,
@@ -389,8 +389,8 @@ const termsSections = [
     icon: CreditCard,
     title: '5. Sistem Credit dan Pembayaran',
     list: [
-      'Credit dapat dibeli melalui kanal resmi yang tersedia, termasuk Shopee, transfer manual, Midtrans, atau payment gateway lain bila sudah diaktifkan',
-      'Pembayaran dapat diproses oleh pihak ketiga seperti Midtrans, bank, e-wallet, payment network, marketplace, atau penyedia pembayaran terkait',
+      'Credit dapat dibeli melalui kanal pembayaran resmi yang tersedia, yaitu top up QRIS otomatis di halaman Billing',
+      'Pembayaran QRIS dapat diproses melalui bank, e-wallet, atau jaringan QRIS yang mendukung',
       'Dengan membayar melalui kanal pihak ketiga, pengguna juga tunduk pada syarat, kebijakan privasi, keamanan, biaya kanal, batas waktu pembayaran, dan status transaksi dari kanal tersebut',
       'Credit yang sudah dipakai untuk memproses gambar tidak dapat dikembalikan kecuali terjadi kegagalan sistem, transaksi ganda, layanan tidak tersedia, atau kondisi lain yang kami setujui setelah verifikasi',
       'Refund, pembatalan, chargeback, dan dispute mengikuti status pembayaran, bukti transaksi, dan ketentuan kanal pembayaran yang digunakan; pada payment gateway, proses refund umumnya hanya dapat dilakukan setelah transaksi berhasil atau settlement',
@@ -414,7 +414,7 @@ const termsSections = [
       'Kerugian akibat penggunaan atau ketidakmampuan menggunakan layanan',
       'Kualitas hasil yang tidak sesuai ekspektasi',
       'Kehilangan data akibat kegagalan teknis atau force majeure',
-      'Keterlambatan, penolakan, biaya kanal, atau gangguan transaksi pada Shopee, Midtrans, bank, e-wallet, payment network, atau penyedia pembayaran lain',
+      'Keterlambatan, penolakan, biaya kanal, atau gangguan jaringan pada bank, e-wallet, atau jaringan QRIS yang digunakan pengguna',
       'Kerugian akibat pengguna mengunggah materi tanpa hak, izin, atau lisensi yang diperlukan'
     ]
   },
@@ -491,7 +491,7 @@ const aboutTimeline = [
   { date: 'Jan 2024', title: 'Konsep dan Riset', description: 'Memulai riset kebutuhan pasar dan mengembangkan konsep platform.', icon: Lightbulb },
   { date: 'Mar 2024', title: 'Pengembangan MVP', description: 'Membangun versi awal platform dengan fitur AI Redesign dasar.', icon: Rocket },
   { date: 'Jun 2024', title: 'Beta Testing', description: 'Meluncurkan versi beta ke pengguna awal dan mengumpulkan feedback.', icon: Users },
-  { date: 'Sep 2024', title: 'Peluncuran Publik', description: 'Resmi meluncurkan platform dengan fitur AI Redesign dan Vector Siap Proses.', icon: Star },
+  { date: 'Sep 2024', title: 'Peluncuran Publik', description: 'Resmi meluncurkan platform dengan fitur AI Redesign serta Pecah Warna & Buat Pola Cutting Sticker.', icon: Star },
   { date: 'Des 2024', title: '10.000 Gambar Diproses', description: 'Lebih dari 10.000 gambar berhasil diproses di platform.', icon: Trophy }
 ];
 
@@ -529,7 +529,7 @@ const howItWorksEn = [
     number: '02',
     icon: Wand2,
     title: 'Choose a Mode',
-    description: `AI Redesign Premium (${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}) or Production-Ready Vector (${formatRupiah(READY_PROCESS_PRICE_IDR)}).`,
+    description: `AI Redesign Premium (${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)}) or Color Separation & Sticker Cutline (${formatRupiah(READY_PROCESS_PRICE_IDR)}).`,
     detail: 'Choose the output: screen print or sticker'
   },
   {
@@ -551,12 +551,12 @@ const pricingCardsEn = [
     features: ['AI Image-to-Image', 'Color separation included', 'Screen Print + Sticker mode', 'High Quality Output', 'Results in 1-3 minutes']
   },
   {
-    title: 'Production-Ready Vector',
+    title: 'Color Separation & Sticker Cutline',
     price: READY_PROCESS_PRICE_IDR,
-    description: 'For pure SVG vector files processed without AI for color separation and sticker cutlines.',
+    description: 'For clean artwork processed without AI to separate screen-print colors and generate sticker cutline patterns.',
     icon: Zap,
     popular: false,
-    features: ['Direct Processing', 'Screen Print + Sticker mode', 'High Quality Output', 'Fast Processing (30-60s)', 'Budget Friendly']
+    features: ['Screen-print color separation', 'Sticker contour cutline pattern', 'Print-ready SVG & PDF', 'Fast Processing (30-60s)', 'Budget Friendly (Rp2,000/image)']
   }
 ];
 
@@ -600,7 +600,7 @@ const testimonialsEn = [
     name: 'Siti Rahayu',
     role: 'Online Shirt Seller',
     initials: 'SR',
-    quote: 'The Production-Ready Vector mode is perfect for vector files that only need color separation and sticker contours. Fast and reliable.',
+    quote: 'The Color Separation & Sticker Cutline mode is perfect for clean artwork that only needs color separation and sticker contours. Fast and reliable.',
     rating: 5
   },
   {
@@ -619,11 +619,11 @@ const faqItemsEn = [
   },
   {
     question: 'How much does each image cost?',
-    answer: `We currently offer two pricing modes: AI Redesign Premium at ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per image with screen-print color separation included, and Production-Ready Vector at ${formatRupiah(READY_PROCESS_PRICE_IDR)} per image. You can top up balance in packages.`
+    answer: `We currently offer two pricing modes: AI Redesign Premium at ${formatRupiah(IMAGE_RETOUCH_PRICE_IDR)} per image with screen-print color separation included, and Color Separation & Sticker Cutline at ${formatRupiah(READY_PROCESS_PRICE_IDR)} per image. You can top up your balance via automatic QRIS.`
   },
   {
-    question: 'What is the difference between AI Redesign and Production-Ready Vector?',
-    answer: 'AI Redesign uses image-to-image AI to redraw difficult artwork. Production-Ready Vector processes pure SVG files without AI and is ideal for color separation and sticker cutlines.'
+    question: 'What is the difference between AI Redesign and Color Separation & Sticker Cutline?',
+    answer: 'AI Redesign uses image-to-image AI to redraw difficult artwork. Color Separation & Sticker Cutline processes clean artwork without AI for screen-print color separation and sticker cutline patterns.'
   },
   {
     question: 'What output formats are available?',
@@ -631,11 +631,11 @@ const faqItemsEn = [
   },
   {
     question: 'How can I buy credits?',
-    answer: 'You can buy credits through the available payment channels, including Shopee and Midtrans when enabled.'
+    answer: 'You can top up credits instantly via automatic QRIS in the Billing menu.'
   },
   {
     question: 'How long does processing take?',
-    answer: 'Production-Ready Vector usually finishes in 30-60 seconds. AI Redesign usually takes around 1-3 minutes.'
+    answer: 'Color Separation & Sticker Cutline usually finishes in 30-60 seconds. AI Redesign usually takes around 1-3 minutes.'
   },
   {
     question: 'Are my images safe?',
@@ -644,7 +644,7 @@ const faqItemsEn = [
 ];
 
 const trustBadgesEn = [
-  { icon: ShieldCheck, text: 'No Credit Card', subtext: 'Pay via Shopee or gateway' },
+  { icon: ShieldCheck, text: 'No Credit Card', subtext: 'Instant QRIS top-up' },
   { icon: Sparkles, text: 'AI Redraw Promo Rp5,000', subtext: 'Color separation included' },
   { icon: Clock, text: '30s Signup', subtext: 'Quick access' },
   { icon: Zap, text: 'Fast Results', subtext: 'Ready in seconds' }
@@ -919,7 +919,7 @@ function PublicFooter({ locale = 'id', onNavigate }) {
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">{isId ? 'Layanan' : 'Services'}</h3>
             <ul className="space-y-2 text-sm text-slate-400">
               <li><button type="button" onClick={() => scrollToId('pricing')} className="transition hover:text-white">AI Redesign</button></li>
-              <li><button type="button" onClick={() => scrollToId('pricing')} className="transition hover:text-white">{isId ? 'Vector Siap Proses' : 'Production-Ready Vector'}</button></li>
+              <li><button type="button" onClick={() => scrollToId('pricing')} className="transition hover:text-white">{isId ? 'Pecah Warna & Pola Cutting Sticker' : 'Color Separation & Sticker Cutline'}</button></li>
               <li><button type="button" onClick={() => scrollToId('pricing')} className="transition hover:text-white">{isId ? 'Harga' : 'Pricing'}</button></li>
             </ul>
           </div>
@@ -1211,7 +1211,7 @@ function PricingSection({ locale = 'id' }) {
 
         <div className="mt-16 text-center">
           <h3 className="text-xl font-bold text-white sm:text-2xl">{isId ? 'Paket Saldo Credit' : 'Credit Top-Up Packages'}</h3>
-          <p className="mt-1 text-sm text-slate-400">{isId ? 'Isi saldo fleksibel via QRIS otomatis atau Shopee' : 'Flexible top-ups via automatic QRIS or Shopee'}</p>
+          <p className="mt-1 text-sm text-slate-400">{isId ? 'Isi saldo instan & fleksibel via QRIS otomatis' : 'Instant & flexible top-ups via automatic QRIS'}</p>
         </div>
 
         <div className="mx-auto mt-7 grid max-w-5xl gap-4 sm:grid-cols-3">
@@ -1231,7 +1231,7 @@ function PricingSection({ locale = 'id' }) {
               </p>
               <div className="mt-4 space-y-1.5 border-t border-white/10 pt-3 text-xs text-slate-300">
                 <p>• {pkg.aiRedesign}× AI Redesign ({isId ? 'termasuk pecah warna' : 'color separation included'})</p>
-                <p>• {pkg.readyToTrace}× {isId ? 'Vector Siap Proses' : 'Production-Ready Vector'}</p>
+                <p>• {pkg.readyToTrace}× {isId ? 'Pecah Warna & Pola Cutting Sticker' : 'Color Separation & Sticker Cutline'}</p>
               </div>
               {pkg.callout && <p className="mt-3 flex-1 text-xs leading-relaxed text-slate-400">{pkg.callout}</p>}
               <button
@@ -1339,8 +1339,8 @@ function CtaSection({ locale = 'id', onStart }) {
             </h2>
             <p className="mt-3 text-base text-white/90 sm:text-lg">
               {isId
-                ? 'Masuk sekarang dan manfaatkan promo perkenalan AI Redraw hanya Rp5.000, sudah termasuk pecah warna, atau pilih Vector Siap Proses untuk file SVG murni.'
-                : 'Sign in now and use the introductory AI Redesign promo at only Rp5,000 including color separation, or choose Production-Ready Vector for pure SVG files.'}
+                ? 'Masuk sekarang dan manfaatkan promo perkenalan AI Redraw hanya Rp5.000, sudah termasuk pecah warna, atau pilih mode Pecah Warna & Buat Pola Cutting Sticker (Rp2.000).'
+                : 'Sign in now and use the introductory AI Redesign promo at only Rp5,000 including color separation, or choose Color Separation & Sticker Cutline (Rp2,000).'}
             </p>
             <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
               <button

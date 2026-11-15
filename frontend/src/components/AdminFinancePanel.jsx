@@ -197,7 +197,7 @@ export default function AdminFinancePanel({ accessToken }) {
     ['Estimasi pajak', formatRupiah(summary?.estimatedTaxIdr || 0)],
     ['Nilai job internal', formatRupiah(summary?.jobValueIdr || 0)],
     ['AI redraw', summary?.aiRedrawCount || 0],
-    ['Ready trace', summary?.readyTraceCount || 0]
+    ['Pecah warna & pola cutting sticker', summary?.readyTraceCount || 0]
   ];
 
   return (
@@ -347,7 +347,7 @@ export default function AdminFinancePanel({ accessToken }) {
                 <p className="mt-1 text-lg font-extrabold text-ink">{usage.summary?.aiRedrawCount || 0}</p>
               </div>
               <div className="studio-subcard p-3.5">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Ready trace</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Pecah warna & pola cutting sticker</p>
                 <p className="mt-1 text-lg font-extrabold text-ink">{usage.summary?.readyTraceCount || 0}</p>
               </div>
             </div>

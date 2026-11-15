@@ -55,7 +55,7 @@ function getDocumentTitle(route, hasSession, locale = 'id') {
   if (route === 'contact') return isId ? 'Hubungi Kami - EasyRedesign Pro' : 'Contact Us - EasyRedesign Pro';
   if (route === 'about') return isId ? 'Tentang Kami - EasyRedesign Pro' : 'About Us - EasyRedesign Pro';
   if (hasSession) return isId ? 'EasyRedesign Pro - Dashboard Sablon & Sticker' : 'EasyRedesign Pro - Screen Print and Sticker Dashboard';
-  return isId ? 'EasyRedesign Pro - Redesign AI Logo & Vector Siap Proses' : 'EasyRedesign Pro - AI Logo Redesign and Production-Ready Vector';
+  return isId ? 'EasyRedesign Pro - Redesign AI Logo, Pecah Warna & Pola Cutting Sticker' : 'EasyRedesign Pro - AI Logo Redesign, Color Separation & Sticker Cutline';
 }
 
 function getDocumentDescription(route, hasSession, locale = 'id') {
@@ -86,8 +86,8 @@ function getDocumentDescription(route, hasSession, locale = 'id') {
       : 'EasyRedesign Pro dashboard for uploads, billing, and processed logo results.';
   }
   return isId
-    ? 'EasyRedesign Pro membantu mengubah foto logo menjadi hasil redesign AI dan vector siap proses untuk sablon atau sticker.'
-    : 'EasyRedesign Pro turns logo photos into cleaner AI redraws and production-ready vectors for screen printing or stickers.';
+    ? 'EasyRedesign Pro membantu mengubah foto logo menjadi hasil redesign AI, pecah warna sablon, dan pola cutting sticker.'
+    : 'EasyRedesign Pro turns logo photos into cleaner AI redraws, color separations, and sticker cutline patterns.';
 }
 
 function updateDocumentMeta({ route, hasSession, locale }) {
@@ -165,7 +165,7 @@ function getAppCopy(locale = 'id') {
           : `Not enough balance. Estimated cost ${price}, current balance ${balance}.`,
       preparingLocal: isId ? 'Menyiapkan file lokal.' : 'Preparing your local file.',
       processingRetouch: isId ? 'AI sedang menghasilkan PNG mentah.' : 'AI is generating the raw PNG.',
-      processingReadyTrace: isId ? 'Menjalankan Vector Siap Proses langsung di browser.' : 'Running Production-Ready Vector directly in the browser.',
+      processingReadyTrace: isId ? 'Menjalankan pecah warna dan pola cutting sticker langsung di browser.' : 'Running color separation and sticker cutline directly in the browser.',
       usingBackendVector: isId ? 'Memakai artefak vector historis dari backend.' : 'Using legacy backend vector artifacts.',
       usingBrowserVector: isId ? 'Membuat vector, cutline, film, PDF, dan ZIP di browser.' : 'Creating vectors, cutlines, films, PDFs, and ZIP files in the browser.',
       commitJob: isId ? 'Mencatat metadata job dan mendebit credit.' : 'Saving job metadata and deducting credits.',

@@ -9,7 +9,7 @@ const productionLabels = {
 };
 
 const inputModeLabels = {
-  [INPUT_MODE_READY]: 'Siap proses',
+  [INPUT_MODE_READY]: 'Pecah warna & pola cutting sticker',
   [INPUT_MODE_RETOUCH]: 'Gambar ulang'
 };
 
