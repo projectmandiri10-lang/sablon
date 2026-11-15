@@ -20,7 +20,7 @@ AI_REDRAW_INPUT_MAX_EDGE = "1080"
 AI_REDRAW_PRESET = "standard"
 AI_REDRAW_PRIMARY_PROVIDER = "aivene_image"
 AI_REDRAW_FALLBACK_PROVIDER = "openai_image"
-GOOGLE_OAUTH_CLIENT_ID = "49504893574-iaabog19f870a4irea4jf7vo40ud8cj4.apps.googleusercontent.com"
+GOOGLE_OAUTH_CLIENT_ID = "646496051749-igoj18gaq83onf474thvepuj8atonuuv.apps.googleusercontent.com"
 # Redirect URI OAuth Google harus sama dengan yang terdaftar di Google Cloud Console.
 GOOGLE_OAUTH_REDIRECT_TO = "https://sablon.jho-j80.workers.dev/api/auth/google/callback"
 LOGO_RESTORE_ENABLED = "1"
