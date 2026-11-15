@@ -24,10 +24,10 @@ function getCopy(locale) {
   const isId = locale !== 'en';
   return {
     stepLabel: isId ? '1. Jenis Input & File' : '1. Input Mode & File',
-    heading: isId ? 'Pilih mode lalu upload desain' : 'Choose mode and upload artwork',
+    heading: isId ? 'Upload gambar langsung pada mode yang sesuai' : 'Upload directly in the matching processing mode',
     subheading: isId
-      ? 'Sesuaikan jenis file awal agar proses AI, vector, dan film warna bekerja optimal.'
-      : 'Match your input type so AI redraw, vector tracing, and color separation work best.',
+      ? 'Klik atau seret gambar langsung ke kotak AI Redraw atau Pecah Warna & Pola Cutting Sticker.'
+      : 'Click or drag your image directly into the AI Redraw or Color Separation & Cutline box.',
     modes: [
       {
         value: INPUT_MODE_RETOUCH,
@@ -72,10 +72,11 @@ function getCopy(locale) {
     goodExamplesTitle: isId ? 'Contoh foto sumber yang baik' : 'Good source photo examples',
     examplesCountLabel: (count) => (isId ? `${count} contoh` : `${count} examples`),
     clickPreview: isId ? 'Perbesar' : 'Zoom',
-    dropTitle: isId ? 'Klik atau seret file gambar ke sini' : 'Click or drag an image file here',
+    dropTitle: isId ? 'Klik atau seret gambar ke sini' : 'Click or drag image here',
     dropSubtitle: isId
-      ? 'PNG, JPG, JPEG, atau WebP · Maksimal 15 MB'
+      ? 'PNG, JPG, JPEG, atau WebP · Maks. 15 MB'
       : 'PNG, JPG, JPEG, or WebP · Max 15 MB',
+    useCurrentFile: isId ? 'Gunakan file terpilih di mode ini' : 'Use selected file in this mode',
     changeFile: isId ? 'Ganti file' : 'Replace file',
     invalidType: isId
       ? 'Format harus PNG, JPG, JPEG, atau WebP.'
@@ -116,6 +117,7 @@ export default function UploadBox({
   exampleJobs = []
 }) {
   const [error, setError] = useState('');
+  const [dragOverMode, setDragOverMode] = useState(null);
   const [selectedGuideExample, setSelectedGuideExample] = useState(null);
   const copy = getCopy(locale);
 
@@ -134,7 +136,10 @@ export default function UploadBox({
 
   const guideExamples = publishedGuideExamples.length ? publishedGuideExamples : DEFAULT_GUIDE_EXAMPLES;
 
-  function handleFiles(fileList) {
+  function handleFiles(fileList, modeValue) {
+    if (modeValue && modeValue !== inputMode) {
+      onInputModeChange?.(modeValue);
+    }
     const picked = fileList?.[0];
     if (!picked) return;
     const message = validateFile(picked, copy);
@@ -155,24 +160,48 @@ export default function UploadBox({
           <p className="mt-0.5 text-sm text-slate-600">{copy.subheading}</p>
         </div>
 
-        {/* Mode Selector Cards */}
-        <div className="grid gap-3 sm:grid-cols-2">
+        {/* Mode Cards with Embedded Upload */}
+        <div className="grid gap-4 sm:grid-cols-2">
           {copy.modes.map((option) => {
             const Icon = option.icon;
             const active = inputMode === option.value;
+            const isDraggingOver = dragOverMode === option.value;
+            const showFilePreview = active && Boolean(file);
             return (
-              <button
+              <div
                 key={option.value}
-                type="button"
-                disabled={disabled}
-                onClick={() => onInputModeChange?.(option.value)}
-                className={`group relative flex flex-col justify-between rounded-2xl border p-4 text-left transition-all ${
-                  active
-                    ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20'
-                    : 'border-line bg-white hover:border-slate-300 hover:bg-slate-50/70'
-                }`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (!disabled && dragOverMode !== option.value) {
+                    setDragOverMode(option.value);
+                  }
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setDragOverMode((current) => (current === option.value ? null : current));
+                  }
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDragOverMode(null);
+                  if (!disabled) {
+                    handleFiles(event.dataTransfer.files, option.value);
+                  }
+                }}
+                className={`group relative flex flex-col justify-between rounded-2xl border p-4 transition-all ${
+                  isDraggingOver
+                    ? 'border-primary bg-primary/[0.06] ring-2 ring-primary/30'
+                    : active
+                      ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20'
+                      : 'border-line bg-white hover:border-slate-300 hover:bg-slate-50/40'
+                } ${disabled ? 'opacity-75' : ''}`}
               >
-                <div>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onInputModeChange?.(option.value)}
+                  className="w-full text-left focus:outline-none disabled:cursor-not-allowed"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div
                       className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition ${
@@ -191,11 +220,82 @@ export default function UploadBox({
                   </div>
                   <p className="mt-3 text-sm font-bold text-ink">{option.title}</p>
                   <p className="mt-1 text-xs leading-5 text-slate-600">{option.description}</p>
+                  <p className="mt-2.5 text-[11px] font-semibold text-primary">{option.costNote}</p>
+                </button>
+
+                {/* Embedded Upload / Active File Preview */}
+                <div className="mt-3 border-t border-line/70 pt-3">
+                  <label
+                    className={`flex cursor-pointer flex-col justify-center rounded-xl border-2 border-dashed p-3 transition ${
+                      showFilePreview
+                        ? 'border-primary/40 bg-white hover:border-primary/60'
+                        : isDraggingOver
+                          ? 'border-primary bg-primary/[0.05]'
+                          : active
+                            ? 'border-primary/40 bg-white/80 hover:border-primary/60 hover:bg-white'
+                            : 'border-slate-300 bg-slate-50/70 hover:border-primary/50 hover:bg-primary/[0.03]'
+                    } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+                  >
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                      disabled={disabled}
+                      className="sr-only"
+                      onClick={() => onInputModeChange?.(option.value)}
+                      onChange={(event) => {
+                        handleFiles(event.target.files, option.value);
+                        event.target.value = '';
+                      }}
+                    />
+
+                    {showFilePreview ? (
+                      <div className="flex items-center gap-3">
+                        <div className="checkerboard h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-line p-1">
+                          {previewUrl ? (
+                            <img src={previewUrl} alt={file.name} className="h-full w-full object-contain" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-400">
+                              <FileImage className="h-6 w-6" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                            <span>{option.value === INPUT_MODE_READY ? (locale === 'en' ? 'Color Separation & Cutline' : 'Pecah Warna & Pola Cutting') : 'AI Redraw'}</span>
+                          </div>
+                          <p className="mt-1 truncate text-xs font-bold text-ink">{file.name}</p>
+                          <p className="text-[11px] text-slate-500">{formatFileSizeMb(file.size)}</p>
+                        </div>
+                        <span className="studio-btn-secondary !min-h-8 shrink-0 !rounded-lg !px-2.5 !py-1 !text-[11px]">
+                          {copy.changeFile}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 py-1">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ${active ? 'bg-primary/10 text-primary ring-primary/20' : 'bg-white text-slate-600 ring-line'}`}>
+                          <UploadCloud className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0 flex-1 text-left">
+                          <p className="text-xs font-bold text-ink">{copy.dropTitle}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">{copy.dropSubtitle}</p>
+                        </div>
+                      </div>
+                    )}
+                  </label>
+
+                  {!active && file && (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => onInputModeChange?.(option.value)}
+                      className="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-primary/25 bg-primary/[0.04] px-2.5 py-1.5 text-[11px] font-semibold text-primary transition hover:bg-primary/10 disabled:opacity-60"
+                    >
+                      {copy.useCurrentFile}
+                    </button>
+                  )}
                 </div>
-                <p className="mt-3 border-t border-line/70 pt-2.5 text-[11px] font-semibold text-primary">
-                  {option.costNote}
-                </p>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -260,65 +360,6 @@ export default function UploadBox({
             </div>
           </details>
         )}
-
-        {/* Prominent Dropzone / File Preview */}
-        <div
-          className="mt-4"
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            if (!disabled) handleFiles(event.dataTransfer.files);
-          }}
-        >
-          <label
-            className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center transition ${
-              file
-                ? 'border-primary/40 bg-primary/[0.02] hover:border-primary/60'
-                : 'border-slate-300 bg-slate-50/70 py-8 hover:border-primary/50 hover:bg-primary/[0.03]'
-            } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
-          >
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
-              disabled={disabled}
-              className="sr-only"
-              onChange={(event) => handleFiles(event.target.files)}
-            />
-
-            {!file ? (
-              <>
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-primary shadow-sm ring-1 ring-line">
-                  <UploadCloud className="h-6 w-6" aria-hidden="true" />
-                </div>
-                <p className="mt-3 text-sm font-bold text-ink">{copy.dropTitle}</p>
-                <p className="mt-1 text-xs text-slate-500">{copy.dropSubtitle}</p>
-              </>
-            ) : (
-              <div className="flex w-full flex-col items-center gap-4 sm:flex-row sm:text-left">
-                <div className="checkerboard h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-line p-1.5">
-                  {previewUrl ? (
-                    <img src={previewUrl} alt={file.name} className="h-full w-full object-contain" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-slate-400">
-                      <FileImage className="h-8 w-8" />
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
-                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>{inputMode === INPUT_MODE_READY ? (locale === 'en' ? 'Color Separation & Cutline' : 'Pecah Warna & Pola Cutting Sticker') : 'AI Redraw'}</span>
-                  </div>
-                  <p className="mt-1.5 truncate text-sm font-bold text-ink">{file.name}</p>
-                  <p className="text-xs text-slate-500">{formatFileSizeMb(file.size)}</p>
-                </div>
-                <span className="studio-btn-secondary !min-h-9 shrink-0 !rounded-xl !px-3.5 !py-1.5 !text-xs">
-                  {copy.changeFile}
-                </span>
-              </div>
-            )}
-          </label>
-        </div>
 
         {error && (
           <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700">
