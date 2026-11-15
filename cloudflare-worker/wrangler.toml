@@ -3,7 +3,7 @@ main = "src/index.js"
 compatibility_date = "2026-06-13"
 
 [vars]
-APP_BASE_URL = "https://sablon-5gx.pages.dev"
+APP_BASE_URL = "https://easyredesign.biz.id"
 WORKER_BASE_URL = "https://sablon.jho-j80.workers.dev"
 MIDTRANS_MERCHANT_ID = "M020138519"
 MIDTRANS_CLIENT_KEY = "Mid-client-poSk7Xki68kLxq8F"
