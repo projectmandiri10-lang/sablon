@@ -1221,7 +1221,7 @@ export default function App() {
                       {isId ? 'Estimasi biaya proses' : 'Estimated cost'}
                     </span>
                     <span className="font-bold text-ink">
-                      {balanceInfo.isUnlimited ? (isId ? 'Unlimited' : 'Unlimited') : formatRupiah(estimatedCostIdr)}
+                      {isUnlimited ? 'Unlimited' : formatRupiah(estimatedCostIdr)}
                     </span>
                   </div>
                   <button
