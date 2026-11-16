@@ -487,7 +487,7 @@ export async function listInteractiveQrisWebhookLogs(env) {
       'interactive_qris_webhook_logs',
       await dbAll(
         env,
-        'SELECT id,status_code,outcome,reason,secret_valid,package_name,amount_candidates,matched_order_id,payload_preview,created_at FROM interactive_qris_webhook_logs ORDER BY created_at DESC LIMIT 30'
+        'SELECT id,status_code,outcome,reason,secret_valid,package_name,amount_candidates,matched_order_id,payload_preview,created_at FROM interactive_qris_webhook_logs ORDER BY created_at DESC, rowid DESC LIMIT 30'
       )
     );
   } catch {
