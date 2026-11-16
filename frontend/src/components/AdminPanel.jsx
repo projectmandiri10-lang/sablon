@@ -970,13 +970,30 @@ export default function AdminPanel({
           </div>
 
           <div>
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-ink">Log Webhook QRIS (MacroDroid)</h3>
                 <p className="text-xs text-slate-500">
-                  Menampilkan 50 webhook terakhir yang masuk ke Worker (tanpa menyimpan secret) untuk melacak alasan saldo masuk atau ditolak.
+                  Menampilkan 30 webhook terakhir yang masuk ke Worker (tanpa menyimpan secret) untuk melacak alasan saldo masuk atau ditolak.
                 </p>
               </div>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => loadAdminData({ preserveMessage: true })}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-bold text-ink transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Refresh log
+              </button>
+            </div>
+            <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-950">
+              <p className="font-bold">Checklist MacroDroid untuk InterActive QRIS v1.7.0:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                <li>Trigger <strong>Notification Received</strong>: pilih ulang aplikasi <strong>InterActive QRIS</strong> (<code className="font-mono">com.interactive.qrisid</code>), aktifkan <strong>Ignore ongoing notifications</strong>, dan matikan <strong>Prevent multiple triggers</strong>.</li>
+                <li>Izin Android: aktifkan <strong>Akses Notifikasi (Notification Access)</strong> (bukan hanya Aksesibilitas) dan set baterai ke <strong>Tidak dibatasi (Unrestricted)</strong>.</li>
+                <li>Action <strong>HTTP Request</strong>: aktifkan <strong>Block next actions until complete</strong> dan beri jeda <strong>Wait 500 ms</strong> sebelumnya agar teks notifikasi terbaca penuh.</li>
+              </ul>
             </div>
             <div className="overflow-hidden rounded-2xl border border-line">
               <div className="overflow-x-auto">
@@ -1003,6 +1020,14 @@ export default function AdminPanel({
                     ) : (
                       qrisWebhookLogs.map((entry) => {
                         const candidates = Array.isArray(entry.amount_candidates) ? entry.amount_candidates : [];
+                        const reasonHintMap = {
+                          invalid_secret: 'Secret header salah/kosong',
+                          unexpected_package: 'Package bukan InterActive QRIS asli (atau dari Test Macro)',
+                          amount_not_found: 'Nominal Rp tidak ditemukan pada teks notifikasi',
+                          payment_not_found: 'Tidak ada tagihan QRIS pending dengan nominal cocok',
+                          ambiguous_amount_match: 'Lebih dari 1 tagihan pending bernominal sama',
+                          matched_and_credited: 'Cocok & saldo masuk'
+                        };
                         const outcomeClass =
                           entry.outcome === 'settled'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -1020,7 +1045,12 @@ export default function AdminPanel({
                                 {entry.outcome}
                               </span>
                             </td>
-                            <td className="px-3.5 py-3 font-mono text-xs text-slate-700">{entry.reason || '-'}</td>
+                            <td className="px-3.5 py-3 text-xs text-slate-700">
+                              <div className="font-mono">{entry.reason || '-'}</div>
+                              {entry.reason && reasonHintMap[entry.reason] && (
+                                <div className="mt-0.5 text-[11px] text-slate-500">{reasonHintMap[entry.reason]}</div>
+                              )}
+                            </td>
                             <td className="px-3.5 py-3 font-mono text-xs text-slate-600">{entry.package_name || '-'}</td>
                             <td className="px-3.5 py-3 font-mono text-xs text-ink">
                               {candidates.length > 0 ? candidates.map((amount) => formatRupiah(amount)).join(', ') : '-'}

@@ -622,3 +622,55 @@ test('interactive qris webhook GET healthcheck and admin webhook logs + manual s
   assert.equal(secondSettleData.payment.credited_ledger_id, settleData.payment.credited_ledger_id);
   assert.equal(await creditBalance(env, 'user-1'), 2001);
 });
+
+test('interactive qris webhook supports extended Android notification fields, braces in raw, query fallback, and hardened macro json', async () => {
+  const { readFileSync } = await import('node:fs');
+  const macroRaw = readFileSync(new URL('../../macrodroid/interactive-qris-relay.macro', import.meta.url), 'utf8');
+  const macroDoc = JSON.parse(macroRaw);
+  const trigger = macroDoc.macro.m_triggerList[0];
+  assert.equal(trigger.m_ignoreOngoing, true);
+  assert.equal(trigger.m_supressMultiples, false);
+  assert.equal(macroDoc.macro.m_actionList[0].m_classType, 'PauseAction');
+  assert.equal(macroDoc.macro.m_actionList[1].m_classType, 'HttpRequestAction');
+  assert.equal(macroDoc.macro.m_actionList[1].requestConfig.blockNextAction, true);
+
+  const env = qrisTestEnv();
+  await createTestUser(env, { id: 'user-1', email: 'user@example.com' });
+  await seedQrisPayment(env, {
+    order_id: 'iq-4005',
+    amount_idr: 4005,
+    base_amount_idr: 4000,
+    unique_code: 5
+  });
+
+  // Extended subText/ticker/appName with unexpanded tokens + braces inside raw malformed JSON
+  const braceRaw =
+    '{"packageName":"{not_app_package}","appName":"InterActive QRIS","title":"Pembayaran Masuk","text":"{notification}","subText":"{not_sub_text}","ticker":"Dana Rp 4.005 masuk","raw":"Info {ok} nominal Rp 4.005,00"}';
+  const braceResp = await worker.fetch(webhookRequest(braceRaw), env);
+  const braceData = await braceResp.json();
+  assert.equal(braceResp.status, 200);
+  assert.equal(braceData.payment.status, 'settlement');
+  assert.equal(braceData.payment.order_id, 'iq-4005');
+  assert.equal(await creditBalance(env, 'user-1'), 4005);
+
+  // URL query param fallback when POST body is empty
+  await seedQrisPayment(env, {
+    order_id: 'iq-5007',
+    amount_idr: 5007,
+    base_amount_idr: 5000,
+    unique_code: 7
+  });
+  const queryUrl =
+    'https://worker.example/api/payments/interactive-qris/webhook?packageName=com.interactive.qrisid&title=InterActive+QRIS&text=Masuk+Rp+5.007';
+  const queryResp = await worker.fetch(
+    new Request(queryUrl, {
+      method: 'POST',
+      headers: { 'x-interactive-qris-secret': 'secret-123' }
+    }),
+    env
+  );
+  const queryData = await queryResp.json();
+  assert.equal(queryResp.status, 200);
+  assert.equal(queryData.payment.order_id, 'iq-5007');
+  assert.equal(await creditBalance(env, 'user-1'), 9012);
+});

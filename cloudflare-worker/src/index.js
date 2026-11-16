@@ -423,14 +423,19 @@ async function readJson(request) {
 function cleanInteractiveQrisWebhookField(value = '') {
   return String(value || '')
     .replace(/\r\n/g, '\n')
+    .replace(/\\n/g, '\n')
     .replace(/\\"/g, '"')
     .replace(/\\\\/g, '\\')
     .trim();
 }
 
+function isUnexpandedMacroDroidToken(value = '') {
+  return /^\{[a-z0-9_=]+\}$/i.test(String(value || '').trim());
+}
+
 function extractJsonFieldLoose(text, keys = []) {
   for (const key of keys) {
-    const pattern = new RegExp(`"${key}"\\s*:\\s*"([\\s\\S]*?)"\\s*(?:,\\s*"[a-zA-Z0-9_]+"\\s*:|\\s*})`, 'i');
+    const pattern = new RegExp(`"${key}"\\s*:\\s*"([\\s\\S]*?)"\\s*(?:,\\s*"[a-zA-Z0-9_]+"\\s*:|\\}\\s*$)`, 'i');
     const match = pattern.exec(text);
     if (match?.[1] !== undefined) return cleanInteractiveQrisWebhookField(match[1]);
   }
@@ -442,18 +447,30 @@ function extractInteractiveQrisMalformedJsonPayload(rawText = '') {
   if (!text.trim()) return {};
 
   const packageName = extractJsonFieldLoose(text, ['packageName', 'package_name', 'package', 'appPackage', 'app_package']);
-  const title = extractJsonFieldLoose(text, ['title', 'appName']);
-  const bodyText = extractJsonFieldLoose(text, ['text', 'message', 'body', 'notification', 'content']);
+  const appName = extractJsonFieldLoose(text, ['appName', 'app_name']);
+  const title = extractJsonFieldLoose(text, ['title']);
+  const bodyText = extractJsonFieldLoose(text, ['text', 'message', 'body', 'notification', 'notification_text', 'content']);
+  const subText = extractJsonFieldLoose(text, ['subText', 'sub_text']);
+  const ticker = extractJsonFieldLoose(text, ['ticker']);
+  const lines = extractJsonFieldLoose(text, ['lines', 'textLines', 'text_lines']);
+  const bigText = extractJsonFieldLoose(text, ['bigText', 'big_text', 'not_text_big']);
+  const infoText = extractJsonFieldLoose(text, ['infoText', 'info_text']);
   const raw = extractJsonFieldLoose(text, ['raw']);
 
-  if (!packageName && !title && !bodyText && !raw) {
+  if (!packageName && !appName && !title && !bodyText && !subText && !ticker && !lines && !bigText && !infoText && !raw) {
     return { raw: cleanInteractiveQrisWebhookField(text) };
   }
 
   return {
     packageName,
-    title,
+    appName,
+    title: title || appName,
     text: bodyText,
+    subText,
+    ticker,
+    lines,
+    bigText,
+    infoText,
     raw
   };
 }
@@ -461,22 +478,28 @@ function extractInteractiveQrisMalformedJsonPayload(rawText = '') {
 async function readInteractiveQrisWebhookPayload(request) {
   const contentType = String(request.headers.get('content-type') || '').toLowerCase();
   const rawText = await request.text().catch(() => '');
-  if (!rawText.trim()) return { body: {}, rawText: '' };
+  const queryParams = Object.fromEntries(new URL(request.url).searchParams.entries());
+  if (!rawText.trim()) {
+    return {
+      body: queryParams,
+      rawText: Object.keys(queryParams).length ? JSON.stringify(queryParams) : ''
+    };
+  }
 
   if (contentType.includes('application/x-www-form-urlencoded')) {
     const params = Object.fromEntries(new URLSearchParams(rawText).entries());
-    return { body: params, rawText };
+    return { body: { ...queryParams, ...params }, rawText };
   }
 
   try {
     const parsed = JSON.parse(rawText);
-    if (parsed && typeof parsed === 'object') return { body: parsed, rawText };
+    if (parsed && typeof parsed === 'object') return { body: { ...queryParams, ...parsed }, rawText };
   } catch {
     // lanjut ke parser longgar di bawah
   }
 
   return {
-    body: extractInteractiveQrisMalformedJsonPayload(rawText),
+    body: { ...queryParams, ...extractInteractiveQrisMalformedJsonPayload(rawText) },
     rawText
   };
 }
@@ -701,7 +724,7 @@ export function allocateInteractiveQrisPaymentAmount(baseAmountIdr, activePaymen
 function extractCurrencyInt(fragment, minimumAmountIdr) {
   const cleaned = String(fragment || '')
     .trim()
-    .replace(/[.,]\d{1,2}$/, (suffix) => (suffix === '.00' || suffix === ',00' ? '' : suffix));
+    .replace(/[.,](?:00|0)$/, '');
   const digits = cleaned.replace(/[^\d]/g, '');
   const value = Number.parseInt(digits, 10);
   if (!Number.isInteger(value) || value < minimumAmountIdr) return null;
@@ -710,13 +733,35 @@ function extractCurrencyInt(fragment, minimumAmountIdr) {
 
 export function extractInteractiveQrisAmountCandidates(payload = {}, minimumAmountIdr = INTERACTIVE_QRIS_MIN_AMOUNT_IDR) {
   const texts = [];
-  for (const key of ['title', 'text', 'message', 'body', 'notification', 'content']) {
-    if (typeof payload[key] === 'string' && payload[key]) texts.push(payload[key]);
+  for (const key of [
+    'title',
+    'text',
+    'message',
+    'body',
+    'notification',
+    'notification_text',
+    'content',
+    'bigText',
+    'big_text',
+    'subText',
+    'sub_text',
+    'ticker',
+    'lines',
+    'textLines',
+    'text_lines',
+    'infoText',
+    'info_text'
+  ]) {
+    if (typeof payload[key] === 'string' && payload[key] && !isUnexpandedMacroDroidToken(payload[key])) {
+      texts.push(payload[key]);
+    } else if (Array.isArray(payload[key])) {
+      texts.push(payload[key].join(' '));
+    }
   }
   if (typeof payload.amount === 'string' || typeof payload.amount === 'number') {
     texts.push(String(payload.amount));
   }
-  if (typeof payload.raw === 'string' && payload.raw) texts.push(payload.raw);
+  if (typeof payload.raw === 'string' && payload.raw && !isUnexpandedMacroDroidToken(payload.raw)) texts.push(payload.raw);
   else if (payload.raw && typeof payload.raw === 'object') texts.push(JSON.stringify(payload.raw));
 
   const candidates = new Set();
@@ -2226,9 +2271,24 @@ function resolveInteractiveQrisPackageName(body = {}) {
 }
 
 function hasInteractiveQrisNotificationHint(body = {}) {
-  const combined = `${body.title || ''} ${body.text || ''} ${body.message || ''} ${body.body || ''} ${
+  const fields = [
+    body.appName,
+    body.app_name,
+    body.title,
+    body.text,
+    body.message,
+    body.body,
+    body.notification,
+    body.notification_text,
+    body.subText,
+    body.sub_text,
+    body.bigText,
+    body.big_text,
+    body.ticker,
+    body.lines,
     typeof body.raw === 'string' ? body.raw : ''
-  }`;
+  ].filter((value) => typeof value === 'string' && value && !isUnexpandedMacroDroidToken(value));
+  const combined = fields.join(' ');
   return /interactive\s*qris/i.test(combined);
 }
 
@@ -2260,7 +2320,7 @@ async function handleInteractiveQrisWebhook(env, request) {
   const expectedPackages = resolveInteractiveQrisExpectedPackages(env);
   const packageMatched =
     (rawPackageName && expectedPackages.includes(rawPackageName)) ||
-    ((!rawPackageName || rawPackageName === '{not_app_package}') && hasInteractiveQrisNotificationHint(body));
+    ((!rawPackageName || isUnexpandedMacroDroidToken(rawPackageName)) && hasInteractiveQrisNotificationHint(body));
   if (!packageMatched) {
     await insertInteractiveQrisWebhookLog(env, {
       status_code: 200,
@@ -2270,7 +2330,7 @@ async function handleInteractiveQrisWebhook(env, request) {
       package_name: rawPackageName || '(kosong)',
       payload_preview: previewText
     });
-    return json({ received: true, ignored: true, reason: 'unexpected_package', packageName: body.packageName || '' });
+    return json({ received: true, ignored: true, reason: 'unexpected_package', packageName: rawPackageName || '' });
   }
 
   await expireStaleInteractiveQrisPayments(env);

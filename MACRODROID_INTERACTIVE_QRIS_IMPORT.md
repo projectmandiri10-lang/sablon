@@ -12,16 +12,21 @@ macrodroid/interactive-qris-relay.macro
 
 Macro ini sudah diset untuk:
 
-- trigger: notifikasi dari app `com.interactive.qrisid`
-- action: HTTP Request `POST`
+- trigger: notifikasi dari app `com.interactive.qrisid` (`Ignore ongoing = ON`, `Prevent multiple triggers = OFF`)
+- action 1: jeda `500 ms` (`PauseAction`) agar teks notifikasi Android terisi penuh
+- action 2: HTTP Request `POST` (`Block next actions until complete = ON`)
+- action 3: Toast hasil status & respons
 - webhook: `https://sablon.jho-j80.workers.dev/api/payments/interactive-qris/webhook`
 - payload:
 
 ```json
 {
   "packageName": "{not_app_package}",
+  "appName": "{not_app_name}",
   "title": "{not_title}",
   "text": "{notification}",
+  "subText": "{not_sub_text}",
+  "ticker": "{not_ticker}",
   "raw": "{not_text_big}"
 }
 ```
@@ -56,18 +61,22 @@ Catatan: MacroDroid export/import biasanya tidak membawa nilai secure variable. 
 
 Aktifkan izin berikut untuk MacroDroid:
 
-- `Notification Access`
-- Battery: `Unrestricted`
+- **Akses Notifikasi (`Notification Access`)** — *penting: ini berbeda dengan Aksesibilitas! Trigger `Notification Received` wajib memakai Akses Notifikasi.* Jika tombol terkunci di Android 13–16, buka Info Aplikasi MacroDroid -> titik tiga kanan atas -> **Izinkan setelan terbatas (Allow restricted settings)** terlebih dahulu.
+- Battery: **Tidak dibatasi / Tidak dioptimalkan (`Unrestricted`)** — *jangan aktifkan optimasi baterai, karena "Optimasi baterai = Hidup" justru mematikan background listener.*
 - Auto-start atau background run jika tersedia di ROM Android
 - Kunci MacroDroid di recent apps jika vendor Android menyediakan opsi itu
 
-## Cek Konfigurasi Macro
+## Cek Konfigurasi Macro (Khusus Setelah Update InterActive QRIS v1.7.0+)
 
 Pastikan macro berisi:
 
 - Trigger: `Notification Received`
-- App/package: `InterActive QRIS` / `com.interactive.qrisid`
+- App/package: **ketuk dan pilih ulang aplikasi `InterActive QRIS` (`com.interactive.qrisid`)** dari daftar aplikasi HP Anda
+- **Ignore ongoing notifications**: **Aktif / Centang** (mencegah notifikasi layanan suara/soundbox persisten mengganggu trigger transaksi)
+- **Prevent multiple triggers**: **Nonaktif / Jangan centang** (mencegah notifikasi beruntun/terkelompok disenyapkan MacroDroid)
+- Action 1: `Wait before next action` = `500 ms`
 - HTTP method: `POST`
+- **Block next actions until complete**: **Aktif / Centang** (agar Toast & log tidak membaca status lama atau terpotong OS)
 - URL: `https://sablon.jho-j80.workers.dev/api/payments/interactive-qris/webhook`
 - Header:
 
