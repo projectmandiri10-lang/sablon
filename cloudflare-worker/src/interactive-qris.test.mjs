@@ -637,7 +637,7 @@ test('interactive qris webhook supports extended Android notification fields, br
 
   const diagRaw = readFileSync(new URL('../../macrodroid/interactive-qris-diagnostic-any-app.macro', import.meta.url), 'utf8');
   const diagDoc = JSON.parse(diagRaw);
-  assert.deepEqual(diagDoc.macro.m_triggerList[0].m_packageNameList, ['Any Application']);
+  assert.deepEqual(diagDoc.macro.m_triggerList[0].m_packageNameList, ['com.whatsapp', 'com.whatsapp.w4b', 'com.interactive.qrisid']);
   assert.equal(diagDoc.macro.m_actionList[0].requestConfig.blockNextAction, true);
 
   const env = qrisTestEnv();
