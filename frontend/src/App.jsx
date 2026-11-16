@@ -14,6 +14,7 @@ import { commitJob, deleteCloudJob, getAppConfig, getBalance, listExampleJobs, q
 import { createNormalizedImagePreviewBlob, prepareAiRedrawInput } from './lib/imagePreview.js';
 import { deleteHistoryJob, loadHistoryJobs, releaseHistoryJobs, saveHistoryJob } from './lib/localHistoryStore.js';
 import { parseMidtransReturnParams, stripMidtransReturnParams } from './lib/billingPanelState.js';
+import { clearPendingAiRecovery, isStaleChunkError, loadPendingAiRecovery, savePendingAiRecovery } from './lib/pendingAiRecovery.js';
 import { loadStoredLocale, localeTag, resolveInitialLocale, saveStoredLocale } from './lib/locale.js';
 import { analyzeRasterForUpscale, normalizeLocalTraceSettings, processImageLocallyWithFallback } from './lib/localProcessor.js';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from './lib/modes.js';
@@ -298,6 +299,21 @@ export default function App() {
   const [deletingLibraryJobId, setDeletingLibraryJobId] = useState('');
   const [retracingLibraryJobId, setRetracingLibraryJobId] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
+  const [hasPendingRecovery, setHasPendingRecovery] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!session?.user?.id) {
+      setHasPendingRecovery(false);
+      return undefined;
+    }
+    loadPendingAiRecovery(session.user.id).then((record) => {
+      if (!cancelled) setHasPendingRecovery(Boolean(record?.aiRawPngBlob));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
   const [publicRoute, setPublicRoute] = useState(() => getPublicRouteFromPathname(window.location.pathname || '/'));
   const [midtransReturnState, setMidtransReturnState] = useState(() => parseMidtransReturnParams(window.location.search || ''));
   const [appConfig, setAppConfig] = useState({ settings: {}, features: {}, viewer: {} });
@@ -629,6 +645,16 @@ export default function App() {
       }
       let preparedAiInput = null;
       if (settings.inputMode === INPUT_MODE_RETOUCH) {
+        // Pastikan modul render lokal bisa dimuat SEBELUM memanggil (dan membayar) AI.
+        try {
+          await Promise.all([import('jszip'), import('jspdf'), import('pica')]);
+        } catch (_chunkError) {
+          throw new Error(
+            isId
+              ? 'Versi aplikasi sudah diperbarui. Muat ulang halaman (Ctrl+F5) lalu coba lagi. Belum ada biaya AI yang terpakai.'
+              : 'The app was updated. Hard-reload the page (Ctrl+F5) and try again. No AI charge was made.'
+          );
+        }
         preparedAiInput = await prepareAiRedrawInput(file);
       }
       await ensureCanRun(settings.separateColors ? 1 : 0);
@@ -650,6 +676,24 @@ export default function App() {
         retouchLedgerId = retouchResult.retouchLedgerId;
         aiRedrawMetadata = retouchResult.aiRedrawMetadata || null;
         aiRawPngBlob = retouchResult.aiRawPngBlob || null;
+        if (aiRawPngBlob) {
+          // Simpan segera: jika render lokal gagal, bisa di-retry tanpa memanggil AI lagi.
+          try {
+            await savePendingAiRecovery({
+              ownerId: session.user.id,
+              aiRawPngBlob,
+              sourcePreviewBlob,
+              sourceRasterBlob: file,
+              sourceFileName: file.name,
+              retouchLedgerId,
+              aiRedrawMetadata,
+              settings
+            });
+            setHasPendingRecovery(true);
+          } catch (_saveError) {
+            // retry manual tidak tersedia, proses tetap lanjut
+          }
+        }
       } else {
         setJob(statusJob('processing_image', copy.messages.processingReadyTrace, 30));
         let upscaleAnalysis;
@@ -677,6 +721,41 @@ export default function App() {
         };
       }
 
+      await finalizeLocalJob({
+        sourceFile: file,
+        sourcePreviewBlob,
+        processingFile,
+        retouchLedgerId,
+        aiRedrawMetadata,
+        readyTraceMetadata,
+        aiRawPngBlob,
+        traceInputSettings,
+        jobSettings: settings
+      });
+    } catch (submitError) {
+      const userError = toUserApiError(submitError, copy.messages.processFailed);
+      setJobError(userError.message);
+      setSuggestedInputMode(submitError?.suggestedInputMode || '');
+      setJob(statusJob('failed', copy.messages.processFailedShort, 100));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function finalizeLocalJob({
+    sourceFile,
+    sourcePreviewBlob,
+    processingFile,
+    retouchLedgerId,
+    aiRedrawMetadata,
+    readyTraceMetadata,
+    aiRawPngBlob,
+    traceInputSettings,
+    jobSettings
+  }) {
+    const file = sourceFile;
+    const settings = jobSettings;
+    try {
       setJob(
         statusJob(
           'vectorizing',
@@ -748,6 +827,8 @@ export default function App() {
       };
 
       setJob(completedJob);
+      await clearPendingAiRecovery(session.user.id);
+      setHasPendingRecovery(false);
 
       try {
         await saveHistoryJob({
@@ -785,13 +866,49 @@ export default function App() {
 
       await refreshBalance();
     } catch (submitError) {
+      const staleChunk = isStaleChunkError(submitError);
       const userError = toUserApiError(submitError, copy.messages.processFailed);
-      setJobError(userError.message);
+      setJobError(
+        staleChunk
+          ? isId
+            ? 'Modul render lokal gagal dimuat karena aplikasi baru saja diperbarui. Muat ulang halaman (Ctrl+F5), lalu klik "Coba lagi proses lokal" — hasil AI sudah tersimpan, tanpa panggilan AI baru.'
+            : 'The local render module failed to load because the app was just updated. Hard-reload (Ctrl+F5), then click "Retry local processing" — the AI result is saved, no new AI call.'
+          : userError.message
+      );
       setSuggestedInputMode(submitError?.suggestedInputMode || '');
       setJob(statusJob('failed', copy.messages.processFailedShort, 100));
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleRetryLocalProcessing() {
+    const ownerId = session?.user?.id;
+    if (!ownerId || isSubmitting) return;
+    const record = await loadPendingAiRecovery(ownerId);
+    if (!record?.aiRawPngBlob) {
+      setHasPendingRecovery(false);
+      setJobError(isId ? 'Data hasil AI tersimpan tidak ditemukan.' : 'No saved AI result was found.');
+      return;
+    }
+    setJobError('');
+    setSuggestedInputMode('');
+    setIsSubmitting(true);
+    setJob(statusJob('preprocessing', isId ? 'Memuat ulang hasil AI tersimpan (tanpa panggilan AI).' : 'Reloading saved AI result (no AI call).', 10));
+    const recoverySettings = record.settings || settings;
+    const sourceBlob = record.sourceRasterBlob || record.sourcePreviewBlob || record.aiRawPngBlob;
+    await finalizeLocalJob({
+      sourceFile: new File([sourceBlob], record.sourceFileName || 'gambar-awal.png', { type: sourceBlob.type || 'image/png' }),
+      sourcePreviewBlob: record.sourcePreviewBlob || sourceBlob,
+      processingFile: new File([record.aiRawPngBlob], 'hasil-ai-mentah.png', { type: record.aiRawPngBlob.type || 'image/png' }),
+      retouchLedgerId: record.retouchLedgerId || '',
+      aiRedrawMetadata: record.aiRedrawMetadata || null,
+      readyTraceMetadata: null,
+      aiRawPngBlob: record.aiRawPngBlob,
+      traceInputSettings: recoverySettings,
+      jobSettings: recoverySettings
+    });
+    setIsSubmitting(false);
   }
 
   const isBusy = isSubmitting || (job && !['done', 'failed'].includes(job.status));
@@ -1165,6 +1282,26 @@ export default function App() {
                   disabled={isBusy}
                   exampleJobs={exampleJobs}
                 />
+                {hasPendingRecovery && !isBusy && (
+                  <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 shadow-sm">
+                    <p className="font-semibold">
+                      {isId ? 'Hasil AI sebelumnya tersimpan di perangkat ini.' : 'A previous AI result is saved on this device.'}
+                    </p>
+                    <p className="text-xs">
+                      {isId
+                        ? 'Proses ulang di browser tanpa memanggil API AI lagi (tidak ada biaya tambahan).'
+                        : 'Reprocess in the browser without calling the AI API again (no extra charge).'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRetryLocalProcessing}
+                      className="studio-btn-primary mt-2 !min-h-9 !rounded-xl !px-3.5 !py-2 !text-xs"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>{isId ? 'Coba lagi proses lokal' : 'Retry local processing'}</span>
+                    </button>
+                  </section>
+                )}
                 <JobStatus
                   locale={locale}
                   job={job}
