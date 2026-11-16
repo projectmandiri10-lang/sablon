@@ -160,6 +160,19 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS interactive_qris_webhook_logs (
+  id TEXT PRIMARY KEY,
+  status_code INTEGER NOT NULL,
+  outcome TEXT NOT NULL,
+  reason TEXT,
+  secret_valid INTEGER NOT NULL DEFAULT 0,
+  package_name TEXT,
+  amount_candidates TEXT NOT NULL DEFAULT '[]',
+  matched_order_id TEXT,
+  payload_preview TEXT,
+  created_at TEXT NOT NULL
+);
+
 -- Indeks mengikuti migration Postgres.
 CREATE INDEX IF NOT EXISTS credit_ledger_user_created_idx ON credit_ledger (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS jobs_user_created_idx ON jobs (user_id, created_at DESC);
@@ -185,3 +198,4 @@ CREATE INDEX IF NOT EXISTS tax_rules_code_effective_from_idx ON tax_rules (tax_c
 CREATE INDEX IF NOT EXISTS tax_rules_effective_to_idx ON tax_rules (effective_to) WHERE effective_to IS NOT NULL;
 CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions (user_id);
 CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions (expires_at);
+CREATE INDEX IF NOT EXISTS interactive_qris_webhook_logs_created_idx ON interactive_qris_webhook_logs (created_at DESC);

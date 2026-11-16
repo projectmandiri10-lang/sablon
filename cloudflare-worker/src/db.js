@@ -8,7 +8,8 @@ const BOOLEAN_COLUMNS = {
   pricing_rules: ['active'],
   app_settings: ['is_public'],
   jobs: ['is_example_public'],
-  signup_bonus_claims: ['bonus_granted']
+  signup_bonus_claims: ['bonus_granted'],
+  interactive_qris_webhook_logs: ['secret_valid']
 };
 
 const JSON_COLUMNS = {
@@ -16,7 +17,8 @@ const JSON_COLUMNS = {
   jobs: ['settings', 'manifest'],
   app_settings: ['value'],
   payment_transactions: ['raw_create_response', 'raw_notification'],
-  signup_bonus_claims: ['metadata']
+  signup_bonus_claims: ['metadata'],
+  interactive_qris_webhook_logs: ['amount_candidates']
 };
 
 const AUTOMATIC_PAYMENT_COLUMNS =
@@ -387,6 +389,10 @@ export async function upsertAppSetting(env, { key, value, isPublic = true, descr
 // Payment transactions
 // ---------------------------------------------------------------------------
 
+export async function getPaymentTransactionById(env, paymentId) {
+  return getRowById(env, 'payment_transactions', paymentId);
+}
+
 export async function getPaymentTransactionByOrderId(env, orderId) {
   return mapRow(
     'payment_transactions',
@@ -454,6 +460,39 @@ export async function createPaymentTransaction(env, payload) {
 
 export async function updatePaymentTransactionById(env, paymentId, patch) {
   return updateRowById(env, 'payment_transactions', paymentId, patch, { touchUpdatedAt: true });
+}
+
+export async function insertInteractiveQrisWebhookLog(env, payload = {}) {
+  try {
+    return await insertRow(env, 'interactive_qris_webhook_logs', {
+      id: crypto.randomUUID(),
+      status_code: Number(payload.status_code) || 200,
+      outcome: String(payload.outcome || 'unknown'),
+      reason: payload.reason ? String(payload.reason) : null,
+      secret_valid: Boolean(payload.secret_valid),
+      package_name: payload.package_name ? String(payload.package_name).slice(0, 120) : null,
+      amount_candidates: Array.isArray(payload.amount_candidates) ? payload.amount_candidates : [],
+      matched_order_id: payload.matched_order_id ? String(payload.matched_order_id) : null,
+      payload_preview: payload.payload_preview ? String(payload.payload_preview).slice(0, 600) : null,
+      created_at: nowIso()
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function listInteractiveQrisWebhookLogs(env) {
+  try {
+    return mapRows(
+      'interactive_qris_webhook_logs',
+      await dbAll(
+        env,
+        'SELECT id,status_code,outcome,reason,secret_valid,package_name,amount_candidates,matched_order_id,payload_preview,created_at FROM interactive_qris_webhook_logs ORDER BY created_at DESC LIMIT 30'
+      )
+    );
+  } catch {
+    return [];
+  }
 }
 
 export async function listFinanceGatewayPaymentsRows(env, { from, toExclusive }) {

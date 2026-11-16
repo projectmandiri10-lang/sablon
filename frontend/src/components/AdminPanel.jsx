@@ -10,10 +10,12 @@ import {
   listAdminManualPayments,
   listAdminPaymentTransactions,
   listAdminPricingRules,
+  listAdminQrisWebhookLogs,
   listAdminSettings,
   listAdminUsers,
   rejectManualPayment,
   setAdminJobExample,
+  settleAdminQrisPayment,
   unsetAdminJobExample,
   toUserApiError,
   updateAdminPricingRule,
@@ -145,6 +147,7 @@ export default function AdminPanel({
   const [users, setUsers] = useState([]);
   const [payments, setPayments] = useState([]);
   const [automaticPayments, setAutomaticPayments] = useState([]);
+  const [qrisWebhookLogs, setQrisWebhookLogs] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [pricingRules, setPricingRules] = useState([]);
   const [settings, setSettings] = useState([]);
@@ -227,11 +230,12 @@ export default function AdminPanel({
       setMessage('');
     }
     try {
-      const [overviewData, usersData, paymentsData, automaticPaymentsData, pricingData, settingsData, jobsData] = await Promise.all([
+      const [overviewData, usersData, paymentsData, automaticPaymentsData, qrisWebhookLogsData, pricingData, settingsData, jobsData] = await Promise.all([
         getAdminOverview(accessToken),
         listAdminUsers(accessToken),
         listAdminManualPayments(accessToken),
         listAdminPaymentTransactions(accessToken),
+        listAdminQrisWebhookLogs(accessToken).catch(() => ({ logs: [] })),
         listAdminPricingRules(accessToken),
         listAdminSettings(accessToken),
         listAdminJobs(accessToken)
@@ -240,6 +244,7 @@ export default function AdminPanel({
       setUsers(usersData.users || []);
       setPayments(paymentsData.payments || []);
       setAutomaticPayments(automaticPaymentsData.payments || []);
+      setQrisWebhookLogs(qrisWebhookLogsData.logs || []);
       setPricingRules(pricingData.rules || []);
       setSettings(settingsData.settings || []);
       setJobs(jobsData.jobs || []);
@@ -403,6 +408,21 @@ export default function AdminPanel({
       setMessage('Pembayaran ditolak.');
     } catch (error) {
       setMessage(toUserApiError(error, 'Gagal menolak pembayaran.').message);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function settleQrisPayment(payment) {
+    if (!payment?.id) return;
+    setIsBusy(true);
+    setMessage('');
+    try {
+      await settleAdminQrisPayment(payment.id, accessToken);
+      await loadAdminData();
+      setMessage(`Pembayaran QRIS ${payment.order_id} (${formatRupiah(payment.amount_idr)}) diselesaikan dan saldo ditambahkan.`);
+    } catch (error) {
+      setMessage(toUserApiError(error, 'Gagal menyelesaikan transaksi QRIS.').message);
     } finally {
       setIsBusy(false);
     }
@@ -905,12 +925,13 @@ export default function AdminPanel({
                       <th className="px-3.5 py-3">Channel</th>
                       <th className="px-3.5 py-3">Credit</th>
                       <th className="px-3.5 py-3">Waktu bayar</th>
+                      <th className="px-3.5 py-3">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line bg-white">
                     {automaticPayments.length === 0 ? (
                       <tr>
-                        <td colSpan="9" className="px-4 py-6 text-center text-sm text-slate-500">Belum ada transaksi pembayaran otomatis.</td>
+                        <td colSpan="10" className="px-4 py-6 text-center text-sm text-slate-500">Belum ada transaksi pembayaran otomatis.</td>
                       </tr>
                     ) : (
                       automaticPayments.map((payment) => (
@@ -924,8 +945,93 @@ export default function AdminPanel({
                           <td className="px-3.5 py-3">{paymentChannelLabel(payment)}</td>
                           <td className="px-3.5 py-3">{payment.credited_ledger_id ? 'Masuk' : 'Belum'}</td>
                           <td className="px-3.5 py-3 text-slate-500">{payment.paid_at ? new Date(payment.paid_at).toLocaleString('id-ID') : '-'}</td>
+                          <td className="px-3.5 py-3">
+                            {payment.provider === 'interactive_qris' && !payment.credited_ledger_id ? (
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => settleQrisPayment(payment)}
+                                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Selesaikan
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-400">-</span>
+                            )}
+                          </td>
                         </tr>
                       ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-ink">Log Webhook QRIS (MacroDroid)</h3>
+                <p className="text-xs text-slate-500">
+                  Menampilkan 50 webhook terakhir yang masuk ke Worker (tanpa menyimpan secret) untuk melacak alasan saldo masuk atau ditolak.
+                </p>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-line">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1040px] border-collapse text-left text-xs sm:text-sm">
+                  <thead className="bg-slate-50">
+                    <tr className="border-b border-line text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <th className="px-3.5 py-3">Waktu</th>
+                      <th className="px-3.5 py-3">HTTP</th>
+                      <th className="px-3.5 py-3">Hasil</th>
+                      <th className="px-3.5 py-3">Alasan</th>
+                      <th className="px-3.5 py-3">Package</th>
+                      <th className="px-3.5 py-3">Nominal terdeteksi</th>
+                      <th className="px-3.5 py-3">Order cocok</th>
+                      <th className="px-3.5 py-3">Preview payload</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line bg-white">
+                    {qrisWebhookLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" className="px-4 py-6 text-center text-sm text-slate-500">
+                          Belum ada webhook MacroDroid QRIS yang tercatat. Jika Anda baru mengirim webhook, cek URL endpoint Worker (`.../api/payments/interactive-qris/webhook`).
+                        </td>
+                      </tr>
+                    ) : (
+                      qrisWebhookLogs.map((entry) => {
+                        const candidates = Array.isArray(entry.amount_candidates) ? entry.amount_candidates : [];
+                        const outcomeClass =
+                          entry.outcome === 'settled'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : entry.outcome === 'rejected'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-amber-50 text-amber-800 border-amber-200';
+                        return (
+                          <tr key={entry.id} className="align-top transition hover:bg-slate-50/70">
+                            <td className="whitespace-nowrap px-3.5 py-3 text-slate-500">
+                              {entry.created_at ? new Date(entry.created_at).toLocaleString('id-ID') : '-'}
+                            </td>
+                            <td className="px-3.5 py-3 font-mono text-xs">{entry.status_code}</td>
+                            <td className="px-3.5 py-3">
+                              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${outcomeClass}`}>
+                                {entry.outcome}
+                              </span>
+                            </td>
+                            <td className="px-3.5 py-3 font-mono text-xs text-slate-700">{entry.reason || '-'}</td>
+                            <td className="px-3.5 py-3 font-mono text-xs text-slate-600">{entry.package_name || '-'}</td>
+                            <td className="px-3.5 py-3 font-mono text-xs text-ink">
+                              {candidates.length > 0 ? candidates.map((amount) => formatRupiah(amount)).join(', ') : '-'}
+                            </td>
+                            <td className="px-3.5 py-3 font-mono text-xs text-ink">{entry.matched_order_id || '-'}</td>
+                            <td className="max-w-[320px] break-all px-3.5 py-3 font-mono text-[11px] text-slate-600">
+                              {entry.payload_preview || '-'}
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>

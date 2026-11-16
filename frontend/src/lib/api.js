@@ -437,6 +437,17 @@ export async function listAdminPaymentTransactions(accessToken) {
   return apiFetch('/api/admin/payment-transactions', { accessToken });
 }
 
+export async function listAdminQrisWebhookLogs(accessToken) {
+  return apiFetch('/api/admin/qris-webhook-logs', { accessToken });
+}
+
+export async function settleAdminQrisPayment(paymentId, accessToken) {
+  return apiFetch(`/api/admin/payment-transactions/${paymentId}/settle-qris`, {
+    method: 'POST',
+    accessToken
+  });
+}
+
 export async function approveManualPayment(paymentId, accessToken) {
   return apiFetch(`/api/admin/manual-payments/${paymentId}/approve`, {
     method: 'POST',

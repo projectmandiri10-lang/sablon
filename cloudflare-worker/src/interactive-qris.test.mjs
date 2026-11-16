@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import worker, { allocateInteractiveQrisPaymentAmount, extractInteractiveQrisAmountCandidates } from './index.js';
-import { creditBalance, createPaymentTransaction, findLedgerByReference, getAppSetting, insertLedger, listUserAutomaticPayments, upsertAppSetting } from './db.js';
+import { creditBalance, createPaymentTransaction, findLedgerByReference, getAppSetting, insertLedger, listInteractiveQrisWebhookLogs, listUserAutomaticPayments, upsertAppSetting } from './db.js';
 import { authHeaderFor, createTestEnv, createTestUser } from './test-helpers.mjs';
 import { crc16CcittFalse, isValidQrisPayload, parseQrisTlv, serializeQrisTlv } from '../../shared/qrisPayload.js';
 
@@ -454,4 +454,171 @@ test('admin settings accept valid interactive qris static payload', async () => 
   assert.equal(data.setting.value.qrPayload, staticPayload);
   const saved = await getAppSetting(env, 'interactive_qris_payment');
   assert.equal(saved.value.qrPayload, staticPayload);
+});
+
+test('interactive qris amount parser handles Indonesian decimal cents and adjacent digits', () => {
+  const withPhone = extractInteractiveQrisAmountCandidates({
+    title: 'InterActive QRIS',
+    text: 'Dana masuk sebesar Rp 2.001,00\n085156861485 dari pembeli'
+  });
+  assert.equal(withPhone.includes(2001), true);
+  assert.equal(withPhone.includes(200100), false);
+
+  const plainDot = extractInteractiveQrisAmountCandidates({
+    title: 'Transaksi QRIS berhasil',
+    text: 'Nominal Rp. 2001,00 telah diterima'
+  });
+  assert.equal(plainDot.includes(2001), true);
+  assert.equal(plainDot.includes(200100), false);
+});
+
+test('interactive qris webhook parses form-urlencoded, package_name alias, malformed partial JSON, and logs outcomes', async () => {
+  const env = qrisTestEnv();
+  await createTestUser(env, { id: 'user-1', email: 'user@example.com' });
+  await seedQrisPayment(env, {
+    order_id: 'iq-2001',
+    amount_idr: 2001,
+    base_amount_idr: 2000,
+    unique_code: 1
+  });
+
+  // 1) Invalid secret should be logged as rejected (without storing secret value)
+  const invalidSecretResp = await worker.fetch(
+    webhookRequest({ packageName: 'com.interactive.qrisid', text: 'Rp 2.001' }, { secret: 'wrong-secret' }),
+    env
+  );
+  assert.equal(invalidSecretResp.status, 401);
+
+  // 2) Wrong package should be logged as ignored
+  const wrongPackageResp = await worker.fetch(
+    webhookRequest({ packageName: 'com.whatsapp', text: 'Rp 2.001' }),
+    env
+  );
+  assert.equal(wrongPackageResp.status, 200);
+
+  // 3) Malformed JSON with unescaped quotes + package_name alias + decimal currency settles 2001
+  const malformedBody = '{"package_name":"com.interactive.qrisid","title":"InterActive QRIS","text":"Pembayaran "QRIS" masuk Rp 2.001,00\n085156861485"}';
+  const settleResp = await worker.fetch(webhookRequest(malformedBody), env);
+  const settleData = await settleResp.json();
+  assert.equal(settleResp.status, 200);
+  assert.equal(settleData.received, true);
+  assert.equal(settleData.payment.status, 'settlement');
+  assert.equal(settleData.payment.order_id, 'iq-2001');
+  assert.equal(await creditBalance(env, 'user-1'), 2001);
+
+  // 4) Unexpanded MacroDroid variable with InterActive QRIS title/text is recognized when pending payment matches
+  await seedQrisPayment(env, {
+    order_id: 'iq-3002',
+    amount_idr: 3002,
+    base_amount_idr: 3000,
+    unique_code: 2
+  });
+  const formBody = new URLSearchParams({
+    packageName: '{not_app_package}',
+    title: 'InterActive QRIS',
+    text: 'Pembayaran InterActive QRIS berhasil Rp 3.002,00'
+  }).toString();
+  const formResp = await worker.fetch(
+    new Request('https://worker.example/api/payments/interactive-qris/webhook/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'x-webhook-secret': 'secret-123'
+      },
+      body: formBody
+    }),
+    env
+  );
+  const formData = await formResp.json();
+  assert.equal(formResp.status, 200);
+  assert.equal(formData.received, true);
+  assert.equal(formData.payment.status, 'settlement');
+  assert.equal(formData.payment.order_id, 'iq-3002');
+  assert.equal(await creditBalance(env, 'user-1'), 5003);
+
+  const logs = await listInteractiveQrisWebhookLogs(env, 20);
+  assert.equal(logs.length, 4);
+  assert.equal(logs[0].outcome, 'settled');
+  assert.equal(logs[0].matched_order_id, 'iq-3002');
+  assert.equal(logs[1].outcome, 'settled');
+  assert.equal(logs[1].matched_order_id, 'iq-2001');
+  assert.equal(logs[2].outcome, 'ignored');
+  assert.equal(logs[2].reason, 'unexpected_package');
+  assert.equal(logs[3].outcome, 'rejected');
+  assert.equal(logs[3].reason, 'invalid_secret');
+  assert.equal(logs[3].secret_valid, false);
+});
+
+test('interactive qris webhook GET healthcheck and admin webhook logs + manual settle work for superuser', async () => {
+  const env = qrisTestEnv();
+  const user = await createTestUser(env, { id: 'user-1', email: 'user@example.com' });
+  const admin = await createTestUser(env, { id: 'admin-1', email: 'admin@example.com', role: 'superuser', isUnlimited: true });
+  const pending = await seedQrisPayment(env, {
+    order_id: 'iq-manual-check',
+    amount_idr: 2001,
+    base_amount_idr: 2000,
+    unique_code: 1
+  });
+
+  // Healthcheck GET endpoint
+  const pingResp = await worker.fetch(
+    new Request('https://worker.example/api/payments/interactive-qris/webhook', { method: 'GET' }),
+    env
+  );
+  const pingData = await pingResp.json();
+  assert.equal(pingResp.status, 200);
+  assert.equal(pingData.ok, true);
+
+  // Trigger a webhook attempt so logs exist
+  await worker.fetch(webhookRequest({ packageName: 'com.interactive.qrisid', text: 'Rp 9.999' }), env);
+
+  // Non-admin blocked from admin endpoints
+  const forbiddenLogs = await worker.fetch(
+    new Request('https://worker.example/api/admin/qris-webhook-logs', {
+      headers: await authHeaderFor(env, user)
+    }),
+    env
+  );
+  assert.equal(forbiddenLogs.status, 403);
+
+  // Superuser fetches logs
+  const logsResp = await worker.fetch(
+    new Request('https://worker.example/api/admin/qris-webhook-logs', {
+      headers: await authHeaderFor(env, admin)
+    }),
+    env
+  );
+  const logsData = await logsResp.json();
+  assert.equal(logsResp.status, 200);
+  assert.equal(logsData.logs.length, 1);
+  assert.equal(logsData.logs[0].outcome, 'ignored');
+  assert.equal(logsData.logs[0].reason, 'payment_not_found');
+
+  // Superuser manually settles pending QRIS payment
+  const settleResp = await worker.fetch(
+    new Request(`https://worker.example/api/admin/payment-transactions/${pending.id}/settle-qris`, {
+      method: 'POST',
+      headers: await authHeaderFor(env, admin)
+    }),
+    env
+  );
+  const settleData = await settleResp.json();
+  assert.equal(settleResp.status, 200);
+  assert.equal(settleData.payment.status, 'settlement');
+  assert.ok(settleData.payment.credited_ledger_id);
+  assert.equal(await creditBalance(env, 'user-1'), 2001);
+
+  // Second settle is idempotent and does not double-credit
+  const secondSettleResp = await worker.fetch(
+    new Request(`https://worker.example/api/admin/payment-transactions/${pending.id}/settle-qris`, {
+      method: 'POST',
+      headers: await authHeaderFor(env, admin)
+    }),
+    env
+  );
+  const secondSettleData = await secondSettleResp.json();
+  assert.equal(secondSettleResp.status, 200);
+  assert.equal(secondSettleData.payment.status, 'settlement');
+  assert.equal(secondSettleData.payment.credited_ledger_id, settleData.payment.credited_ledger_id);
+  assert.equal(await creditBalance(env, 'user-1'), 2001);
 });

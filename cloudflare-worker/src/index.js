@@ -42,10 +42,12 @@ import {
   getJobById,
   getLedgerById,
   getManualPaymentById,
+  getPaymentTransactionById,
   getPaymentTransactionByOrderId,
   getPricing,
   getProfile,
   getProfileRaw,
+  insertInteractiveQrisWebhookLog,
   insertLedger,
   insertSignupBonusClaim,
   isDuplicateConstraintError,
@@ -65,6 +67,7 @@ import {
   listFinanceJobsRows,
   listFinanceLedgerRows,
   listFinanceManualPaymentsRows,
+  listInteractiveQrisWebhookLogs,
   listJobsByIds,
   listPricingRules,
   listProfileEmails,
@@ -425,38 +428,57 @@ function cleanInteractiveQrisWebhookField(value = '') {
     .trim();
 }
 
+function extractJsonFieldLoose(text, keys = []) {
+  for (const key of keys) {
+    const pattern = new RegExp(`"${key}"\\s*:\\s*"([\\s\\S]*?)"\\s*(?:,\\s*"[a-zA-Z0-9_]+"\\s*:|\\s*})`, 'i');
+    const match = pattern.exec(text);
+    if (match?.[1] !== undefined) return cleanInteractiveQrisWebhookField(match[1]);
+  }
+  return '';
+}
+
 function extractInteractiveQrisMalformedJsonPayload(rawText = '') {
   const text = String(rawText || '');
   if (!text.trim()) return {};
 
-  const packageName = /"packageName"\s*:\s*"([\s\S]*?)"\s*,\s*"title"/i.exec(text)?.[1] || '';
-  const title = /"title"\s*:\s*"([\s\S]*?)"\s*,\s*"text"/i.exec(text)?.[1] || '';
-  const bodyText = /"text"\s*:\s*"([\s\S]*?)"\s*,\s*"raw"/i.exec(text)?.[1] || '';
-  const raw = /"raw"\s*:\s*"([\s\S]*?)"\s*}/i.exec(text)?.[1] || '';
+  const packageName = extractJsonFieldLoose(text, ['packageName', 'package_name', 'package', 'appPackage', 'app_package']);
+  const title = extractJsonFieldLoose(text, ['title', 'appName']);
+  const bodyText = extractJsonFieldLoose(text, ['text', 'message', 'body', 'notification', 'content']);
+  const raw = extractJsonFieldLoose(text, ['raw']);
 
-  if (!packageName && !title && !bodyText && !raw) return {};
+  if (!packageName && !title && !bodyText && !raw) {
+    return { raw: cleanInteractiveQrisWebhookField(text) };
+  }
 
   return {
-    packageName: cleanInteractiveQrisWebhookField(packageName),
-    title: cleanInteractiveQrisWebhookField(title),
-    text: cleanInteractiveQrisWebhookField(bodyText),
-    raw: cleanInteractiveQrisWebhookField(raw)
+    packageName,
+    title,
+    text: bodyText,
+    raw
   };
 }
 
 async function readInteractiveQrisWebhookPayload(request) {
-  const fallbackRequest = request.clone();
-  const parsed = await request.json().catch(() => null);
-  if (parsed && typeof parsed === 'object') return parsed;
+  const contentType = String(request.headers.get('content-type') || '').toLowerCase();
+  const rawText = await request.text().catch(() => '');
+  if (!rawText.trim()) return { body: {}, rawText: '' };
 
-  const rawText = await fallbackRequest.text().catch(() => '');
-  if (!rawText.trim()) return {};
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    const params = Object.fromEntries(new URLSearchParams(rawText).entries());
+    return { body: params, rawText };
+  }
 
   try {
-    return JSON.parse(rawText);
+    const parsed = JSON.parse(rawText);
+    if (parsed && typeof parsed === 'object') return { body: parsed, rawText };
   } catch {
-    return extractInteractiveQrisMalformedJsonPayload(rawText);
+    // lanjut ke parser longgar di bawah
   }
+
+  return {
+    body: extractInteractiveQrisMalformedJsonPayload(rawText),
+    rawText
+  };
 }
 
 function normalizeLocale(locale) {
@@ -677,7 +699,10 @@ export function allocateInteractiveQrisPaymentAmount(baseAmountIdr, activePaymen
 }
 
 function extractCurrencyInt(fragment, minimumAmountIdr) {
-  const digits = String(fragment || '').replace(/[^\d]/g, '');
+  const cleaned = String(fragment || '')
+    .trim()
+    .replace(/[.,]\d{1,2}$/, (suffix) => (suffix === '.00' || suffix === ',00' ? '' : suffix));
+  const digits = cleaned.replace(/[^\d]/g, '');
   const value = Number.parseInt(digits, 10);
   if (!Number.isInteger(value) || value < minimumAmountIdr) return null;
   return value;
@@ -685,13 +710,21 @@ function extractCurrencyInt(fragment, minimumAmountIdr) {
 
 export function extractInteractiveQrisAmountCandidates(payload = {}, minimumAmountIdr = INTERACTIVE_QRIS_MIN_AMOUNT_IDR) {
   const texts = [];
-  if (typeof payload.title === 'string') texts.push(payload.title);
-  if (typeof payload.text === 'string') texts.push(payload.text);
-  if (typeof payload.raw === 'string') texts.push(payload.raw);
+  for (const key of ['title', 'text', 'message', 'body', 'notification', 'content']) {
+    if (typeof payload[key] === 'string' && payload[key]) texts.push(payload[key]);
+  }
+  if (typeof payload.amount === 'string' || typeof payload.amount === 'number') {
+    texts.push(String(payload.amount));
+  }
+  if (typeof payload.raw === 'string' && payload.raw) texts.push(payload.raw);
   else if (payload.raw && typeof payload.raw === 'object') texts.push(JSON.stringify(payload.raw));
 
   const candidates = new Set();
-  const patterns = [/(?:rp|idr)\s*([0-9][0-9.,\s]{0,20})/gi, /\b\d{1,3}(?:[.,]\d{3})+\b/g, /\b\d{4,}\b/g];
+  const patterns = [
+    /(?:rp\.?|idr)\s*([0-9]+(?:[.,][0-9]{3})*(?:[.,][0-9]{1,2})?)/gi,
+    /\b\d{1,3}(?:[.,]\d{3})+\b/g,
+    /\b\d{4,}\b/g
+  ];
 
   for (const text of texts) {
     for (const pattern of patterns) {
@@ -2064,7 +2097,7 @@ async function handleCreateInteractiveQrisCheckout(env, request) {
   requireInteractiveQrisOpen(qrisSetting);
 
   const { user } = await requireUser(env, request);
-  const body = await readInteractiveQrisWebhookPayload(request);
+  const body = await readJson(request);
   const amountIdr = Number.parseInt(body.amountIdr, 10);
   const minimumAmountIdr = interactiveQrisMinAmountIdr(env);
   if (!Number.isInteger(amountIdr) || amountIdr < minimumAmountIdr) {
@@ -2177,35 +2210,108 @@ async function handleMidtransWebhook(env, request) {
   return json({ received: true, payment: updated });
 }
 
+function resolveInteractiveQrisExpectedPackages(env) {
+  return String(requireEnvValue(env, 'INTERACTIVE_QRIS_SOURCE_PACKAGE'))
+    .split(',')
+    .map((pkg) => pkg.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function resolveInteractiveQrisPackageName(body = {}) {
+  return String(
+    body.packageName || body.package_name || body.package || body.appPackage || body.app_package || ''
+  )
+    .trim()
+    .toLowerCase();
+}
+
+function hasInteractiveQrisNotificationHint(body = {}) {
+  const combined = `${body.title || ''} ${body.text || ''} ${body.message || ''} ${body.body || ''} ${
+    typeof body.raw === 'string' ? body.raw : ''
+  }`;
+  return /interactive\s*qris/i.test(combined);
+}
+
 async function handleInteractiveQrisWebhook(env, request) {
   if (!isInteractiveQrisConfigured(env)) {
     throw new Error('QRIS otomatis belum diaktifkan di deploy ini.');
   }
 
-  const receivedSecret = String(request.headers.get('x-interactive-qris-secret') || '').trim();
-  if (!receivedSecret || receivedSecret !== String(requireEnvValue(env, 'INTERACTIVE_QRIS_WEBHOOK_SECRET')).trim()) {
+  const receivedSecret = String(
+    request.headers.get('x-interactive-qris-secret') || request.headers.get('x-webhook-secret') || ''
+  ).trim();
+  const expectedSecret = String(requireEnvValue(env, 'INTERACTIVE_QRIS_WEBHOOK_SECRET')).trim();
+  const { body, rawText } = await readInteractiveQrisWebhookPayload(request);
+  const rawPackageName = resolveInteractiveQrisPackageName(body);
+  const previewText = rawText || JSON.stringify(body || {});
+
+  if (!receivedSecret || receivedSecret !== expectedSecret) {
+    await insertInteractiveQrisWebhookLog(env, {
+      status_code: 401,
+      outcome: 'rejected',
+      reason: 'invalid_secret',
+      secret_valid: false,
+      package_name: rawPackageName,
+      payload_preview: previewText
+    });
     return error('Secret QRIS tidak valid.', 401);
   }
 
-  const body = await readInteractiveQrisWebhookPayload(request);
-  const packageName = String(body.packageName || '').trim().toLowerCase();
-  const expectedPackage = String(requireEnvValue(env, 'INTERACTIVE_QRIS_SOURCE_PACKAGE')).trim().toLowerCase();
-  if (!packageName || packageName !== expectedPackage) {
+  const expectedPackages = resolveInteractiveQrisExpectedPackages(env);
+  const packageMatched =
+    (rawPackageName && expectedPackages.includes(rawPackageName)) ||
+    ((!rawPackageName || rawPackageName === '{not_app_package}') && hasInteractiveQrisNotificationHint(body));
+  if (!packageMatched) {
+    await insertInteractiveQrisWebhookLog(env, {
+      status_code: 200,
+      outcome: 'ignored',
+      reason: 'unexpected_package',
+      secret_valid: true,
+      package_name: rawPackageName || '(kosong)',
+      payload_preview: previewText
+    });
     return json({ received: true, ignored: true, reason: 'unexpected_package', packageName: body.packageName || '' });
   }
 
   await expireStaleInteractiveQrisPayments(env);
   const amountCandidates = extractInteractiveQrisAmountCandidates(body, interactiveQrisMinAmountIdr(env));
   if (amountCandidates.length === 0) {
+    await insertInteractiveQrisWebhookLog(env, {
+      status_code: 200,
+      outcome: 'ignored',
+      reason: 'amount_not_found',
+      secret_valid: true,
+      package_name: rawPackageName || 'hint:InterActiveQRIS',
+      amount_candidates: [],
+      payload_preview: previewText
+    });
     return json({ received: true, ignored: true, reason: 'amount_not_found' });
   }
 
   const activePayments = await listActivePendingInteractiveQrisPayments(env);
   const matches = activePayments.filter((payment) => amountCandidates.includes(Number(payment.amount_idr) || 0));
   if (matches.length === 0) {
+    await insertInteractiveQrisWebhookLog(env, {
+      status_code: 200,
+      outcome: 'ignored',
+      reason: 'payment_not_found',
+      secret_valid: true,
+      package_name: rawPackageName || 'hint:InterActiveQRIS',
+      amount_candidates: amountCandidates,
+      payload_preview: previewText
+    });
     return json({ received: true, ignored: true, reason: 'payment_not_found', amountCandidates });
   }
   if (matches.length > 1) {
+    await insertInteractiveQrisWebhookLog(env, {
+      status_code: 200,
+      outcome: 'ignored',
+      reason: 'ambiguous_amount_match',
+      secret_valid: true,
+      package_name: rawPackageName || 'hint:InterActiveQRIS',
+      amount_candidates: amountCandidates,
+      payload_preview: previewText
+    });
     return json({ received: true, ignored: true, reason: 'ambiguous_amount_match', amountCandidates });
   }
 
@@ -2222,6 +2328,16 @@ async function handleInteractiveQrisWebhook(env, request) {
       paidAt: body.postedAt
     }
   );
+  await insertInteractiveQrisWebhookLog(env, {
+    status_code: 200,
+    outcome: 'settled',
+    reason: 'matched_and_credited',
+    secret_valid: true,
+    package_name: rawPackageName || 'hint:InterActiveQRIS',
+    amount_candidates: amountCandidates,
+    matched_order_id: updated?.order_id || payment.order_id,
+    payload_preview: previewText
+  });
   return json({ received: true, payment: updated });
 }
 
@@ -2626,6 +2742,26 @@ async function handleAdminPaymentTransactions(env, request) {
   return json({ payments: withUserEmails(payments, users) });
 }
 
+async function handleAdminQrisWebhookLogs(env, request) {
+  await requireAdmin(env, request);
+  const logs = await listInteractiveQrisWebhookLogs(env);
+  return json({ logs });
+}
+
+async function handleAdminSettleQrisPayment(env, request, paymentId) {
+  const admin = await requireAdmin(env, request);
+  const payment = await getPaymentTransactionById(env, paymentId);
+  if (!payment) throw new Error('Transaksi QRIS tidak ditemukan.');
+  if (payment.provider !== INTERACTIVE_QRIS_PROVIDER) throw new Error('Hanya transaksi QRIS otomatis yang bisa diselesaikan di endpoint ini.');
+  const updated = await syncInteractiveQrisPaymentTransaction(
+    env,
+    payment,
+    { manualAdminVerification: true, settledBy: admin.user.email },
+    { createdBy: admin.user.id, paidAt: new Date().toISOString() }
+  );
+  return json({ payment: updated });
+}
+
 async function handleRejectPayment(env, request, paymentId) {
   const admin = await requireAdmin(env, request);
   const body = await readJson(request);
@@ -2827,7 +2963,12 @@ export default {
       if (url.pathname === '/api/auth/google' && request.method === 'GET') return await handleGoogleAuthStart(env);
       if (url.pathname === '/api/auth/google/callback' && request.method === 'GET') return await handleGoogleAuthCallback(env, request);
       if (url.pathname === '/api/auth/signup-bonus' && request.method === 'POST') return await handleSignupBonusClaim(env, request);
-      if (url.pathname === '/api/payments/interactive-qris/webhook' && request.method === 'POST') return await handleInteractiveQrisWebhook(env, request);
+      if (url.pathname.replace(/\/+$/, '') === '/api/payments/interactive-qris/webhook') {
+        if (request.method === 'GET') {
+          return json({ ok: true, endpoint: 'interactive_qris_webhook', configured: isInteractiveQrisConfigured(env), method: 'POST' });
+        }
+        if (request.method === 'POST') return await handleInteractiveQrisWebhook(env, request);
+      }
       if (url.pathname === '/api/payments/interactive-qris/checkout' && request.method === 'POST') return await handleCreateInteractiveQrisCheckout(env, request);
       if (url.pathname === '/api/payments/automatic' && request.method === 'GET') return await handleListAutomaticPayments(env, request);
       if (url.pathname === '/api/payments/midtrans/webhook' && request.method === 'POST') return await handleMidtransWebhook(env, request);
@@ -2849,6 +2990,9 @@ export default {
       if (url.pathname === '/api/admin/jobs' && request.method === 'GET') return await handleAdminJobs(env, request);
       if (url.pathname === '/api/admin/manual-payments' && request.method === 'GET') return await handleAdminPayments(env, request);
       if (url.pathname === '/api/admin/payment-transactions' && request.method === 'GET') return await handleAdminPaymentTransactions(env, request);
+      if (url.pathname === '/api/admin/qris-webhook-logs' && request.method === 'GET') return await handleAdminQrisWebhookLogs(env, request);
+      const settleQrisMatch = url.pathname.match(/^\/api\/admin\/payment-transactions\/([^/]+)\/settle-qris$/);
+      if (settleQrisMatch && request.method === 'POST') return await handleAdminSettleQrisPayment(env, request, settleQrisMatch[1]);
       if (url.pathname === '/api/admin/midtrans-payments' && request.method === 'GET') return await handleAdminMidtransPayments(env, request);
       if (url.pathname === '/api/admin/finance/summary' && request.method === 'GET') return await handleAdminFinanceSummary(env, request);
       if (url.pathname === '/api/admin/finance/transactions' && request.method === 'GET') return await handleAdminFinanceTransactions(env, request);
