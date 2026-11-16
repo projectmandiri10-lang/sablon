@@ -1076,6 +1076,31 @@ export default function App() {
     if (publicRoute === 'about') return <AboutPage locale={locale} onNavigate={navigatePublicPath} />;
   }
 
+  const recoveryCard =
+    hasPendingRecovery && !isBusy ? (
+      <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 shadow-sm">
+        <p className="font-semibold">
+          {isId ? 'Ada gambar gagal diproses — hasil AI tersimpan di perangkat ini.' : 'A failed job has its AI result saved on this device.'}
+        </p>
+        <p className="text-xs">
+          {isId
+            ? 'Proses ulang di browser tanpa memanggil API AI lagi (tidak ada biaya tambahan).'
+            : 'Reprocess in the browser without calling the AI API again (no extra charge).'}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setAppSection('process');
+            handleRetryLocalProcessing();
+          }}
+          className="studio-btn-primary mt-2 !min-h-9 !rounded-xl !px-3.5 !py-2 !text-xs"
+        >
+          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>{isId ? 'Coba lagi proses lokal' : 'Retry local processing'}</span>
+        </button>
+      </section>
+    ) : null;
+
   const estimatedCostIdr =
     settings.inputMode === INPUT_MODE_RETOUCH ? IMAGE_RETOUCH_PRICE_IDR : READY_PROCESS_PRICE_IDR;
 
@@ -1282,26 +1307,7 @@ export default function App() {
                   disabled={isBusy}
                   exampleJobs={exampleJobs}
                 />
-                {hasPendingRecovery && !isBusy && (
-                  <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 shadow-sm">
-                    <p className="font-semibold">
-                      {isId ? 'Hasil AI sebelumnya tersimpan di perangkat ini.' : 'A previous AI result is saved on this device.'}
-                    </p>
-                    <p className="text-xs">
-                      {isId
-                        ? 'Proses ulang di browser tanpa memanggil API AI lagi (tidak ada biaya tambahan).'
-                        : 'Reprocess in the browser without calling the AI API again (no extra charge).'}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleRetryLocalProcessing}
-                      className="studio-btn-primary mt-2 !min-h-9 !rounded-xl !px-3.5 !py-2 !text-xs"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>{isId ? 'Coba lagi proses lokal' : 'Retry local processing'}</span>
-                    </button>
-                  </section>
-                )}
+                {recoveryCard}
                 <JobStatus
                   locale={locale}
                   job={job}
@@ -1329,6 +1335,7 @@ export default function App() {
                     {historyNotice}
                   </section>
                 )}
+                {recoveryCard}
                 <JobLibraryPanel
                   locale={locale}
                   historyJobs={historyJobs}

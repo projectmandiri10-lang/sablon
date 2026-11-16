@@ -46,6 +46,12 @@ function run(mode, action) {
 
 export async function savePendingAiRecovery(record) {
   if (!record?.ownerId || !(record.aiRawPngBlob instanceof Blob)) return;
+  try {
+    // Minta penyimpanan permanen agar browser tidak menghapus data saat ruang penuh.
+    await navigator.storage?.persist?.();
+  } catch {
+    // abaikan
+  }
   await run('readwrite', (store) => store.put({ ...record, savedAt: new Date().toISOString() }));
 }
 
