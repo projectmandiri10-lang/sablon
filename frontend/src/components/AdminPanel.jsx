@@ -990,7 +990,7 @@ export default function AdminPanel({
             <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-950">
               <p className="font-bold">Checklist MacroDroid untuk InterActive QRIS v1.7.0:</p>
               <ul className="mt-1 list-disc space-y-0.5 pl-4">
-                <li>Trigger <strong>Notification Received</strong>: pilih ulang aplikasi <strong>InterActive QRIS</strong> (<code className="font-mono">com.interactive.qrisid</code>), matikan <strong>Ignore ongoing notifications</strong>, dan matikan <strong>Prevent multiple triggers</strong>.</li>
+                <li>Trigger <strong>Notification Received</strong>: pilih ulang aplikasi <strong>InterActive QRIS</strong> (<code className="font-mono">com.interactive.qrisid</code>), aktifkan <strong>Ignore ongoing notifications</strong> (agar progress sinkronisasi tidak mengirim spam), dan matikan <strong>Prevent multiple triggers</strong>.</li>
                 <li>Jika masih belum tertangkap, impor sementara <code className="font-mono">macrodroid/interactive-qris-diagnostic-any-app.macro</code> untuk menangkap seluruh notifikasi lalu cek tabel log ini.</li>
                 <li>Izin Android: aktifkan <strong>Akses Notifikasi (Notification Access)</strong> (bukan hanya Aksesibilitas) dan set baterai ke <strong>Tidak dibatasi (Unrestricted)</strong>.</li>
                 <li>Action <strong>HTTP Request</strong>: aktifkan <strong>Block next actions until complete</strong> agar log & Toast menampilkan hasil asli.</li>

@@ -628,7 +628,7 @@ test('interactive qris webhook supports extended Android notification fields, br
   const macroRaw = readFileSync(new URL('../../macrodroid/interactive-qris-relay.macro', import.meta.url), 'utf8');
   const macroDoc = JSON.parse(macroRaw);
   const trigger = macroDoc.macro.m_triggerList[0];
-  assert.equal(trigger.m_ignoreOngoing, false);
+  assert.equal(trigger.m_ignoreOngoing, true);
   assert.equal(trigger.m_supressMultiples, false);
   assert.deepEqual(trigger.m_applicationNameList, ['InterActive QRIS']);
   assert.deepEqual(trigger.m_packageNameList, ['com.interactive.qrisid']);
@@ -679,4 +679,21 @@ test('interactive qris webhook supports extended Android notification fields, br
   assert.equal(queryResp.status, 200);
   assert.equal(queryData.payment.order_id, 'iq-5007');
   assert.equal(await creditBalance(env, 'user-1'), 9012);
+
+  // Sync/progress bar spam is ignored without writing noisy D1 log rows
+  const beforeLogsCount = (await listInteractiveQrisWebhookLogs(env)).length;
+  const noiseResp = await worker.fetch(
+    webhookRequest({
+      packageName: 'com.interactive.qrisid',
+      appName: 'InterActive QRIS',
+      title: 'InterActive QRIS',
+      text: 'Sedang menyiapkan konten terbaik untuk Anda.. 14%'
+    }),
+    env
+  );
+  const noiseData = await noiseResp.json();
+  assert.equal(noiseResp.status, 200);
+  assert.equal(noiseData.ignored, true);
+  assert.equal(noiseData.reason, 'ignored_progress_noise');
+  assert.equal((await listInteractiveQrisWebhookLogs(env)).length, beforeLogsCount);
 });

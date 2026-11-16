@@ -12,7 +12,7 @@ macrodroid/interactive-qris-relay.macro
 
 Macro ini sudah diset untuk:
 
-- trigger: notifikasi dari app `com.interactive.qrisid` (`Ignore ongoing = OFF`, `Prevent multiple triggers = OFF`)
+- trigger: notifikasi dari app `com.interactive.qrisid` (`Ignore ongoing = ON`, `Prevent multiple triggers = OFF`)
 - action 1: HTTP Request `POST` (`Block next actions until complete = ON`)
 - action 2: Toast hasil status & respons
 - file diagnostik sementara (jika trigger khusus belum menangkap): `macrodroid/interactive-qris-diagnostic-any-app.macro` (`Any Application`)
@@ -72,7 +72,7 @@ Pastikan macro berisi:
 
 - Trigger: `Notification Received`
 - App/package: **ketuk dan pilih ulang aplikasi `InterActive QRIS` (`com.interactive.qrisid`)** dari daftar aplikasi HP Anda (atau pakai sementara `macrodroid/interactive-qris-diagnostic-any-app.macro` untuk mengetes notifikasi dari semua app)
-- **Ignore ongoing notifications**: **Nonaktif / Jangan centang** (agar notifikasi pembayaran dari service/soundbox tidak ikut terlewat)
+- **Ignore ongoing notifications**: **Aktif / Centang** (mencegah notifikasi progress sinkronisasi konten `%` ikut mengirim ratusan webhook)
 - **Prevent multiple triggers**: **Nonaktif / Jangan centang** (mencegah notifikasi beruntun/terkelompok disenyapkan MacroDroid)
 - HTTP method: `POST`
 - **Block next actions until complete**: **Aktif / Centang** (agar Toast & log tidak membaca status lama atau terpotong OS)

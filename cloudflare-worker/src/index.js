@@ -2292,6 +2292,15 @@ function hasInteractiveQrisNotificationHint(body = {}) {
   return /interactive\s*qris/i.test(combined);
 }
 
+function isInteractiveQrisSyncNoiseNotification(body = {}) {
+  const combined = [body.title, body.text, body.message, body.body, body.notification, typeof body.raw === 'string' ? body.raw : '']
+    .filter((value) => typeof value === 'string' && value && !isUnexpandedMacroDroidToken(value))
+    .join(' ');
+  if (!combined) return false;
+  if (/rp\.?|idr|\bpembayaran\b|\btransaksi\b|\bditerima\b/i.test(combined)) return false;
+  return /sedang menyiapkan konten terbaik/i.test(combined) || /\b\d{1,3}%\s*$/.test(String(body.text || '').trim());
+}
+
 async function handleInteractiveQrisWebhook(env, request) {
   if (!isInteractiveQrisConfigured(env)) {
     throw new Error('QRIS otomatis belum diaktifkan di deploy ini.');
@@ -2337,6 +2346,9 @@ async function handleInteractiveQrisWebhook(env, request) {
   await expireStaleInteractiveQrisPayments(env);
   const amountCandidates = extractInteractiveQrisAmountCandidates(body, interactiveQrisMinAmountIdr(env));
   if (amountCandidates.length === 0) {
+    if (isInteractiveQrisSyncNoiseNotification(body)) {
+      return json({ received: true, ignored: true, reason: 'ignored_progress_noise' });
+    }
     await insertInteractiveQrisWebhookLog(env, {
       status_code: 200,
       outcome: 'ignored',
