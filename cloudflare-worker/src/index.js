@@ -2772,8 +2772,7 @@ async function handleAdminJobs(env, request) {
   });
 }
 
-async function handleExampleJobs(env, request) {
-  await requireUser(env, request);
+async function handleExampleJobs(env) {
   const [profiles, jobs] = await Promise.all([listProfileRoles(env), listExampleJobs(env)]);
 
   const superuserIds = new Set(profiles.filter((profile) => isSuperuserProfile(profile, profile.email)).map((profile) => profile.id));

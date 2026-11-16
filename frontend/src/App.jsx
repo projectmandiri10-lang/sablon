@@ -10,7 +10,7 @@ import LandingPage, { AboutPage, ContactPage, PrivacyPage, TermsPage } from './c
 import ResultPreview from './components/ResultPreview.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
 import UploadBox from './components/UploadBox.jsx';
-import { commitJob, deleteCloudJob, getAppConfig, getBalance, listExampleJobs, quoteJob, requestImageRetouch, toUserApiError, uploadExampleArtifacts } from './lib/api.js';
+import { commitJob, deleteCloudJob, getAppConfig, getBalance, listExampleJobs, quoteJob, requestImageRetouch, setAdminJobExample, toUserApiError, uploadExampleArtifacts } from './lib/api.js';
 import { createNormalizedImagePreviewBlob, prepareAiRedrawInput } from './lib/imagePreview.js';
 import { deleteHistoryJob, loadHistoryJobs, releaseHistoryJobs, saveHistoryJob } from './lib/localHistoryStore.js';
 import { parseMidtransReturnParams, stripMidtransReturnParams } from './lib/billingPanelState.js';
@@ -218,7 +218,8 @@ function buildExampleArtifactsFormData({ sourcePreviewBlob, sourceFileName, job 
   const artifacts = job.artifactBlobs || {};
   const formData = new FormData();
 
-  appendFileIfPresent(formData, 'sourcePreview', sourcePreviewBlob, 'source-preview.png');
+  const effectiveSourcePreview = sourcePreviewBlob instanceof Blob ? sourcePreviewBlob : artifacts.fullPng;
+  appendFileIfPresent(formData, 'sourcePreview', effectiveSourcePreview, 'source-preview.png');
   appendFileIfPresent(formData, 'fullPng', artifacts.fullPng, 'preview-full-color.png');
   appendFileIfPresent(formData, 'fullSvg', artifacts.fullSvg, 'full-vector.svg');
   appendFileIfPresent(formData, 'fullPdf', artifacts.fullPdf, 'full-vector.pdf');
@@ -231,7 +232,7 @@ function buildExampleArtifactsFormData({ sourcePreviewBlob, sourceFileName, job 
     const slug = separation.kind === 'underbase' ? 'underbase' : `color-${String(separation.index).padStart(2, '0')}`;
     appendFileIfPresent(formData, 'separationSvg', separation.svgBlob, `film-${slug}.svg`);
     appendFileIfPresent(formData, 'separationPdf', separation.pdfBlob, `film-${slug}.pdf`);
-    appendFileIfPresent(formData, 'separationPreview', separation.previewBlob, `film-${slug}-preview.png`);
+    appendFileIfPresent(formData, 'separationPreview', separation.previewBlob || artifacts.fullPng, `film-${slug}-preview.png`);
   });
 
   formData.append(
@@ -290,7 +291,7 @@ async function hydrateHistoryItemForExampleUpload(item) {
       ...separation,
       svgBlob: await optionalBlobFromUrl(separation.svg),
       pdfBlob: await optionalBlobFromUrl(separation.pdf),
-      previewBlob: await optionalBlobFromUrl(separation.preview)
+      previewBlob: (await optionalBlobFromUrl(separation.preview)) || fullPng
     }))
   );
 
@@ -349,6 +350,8 @@ export default function App() {
   const [exampleError, setExampleError] = useState('');
   const [deletingLibraryJobId, setDeletingLibraryJobId] = useState('');
   const [retracingLibraryJobId, setRetracingLibraryJobId] = useState('');
+  const [publishingLibraryJobId, setPublishingLibraryJobId] = useState('');
+  const [libraryFilterTab, setLibraryFilterTab] = useState('all');
   const [previewUrl, setPreviewUrl] = useState('');
   const [hasPendingRecovery, setHasPendingRecovery] = useState(false);
 
@@ -573,15 +576,9 @@ export default function App() {
   }
 
   async function refreshExampleJobs(activeSession = session) {
-    if (!activeSession?.access_token) {
-      setExampleJobs([]);
-      setExampleError('');
-      return;
-    }
-
     try {
       setExampleError('');
-      const data = await listExampleJobs(activeSession.access_token);
+      const data = await listExampleJobs(activeSession?.access_token || '');
       setExampleJobs(Array.isArray(data.exampleJobs) ? data.exampleJobs : []);
     } catch (error) {
       setExampleError(toUserApiError(error, 'Contoh pekerjaan belum bisa dimuat saat ini.').message);
@@ -631,6 +628,7 @@ export default function App() {
 
   function openExampleResults() {
     setAppSection('history');
+    setLibraryFilterTab('examples');
     setProcessNotice('');
     setHistoryNotice('');
     const firstExampleJobId = exampleJobs.find((item) => item?.jobId)?.jobId || '';
@@ -683,6 +681,7 @@ export default function App() {
 
     setJobError('');
     setSuggestedInputMode('');
+    setProcessNotice('');
     setHistoryNotice('');
     setIsSubmitting(true);
     setJob(statusJob('preprocessing', copy.messages.preparingLocal, 10));
@@ -950,14 +949,27 @@ export default function App() {
 
       if (isSuperuser && committed.job?.id) {
         try {
-          const artifactFormData = buildExampleArtifactsFormData({
+          await uploadAndPublishSuperadminExample({
+            targetJobId: committed.job.id,
             sourcePreviewBlob,
             sourceFileName: file.name,
             job: completedJob
           });
-          await uploadExampleArtifacts(committed.job.id, artifactFormData, session.access_token);
+          setProcessNotice(
+            isId
+              ? 'Hasil selesai dan otomatis dipublikasikan sebagai contoh untuk semua user.'
+              : 'Job completed and automatically published as a public example for all users.'
+          );
         } catch (artifactError) {
-          console.error('Failed to upload example artifacts', artifactError);
+          console.error('Failed to upload and publish example artifacts', artifactError);
+          setJobError(
+            toUserApiError(
+              artifactError,
+              isId
+                ? 'Hasil selesai disimpan, tetapi gagal mempublikasikan contoh ke semua user.'
+                : 'Result saved, but failed to publish as a public example.'
+            ).message
+          );
         }
       }
 
@@ -1246,24 +1258,34 @@ export default function App() {
         setHasPendingRecovery(false);
         await refreshBalance();
       }
+      let retraceExampleSynced = false;
       if (isSuperuser && finalJobId && !String(finalJobId).startsWith('local-') && !String(finalJobId).startsWith('pending-') && session?.access_token) {
         try {
-          const artifactFormData = buildExampleArtifactsFormData({
+          await uploadAndPublishSuperadminExample({
+            targetJobId: finalJobId,
             sourcePreviewBlob,
             sourceFileName: item.sourceFileName || 'gambar-awal.png',
             job: updatedJob
           });
-          await uploadExampleArtifacts(finalJobId, artifactFormData, session.access_token);
+          retraceExampleSynced = true;
         } catch (artifactError) {
-          console.error('Failed to upload retraced example artifacts', artifactError);
+          console.error('Failed to upload and publish retraced example artifacts', artifactError);
+          setHistoryError(
+            toUserApiError(
+              artifactError,
+              isId
+                ? 'Trace ulang selesai, tetapi gagal mempublikasikan contoh ke semua user.'
+                : 'Retrace finished, but publishing public example failed.'
+            ).message
+          );
         }
       }
       await refreshHistory();
       setHistorySelectedKey(updatedJob.jobId);
       setHistoryNotice(
         isId
-          ? `Trace ulang selesai pada faktor ${effectiveFactor}×. Seluruh PNG trace, SVG, PDF, ZIP, separasi warna, dan cutline lama sudah diganti.`
-          : `Retrace finished at ${effectiveFactor}×. Every previous traced PNG, SVG, PDF, ZIP, color separation, and cutline was replaced.`
+          ? `Trace ulang selesai pada faktor ${effectiveFactor}×. Seluruh PNG trace, SVG, PDF, ZIP, separasi warna, dan cutline lama sudah diganti.${retraceExampleSynced ? ' Contoh publik untuk user juga sudah diperbarui.' : ''}`
+          : `Retrace finished at ${effectiveFactor}×. Every previous traced PNG, SVG, PDF, ZIP, color separation, and cutline was replaced.${retraceExampleSynced ? ' Public user example was also updated.' : ''}`
       );
     } catch (error) {
       setHistoryError(error instanceof Error ? error.message : isId ? 'Trace ulang gagal diproses.' : 'Retrace failed.');
@@ -1271,6 +1293,19 @@ export default function App() {
     } finally {
       setRetracingLibraryJobId('');
     }
+  }
+
+  async function uploadAndPublishSuperadminExample({ targetJobId, sourcePreviewBlob, sourceFileName, job: jobPayload }) {
+    if (!isSuperuser || !session?.access_token || !targetJobId) return '';
+    const artifactFormData = buildExampleArtifactsFormData({
+      sourcePreviewBlob,
+      sourceFileName: sourceFileName || 'gambar-awal.png',
+      job: jobPayload
+    });
+    await uploadExampleArtifacts(targetJobId, artifactFormData, session.access_token);
+    await setAdminJobExample(targetJobId, session.access_token);
+    await refreshExampleJobs(session);
+    return targetJobId;
   }
 
   async function handlePublishHistoryJobAsExample(localItem, existingRemoteJobId = '') {
@@ -1331,7 +1366,8 @@ export default function App() {
       }
     }
 
-    const artifactFormData = buildExampleArtifactsFormData({
+    await uploadAndPublishSuperadminExample({
+      targetJobId,
       sourcePreviewBlob: hydrated.sourcePreviewBlob,
       sourceFileName: localItem.sourceFileName || 'gambar-awal.png',
       job: {
@@ -1339,9 +1375,39 @@ export default function App() {
         artifactBlobs: hydrated.artifactBlobs
       }
     });
-    await uploadExampleArtifacts(targetJobId, artifactFormData, session.access_token);
-    await Promise.all([refreshHistory(), refreshExampleJobs()]);
+    await refreshHistory();
     return targetJobId;
+  }
+
+  async function handlePublishFromLibrary(libraryItem) {
+    if (!isSuperuser || !session?.access_token || !libraryItem) return;
+    const matchLocal =
+      historyJobs.find(
+        (entry) => entry.jobId === (libraryItem.localRecordId || libraryItem.jobId) || entry.job?.jobId === libraryItem.jobId
+      ) || null;
+    const itemKey = libraryItem.localRecordId || libraryItem.jobId || '';
+    setPublishingLibraryJobId(itemKey);
+    setHistoryError('');
+    setHistoryNotice('');
+    try {
+      if (matchLocal) {
+        await handlePublishHistoryJobAsExample(matchLocal);
+      } else if (libraryItem.jobId && !String(libraryItem.jobId).startsWith('local-') && !String(libraryItem.jobId).startsWith('pending-')) {
+        await setAdminJobExample(libraryItem.jobId, session.access_token);
+        await refreshExampleJobs(session);
+      } else {
+        throw new Error(isId ? 'Data job lokal tidak ditemukan untuk dipublikasikan.' : 'Local job data was not found for publishing.');
+      }
+      setHistoryNotice(
+        isId
+          ? 'Contoh berhasil dipublikasikan dan sekarang terlihat oleh semua user.'
+          : 'Example published and now visible to all users.'
+      );
+    } catch (error) {
+      setHistoryError(toUserApiError(error, isId ? 'Gagal mempublikasikan contoh.' : 'Failed to publish example.').message);
+    } finally {
+      setPublishingLibraryJobId('');
+    }
   }
 
   const currentPathname = normalizePathname(window.location.pathname || '/');
@@ -1482,6 +1548,7 @@ export default function App() {
             onStart={() => document.getElementById('auth')?.scrollIntoView({ behavior: 'smooth' })}
             authPanel={<AuthPanel locale={locale} onSignedIn={setSession} />}
             onNavigate={navigatePublicPath}
+            exampleJobs={exampleJobs}
           />
           {authCallbackError && (
             <div className="mx-auto max-w-6xl px-4 pb-4 sm:px-6">
@@ -1538,6 +1605,7 @@ export default function App() {
                         setHistoryNotice('');
                       } else {
                         setProcessNotice('');
+                        setLibraryFilterTab('all');
                       }
                     }}
                     className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-semibold transition ${
@@ -1631,9 +1699,14 @@ export default function App() {
                   exampleError={exampleError}
                   onDeleteJob={handleDeleteLibraryJob}
                   onRetraceJob={handleRetraceLibraryJob}
+                  onPublishExample={isSuperuser ? handlePublishFromLibrary : undefined}
                   retracingJobId={retracingLibraryJobId}
                   deletingJobId={deletingLibraryJobId}
+                  publishingJobId={publishingLibraryJobId}
                   currentUserId={session.user.id}
+                  isSuperuser={isSuperuser}
+                  filterTab={libraryFilterTab}
+                  onFilterTabChange={setLibraryFilterTab}
                   selectedKey={historySelectedKey}
                   onSelectedKeyChange={setHistorySelectedKey}
                 />

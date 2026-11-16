@@ -58,17 +58,17 @@ function getCopy(locale) {
     tipsSubtitle: isId ? 'Lihat syarat & contoh foto sumber yang baik' : 'See tips & good source photo examples',
     tips: isId
       ? [
-          'Foto desain selurus mungkin dari depan, tidak miring berlebihan.',
-          'Usahakan cahaya merata tanpa bayangan pekat atau pantulan lampu.',
-          'Pastikan seluruh grafik masuk frame dan tidak terpotong.',
-          'Hindari kaos terlalu berkerut atau objek menutupi gambar.'
-        ]
+        'Foto desain selurus mungkin dari depan, tidak miring berlebihan.',
+        'Usahakan cahaya merata tanpa bayangan pekat atau pantulan lampu.',
+        'Pastikan seluruh grafik masuk frame dan tidak terpotong.',
+        'Hindari kaos terlalu berkerut atau objek menutupi gambar.'
+      ]
       : [
-          'Take the photo straight-on without extreme perspective tilt.',
-          'Use even lighting with no harsh shadows or glossy glare.',
-          'Keep the entire graphic inside the frame.',
-          'Avoid heavy fabric wrinkles or hands covering the artwork.'
-        ],
+        'Take the photo straight-on without extreme perspective tilt.',
+        'Use even lighting with no harsh shadows or glossy glare.',
+        'Keep the entire graphic inside the frame.',
+        'Avoid heavy fabric wrinkles or hands covering the artwork.'
+      ],
     goodExamplesTitle: isId ? 'Contoh foto sumber yang baik' : 'Good source photo examples',
     examplesCountLabel: (count) => (isId ? `${count} contoh` : `${count} examples`),
     clickPreview: isId ? 'Perbesar' : 'Zoom',
@@ -188,13 +188,12 @@ export default function UploadBox({
                     handleFiles(event.dataTransfer.files, option.value);
                   }
                 }}
-                className={`group relative flex flex-col justify-between rounded-2xl border p-4 transition-all ${
-                  isDraggingOver
-                    ? 'border-primary bg-primary/[0.06] ring-2 ring-primary/30'
-                    : active
-                      ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20'
-                      : 'border-line bg-white hover:border-slate-300 hover:bg-slate-50/40'
-                } ${disabled ? 'opacity-75' : ''}`}
+                className={`group relative flex flex-col justify-between rounded-2xl border p-4 transition-all ${isDraggingOver
+                  ? 'border-primary bg-primary/[0.06] ring-2 ring-primary/30'
+                  : active
+                    ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20'
+                    : 'border-line bg-white hover:border-slate-300 hover:bg-slate-50/40'
+                  } ${disabled ? 'opacity-75' : ''}`}
               >
                 <button
                   type="button"
@@ -204,16 +203,14 @@ export default function UploadBox({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div
-                      className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition ${
-                        active ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200/70'
-                      }`}
+                      className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition ${active ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200/70'
+                        }`}
                     >
                       <Icon className="h-4 w-4" aria-hidden="true" />
                     </div>
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                        active ? 'bg-primary/15 text-primary' : 'bg-slate-100 text-slate-600'
-                      }`}
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${active ? 'bg-primary/15 text-primary' : 'bg-slate-100 text-slate-600'
+                        }`}
                     >
                       {option.badge}
                     </span>
@@ -226,15 +223,14 @@ export default function UploadBox({
                 {/* Embedded Upload / Active File Preview */}
                 <div className="mt-3 border-t border-line/70 pt-3">
                   <label
-                    className={`flex cursor-pointer flex-col justify-center rounded-xl border-2 border-dashed p-3 transition ${
-                      showFilePreview
-                        ? 'border-primary/40 bg-white hover:border-primary/60'
-                        : isDraggingOver
-                          ? 'border-primary bg-primary/[0.05]'
-                          : active
-                            ? 'border-primary/40 bg-white/80 hover:border-primary/60 hover:bg-white'
-                            : 'border-slate-300 bg-slate-50/70 hover:border-primary/50 hover:bg-primary/[0.03]'
-                    } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+                    className={`flex cursor-pointer flex-col justify-center rounded-xl border-2 border-dashed p-3 transition ${showFilePreview
+                      ? 'border-primary/40 bg-white hover:border-primary/60'
+                      : isDraggingOver
+                        ? 'border-primary bg-primary/[0.05]'
+                        : active
+                          ? 'border-primary/40 bg-white/80 hover:border-primary/60 hover:bg-white'
+                          : 'border-slate-300 bg-slate-50/70 hover:border-primary/50 hover:bg-primary/[0.03]'
+                      } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
                   >
                     <input
                       type="file"
@@ -300,8 +296,8 @@ export default function UploadBox({
           })}
         </div>
 
-        {/* Collapsible Tips & Examples for AI Redraw */}
-        {inputMode === INPUT_MODE_RETOUCH && (
+        {/* Collapsible Tips & Published Examples */}
+        {(inputMode === INPUT_MODE_RETOUCH || publishedGuideExamples.length > 0) && (
           <details className="group mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/50">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-indigo-950">
               <div className="flex items-center gap-2.5">

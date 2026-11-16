@@ -158,7 +158,19 @@ function mergeLibraryItems(localItem, exampleItem) {
   };
 }
 
-function LibraryCard({ locale = 'id', item, isSelected, onOpen, onDelete, onRetry, isRetrying, isDeleting }) {
+function LibraryCard({
+  locale = 'id',
+  item,
+  isSelected,
+  onOpen,
+  onDelete,
+  onRetry,
+  onPublishExample,
+  isSuperuser = false,
+  isRetrying,
+  isDeleting,
+  isPublishing
+}) {
   const isId = locale === 'id';
   const productionLabel = productionLabels[item.productionType] || item.productionType;
   const inputLabel = inputModeLabels[item.inputMode] || item.inputMode;
@@ -166,9 +178,8 @@ function LibraryCard({ locale = 'id', item, isSelected, onOpen, onDelete, onRetr
 
   return (
     <article
-      className={`studio-subcard flex flex-col justify-between p-4 transition hover:shadow-md ${
-        isSelected ? 'border-primary ring-2 ring-primary/20' : isFailed ? 'border-amber-300 bg-amber-50/40' : ''
-      }`}
+      className={`studio-subcard flex flex-col justify-between p-4 transition hover:shadow-md ${isSelected ? 'border-primary ring-2 ring-primary/20' : isFailed ? 'border-amber-300 bg-amber-50/40' : ''
+        }`}
     >
       <div>
         <div className="flex items-start justify-between gap-2.5">
@@ -257,6 +268,25 @@ function LibraryCard({ locale = 'id', item, isSelected, onOpen, onDelete, onRetr
             </span>
           </button>
         )}
+        {!isFailed && !item.isExample && isSuperuser && typeof onPublishExample === 'function' && (
+          <button
+            type="button"
+            disabled={isPublishing}
+            onClick={() => onPublishExample(item)}
+            className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>
+              {isPublishing
+                ? isId
+                  ? 'Mempublikasikan…'
+                  : 'Publishing…'
+                : isId
+                  ? 'Jadikan Contoh User'
+                  : 'Publish as User Example'}
+            </span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onOpen(item)}
@@ -280,16 +310,30 @@ export default function JobLibraryPanel({
   exampleError = '',
   onDeleteJob,
   onRetraceJob,
+  onPublishExample,
   retracingJobId = '',
   deletingJobId = '',
+  publishingJobId = '',
   currentUserId = '',
+  isSuperuser = false,
+  filterTab: controlledFilterTab,
+  onFilterTabChange,
   selectedKey: controlledSelectedKey,
   onSelectedKeyChange
 }) {
   const isId = locale === 'id';
   const [internalSelectedKey, setInternalSelectedKey] = useState('');
-  const [filterTab, setFilterTab] = useState('all');
+  const [internalFilterTab, setInternalFilterTab] = useState('all');
   const selectedKey = controlledSelectedKey ?? internalSelectedKey;
+  const filterTab = controlledFilterTab ?? internalFilterTab;
+
+  function setFilterTab(nextTab) {
+    if (typeof onFilterTabChange === 'function') {
+      onFilterTabChange(nextTab);
+      return;
+    }
+    setInternalFilterTab(nextTab);
+  }
 
   function setSelectedKey(nextKey) {
     if (typeof onSelectedKeyChange === 'function') {
@@ -449,8 +493,11 @@ export default function JobLibraryPanel({
                 onOpen={(nextItem) => setSelectedKey(nextItem.selectionKey)}
                 onDelete={onDeleteJob}
                 onRetry={onRetraceJob}
+                onPublishExample={onPublishExample}
+                isSuperuser={isSuperuser}
                 isRetrying={retracingJobId === item.id || retracingJobId === item.jobId}
                 isDeleting={deletingJobId === item.id || deletingJobId === item.jobId}
+                isPublishing={publishingJobId === (item.localRecordId || item.jobId) || publishingJobId === item.jobId}
               />
             ))}
           </div>

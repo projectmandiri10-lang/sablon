@@ -118,7 +118,9 @@ function examplePublishHint(job, isPublished) {
   if (job.can_set_as_example) return 'Siap dipublish sebagai contoh.';
   if (job.status !== 'done') return 'Hanya job selesai yang bisa dipublish.';
   if (!['superuser', 'superadmin'].includes(job.owner_role)) return 'Hanya job milik superadmin yang bisa dipublish.';
-  if (!job.has_example_artifacts) return 'Belum ada bundle contoh lengkap. Generate ulang job superadmin dan jangan hapus riwayatnya sebelum dipublish.';
+  if (!job.has_example_artifacts) {
+    return 'Belum ada file contoh di server. Generate atau trace ulang 1 job baru superadmin (otomatis terpublish), atau upload dari browser yang menyimpan riwayat job ini.';
+  }
   return 'Bundle contoh belum lengkap atau belum selesai diunggah.';
 }
 

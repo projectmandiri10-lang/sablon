@@ -27,3 +27,11 @@ test('app exposes a dedicated Contoh hasil button for published superadmin examp
   assert.match(appSource, /examplesSection: isId \? 'Contoh hasil' : 'Example results'/);
   assert.match(appSource, /openExampleResults/);
 });
+
+test('superadmin generated jobs auto-publish as public examples visible on landing and user feed', () => {
+  assert.match(appSource, /uploadAndPublishSuperadminExample/);
+  assert.match(appSource, /await setAdminJobExample\(targetJobId, session\.access_token\)/);
+  assert.match(appSource, /listExampleJobs\(activeSession\?\.access_token \|\| ''\)/);
+  assert.match(landingSource, /ExamplesShowcaseSection/);
+  assert.match(appSource, /<LandingPage[\s\S]*exampleJobs=\{exampleJobs\}/);
+});

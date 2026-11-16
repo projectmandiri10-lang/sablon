@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
+import worker from './index.js';
+import { createJob } from './db.js';
+import { putObject } from './storage.js';
+import { authHeaderFor, createTestEnv, createTestUser } from './test-helpers.mjs';
 import {
   decorateAdminJobs,
   getExampleArtifactsFromManifest,
@@ -201,4 +205,97 @@ test('publishing a new example replaces the previous job of the same production 
   assert.match(workerSource, /replacedJobIds/);
   assert.match(dbSource, /export async function unpublishOtherExampleJobs/);
   assert.match(dbSource, /UPDATE jobs SET is_example_public = 0, example_published_at = NULL WHERE production_type = \? AND id <> \? AND is_example_public = 1/);
+});
+
+test('GET /api/example-jobs returns published superadmin examples to unauthenticated guests and regular users', async () => {
+  const env = createTestEnv({
+    PUBLIC_APP_ORIGIN: 'https://worker.example'
+  });
+  const superadmin = await createTestUser(env, {
+    id: 'super-1',
+    email: 'jho.j80@gmail.com',
+    role: 'superuser'
+  });
+  const regularUser = await createTestUser(env, {
+    id: 'user-1',
+    email: 'customer@example.com',
+    role: 'user'
+  });
+
+  await putObject(env, 'example-jobs', 'jobs/job-sablon-1/source-preview.png', new Uint8Array([1, 2, 3]), 'image/png');
+  await putObject(env, 'example-jobs', 'jobs/job-sablon-1/full-color.png', new Uint8Array([4, 5, 6]), 'image/png');
+
+  await createJob(env, {
+    id: 'job-sablon-1',
+    user_id: superadmin.id,
+    project_name: 'Sample Kaos Rock',
+    input_mode: 'ai_redraw',
+    production_type: 'sablon',
+    status: 'done',
+    is_example_public: false,
+    manifest: {
+      exampleArtifacts: {
+        sourcePreviewPath: 'jobs/job-sablon-1/source-preview.png',
+        resultPreviewPath: 'jobs/job-sablon-1/full-color.png',
+        files: {
+          sourcePreview: '/api/assets/example-jobs/jobs/job-sablon-1/source-preview.png',
+          fullPng: '/api/assets/example-jobs/jobs/job-sablon-1/full-color.png',
+          fullSvg: '/api/assets/example-jobs/jobs/job-sablon-1/full-vector.svg',
+          fullPdf: '/api/assets/example-jobs/jobs/job-sablon-1/full-vector.pdf',
+          zip: '/api/assets/example-jobs/jobs/job-sablon-1/result.zip',
+          separationZip: '/api/assets/example-jobs/jobs/job-sablon-1/separation-films.zip'
+        },
+        separations: [
+          {
+            index: 1,
+            kind: 'color',
+            hex: '#ff0000',
+            label: 'Merah',
+            svg: '/api/assets/example-jobs/jobs/job-sablon-1/film-color-01.svg',
+            pdf: '/api/assets/example-jobs/jobs/job-sablon-1/film-color-01.pdf',
+            preview: '/api/assets/example-jobs/jobs/job-sablon-1/film-color-01.png'
+          }
+        ]
+      }
+    }
+  });
+
+  const beforePublishRes = await worker.fetch(new Request('https://worker.example/api/example-jobs'), env);
+  assert.equal(beforePublishRes.status, 200);
+  const beforeData = await beforePublishRes.json();
+  assert.equal(beforeData.exampleJobs.length, 0);
+
+  const publishRes = await worker.fetch(
+    new Request('https://worker.example/api/admin/jobs/job-sablon-1/set-example', {
+      method: 'POST',
+      headers: await authHeaderFor(env, superadmin)
+    }),
+    env
+  );
+  assert.equal(publishRes.status, 200);
+
+  const guestRes = await worker.fetch(new Request('https://worker.example/api/example-jobs'), env);
+  assert.equal(guestRes.status, 200);
+  const guestData = await guestRes.json();
+  assert.equal(guestData.exampleJobs.length, 1);
+  assert.equal(guestData.exampleJobs[0].jobId, 'job-sablon-1');
+  assert.equal(guestData.exampleJobs[0].isExamplePublic, true);
+  assert.match(guestData.exampleJobs[0].sourcePreviewUrl, /\/api\/assets\/example-jobs\/jobs\/job-sablon-1\/source-preview\.png$/);
+  assert.match(guestData.exampleJobs[0].resultPreviewUrl, /\/api\/assets\/example-jobs\/jobs\/job-sablon-1\/full-color\.png$/);
+  assert.equal(guestData.exampleJobs[0].separations.length, 1);
+
+  const assetRes = await worker.fetch(new Request(new URL(guestData.exampleJobs[0].resultPreviewUrl, 'https://worker.example')), env);
+  assert.equal(assetRes.status, 200);
+  assert.deepEqual([...new Uint8Array(await assetRes.arrayBuffer())], [4, 5, 6]);
+
+  const userRes = await worker.fetch(
+    new Request('https://worker.example/api/example-jobs', {
+      headers: await authHeaderFor(env, regularUser)
+    }),
+    env
+  );
+  assert.equal(userRes.status, 200);
+  const userData = await userRes.json();
+  assert.equal(userData.exampleJobs.length, 1);
+  assert.equal(userData.exampleJobs[0].jobId, 'job-sablon-1');
 });

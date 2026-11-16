@@ -63,7 +63,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import BrandMark from './BrandMark.jsx';
-import { submitContactMessage } from '../lib/api.js';
+import { absoluteUrl, submitContactMessage } from '../lib/api.js';
 import { IMAGE_RETOUCH_PRICE_IDR, READY_PROCESS_PRICE_IDR, formatRupiah } from '../lib/pricing.js';
 
 const SUPPORT_PHONE = '085156861485';
@@ -1415,11 +1415,101 @@ function AuthSection({ locale = 'id', authPanel }) {
   );
 }
 
-function PublicLanding({ locale = 'id', onLocaleChange, onStart, authPanel, onNavigate }) {
+function ExamplesShowcaseSection({ locale = 'id', exampleJobs = [], onStart }) {
+  const isId = locale === 'id';
+  const items = (Array.isArray(exampleJobs) ? exampleJobs : []).filter(
+    (item) => item?.resultPreviewUrl || item?.files?.fullPng || item?.sourcePreviewUrl || item?.files?.sourcePreview
+  );
+  if (!items.length) return null;
+
+  return (
+    <section id="examples" className="relative py-16 sm:py-20">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <SectionHeader
+          eyebrow={isId ? 'Contoh Hasil Nyata' : 'Live Sample Results'}
+          title={isId ? 'Galeri Hasil Produksi Terbaru' : 'Recent Production Examples'}
+          subtitle={
+            isId
+              ? 'Hasil asli yang diproses dan dipublikasikan langsung oleh studio untuk referensi kualitas sablon & cutting sticker.'
+              : 'Real studio outputs published directly for screen-print separation & sticker cutline quality reference.'
+          }
+        />
+        <div className="mt-10 grid gap-6 md:grid-cols-2">
+          {items.slice(0, 4).map((item) => {
+            const beforeSrc = absoluteUrl(item.sourcePreviewUrl || item.files?.sourcePreview || '');
+            const afterSrc = absoluteUrl(item.resultPreviewUrl || item.files?.fullPng || item.files?.tracedPng || '');
+            const isSablon = item.productionType === 'sablon';
+            const sepCount = Array.isArray(item.separations) ? item.separations.length : 0;
+            return (
+              <article key={item.jobId} className="glass-card flex flex-col justify-between rounded-3xl p-5 sm:p-6">
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-base font-bold text-white">{item.projectName || (isSablon ? 'Contoh Sablon' : 'Contoh Sticker')}</h3>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="rounded-full border border-primary/35 bg-primary/15 px-2.5 py-0.5 text-[11px] font-semibold text-violet-200">
+                        {isSablon ? 'Sablon' : 'Sticker'}
+                      </span>
+                      {sepCount > 0 && (
+                        <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-slate-300">
+                          {sepCount} {isId ? 'film warna' : 'color films'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 p-2.5">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                        {isId ? 'Sebelum' : 'Before'}
+                      </p>
+                      <div className="flex h-36 items-center justify-center overflow-hidden rounded-xl bg-slate-950/70">
+                        {beforeSrc ? (
+                          <img src={beforeSrc} alt={`${item.projectName || 'Sample'} before`} className="max-h-full max-w-full object-contain" />
+                        ) : (
+                          <ImageIcon className="h-6 w-6 text-slate-600" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="overflow-hidden rounded-2xl border border-primary/30 bg-slate-900/80 p-2.5">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-violet-300">
+                        {isId ? 'Sesudah' : 'After'}
+                      </p>
+                      <div className="flex h-36 items-center justify-center overflow-hidden rounded-xl bg-white/95">
+                        {afterSrc ? (
+                          <img src={afterSrc} alt={`${item.projectName || 'Sample'} after`} className="max-h-full max-w-full object-contain" />
+                        ) : (
+                          <Layers className="h-6 w-6 text-violet-400" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3.5 text-xs text-slate-300">
+                  <span>
+                    {isId ? 'Masuk untuk lihat & unduh file SVG, PDF & film warna lengkap' : 'Sign in to view & download full SVG, PDF & color film files'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onStart}
+                    className="shrink-0 rounded-xl border border-primary/40 bg-primary/15 px-3 py-1.5 font-semibold text-violet-200 transition hover:bg-primary/25"
+                  >
+                    {isId ? 'Lihat di Studio' : 'Open Studio'}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PublicLanding({ locale = 'id', onLocaleChange, onStart, authPanel, onNavigate, exampleJobs = [] }) {
   return (
     <div className="landing-shell min-h-screen text-slate-100">
       <PublicNav locale={locale} onLocaleChange={onLocaleChange} onStart={onStart} onNavigate={onNavigate} />
       <HeroSection locale={locale} onStart={onStart} />
+      <ExamplesShowcaseSection locale={locale} exampleJobs={exampleJobs} onStart={onStart} />
       <HowItWorksSection locale={locale} />
       <PricingSection locale={locale} />
       <TestimonialsSection locale={locale} />
@@ -1954,8 +2044,8 @@ function AboutPage({ locale = 'id', onNavigate }) {
   );
 }
 
-export default function LandingPage({ locale = 'id', onLocaleChange, onStart, authPanel, onNavigate }) {
-  return <PublicLanding locale={locale} onLocaleChange={onLocaleChange} onStart={onStart} authPanel={authPanel} onNavigate={onNavigate} />;
+export default function LandingPage({ locale = 'id', onLocaleChange, onStart, authPanel, onNavigate, exampleJobs = [] }) {
+  return <PublicLanding locale={locale} onLocaleChange={onLocaleChange} onStart={onStart} authPanel={authPanel} onNavigate={onNavigate} exampleJobs={exampleJobs} />;
 }
 
 export { AboutPage, ContactPage, PrivacyPage, TermsPage };
