@@ -628,11 +628,17 @@ test('interactive qris webhook supports extended Android notification fields, br
   const macroRaw = readFileSync(new URL('../../macrodroid/interactive-qris-relay.macro', import.meta.url), 'utf8');
   const macroDoc = JSON.parse(macroRaw);
   const trigger = macroDoc.macro.m_triggerList[0];
-  assert.equal(trigger.m_ignoreOngoing, true);
+  assert.equal(trigger.m_ignoreOngoing, false);
   assert.equal(trigger.m_supressMultiples, false);
-  assert.equal(macroDoc.macro.m_actionList[0].m_classType, 'PauseAction');
-  assert.equal(macroDoc.macro.m_actionList[1].m_classType, 'HttpRequestAction');
-  assert.equal(macroDoc.macro.m_actionList[1].requestConfig.blockNextAction, true);
+  assert.deepEqual(trigger.m_applicationNameList, ['InterActive QRIS']);
+  assert.deepEqual(trigger.m_packageNameList, ['com.interactive.qrisid']);
+  assert.equal(macroDoc.macro.m_actionList[0].m_classType, 'HttpRequestAction');
+  assert.equal(macroDoc.macro.m_actionList[0].requestConfig.blockNextAction, true);
+
+  const diagRaw = readFileSync(new URL('../../macrodroid/interactive-qris-diagnostic-any-app.macro', import.meta.url), 'utf8');
+  const diagDoc = JSON.parse(diagRaw);
+  assert.deepEqual(diagDoc.macro.m_triggerList[0].m_packageNameList, ['Any Application']);
+  assert.equal(diagDoc.macro.m_actionList[0].requestConfig.blockNextAction, true);
 
   const env = qrisTestEnv();
   await createTestUser(env, { id: 'user-1', email: 'user@example.com' });

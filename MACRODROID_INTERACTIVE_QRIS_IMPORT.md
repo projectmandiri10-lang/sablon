@@ -12,10 +12,10 @@ macrodroid/interactive-qris-relay.macro
 
 Macro ini sudah diset untuk:
 
-- trigger: notifikasi dari app `com.interactive.qrisid` (`Ignore ongoing = ON`, `Prevent multiple triggers = OFF`)
-- action 1: jeda `500 ms` (`PauseAction`) agar teks notifikasi Android terisi penuh
-- action 2: HTTP Request `POST` (`Block next actions until complete = ON`)
-- action 3: Toast hasil status & respons
+- trigger: notifikasi dari app `com.interactive.qrisid` (`Ignore ongoing = OFF`, `Prevent multiple triggers = OFF`)
+- action 1: HTTP Request `POST` (`Block next actions until complete = ON`)
+- action 2: Toast hasil status & respons
+- file diagnostik sementara (jika trigger khusus belum menangkap): `macrodroid/interactive-qris-diagnostic-any-app.macro` (`Any Application`)
 - webhook: `https://sablon.jho-j80.workers.dev/api/payments/interactive-qris/webhook`
 - payload:
 
@@ -71,10 +71,9 @@ Aktifkan izin berikut untuk MacroDroid:
 Pastikan macro berisi:
 
 - Trigger: `Notification Received`
-- App/package: **ketuk dan pilih ulang aplikasi `InterActive QRIS` (`com.interactive.qrisid`)** dari daftar aplikasi HP Anda
-- **Ignore ongoing notifications**: **Aktif / Centang** (mencegah notifikasi layanan suara/soundbox persisten mengganggu trigger transaksi)
+- App/package: **ketuk dan pilih ulang aplikasi `InterActive QRIS` (`com.interactive.qrisid`)** dari daftar aplikasi HP Anda (atau pakai sementara `macrodroid/interactive-qris-diagnostic-any-app.macro` untuk mengetes notifikasi dari semua app)
+- **Ignore ongoing notifications**: **Nonaktif / Jangan centang** (agar notifikasi pembayaran dari service/soundbox tidak ikut terlewat)
 - **Prevent multiple triggers**: **Nonaktif / Jangan centang** (mencegah notifikasi beruntun/terkelompok disenyapkan MacroDroid)
-- Action 1: `Wait before next action` = `500 ms`
 - HTTP method: `POST`
 - **Block next actions until complete**: **Aktif / Centang** (agar Toast & log tidak membaca status lama atau terpotong OS)
 - URL: `https://sablon.jho-j80.workers.dev/api/payments/interactive-qris/webhook`

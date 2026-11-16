@@ -2320,6 +2320,7 @@ async function handleInteractiveQrisWebhook(env, request) {
   const expectedPackages = resolveInteractiveQrisExpectedPackages(env);
   const packageMatched =
     (rawPackageName && expectedPackages.includes(rawPackageName)) ||
+    (rawPackageName && /^(com\.interactive\.|id\.co\.interactive)/.test(rawPackageName)) ||
     ((!rawPackageName || isUnexpandedMacroDroidToken(rawPackageName)) && hasInteractiveQrisNotificationHint(body));
   if (!packageMatched) {
     await insertInteractiveQrisWebhookLog(env, {
