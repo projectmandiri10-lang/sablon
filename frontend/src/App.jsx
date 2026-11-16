@@ -259,6 +259,57 @@ function buildExampleArtifactsFormData({ sourcePreviewBlob, sourceFileName, job 
   return formData;
 }
 
+async function optionalBlobFromUrl(url) {
+  if (!url) return null;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    return await response.blob();
+  } catch {
+    return null;
+  }
+}
+
+async function hydrateHistoryItemForExampleUpload(item) {
+  const files = item?.job?.files || {};
+  const [sourcePreviewBlob, sourceRasterBlob, fullPng, fullSvg, fullPdf, stickerCutlineSvg, stickerCutlinePdf, zip, separationZip] =
+    await Promise.all([
+      optionalBlobFromUrl(item.sourcePreviewUrl),
+      optionalBlobFromUrl(item.sourceRasterUrl),
+      optionalBlobFromUrl(files.fullPng || files.tracedPng),
+      optionalBlobFromUrl(files.fullSvg),
+      optionalBlobFromUrl(files.fullPdf),
+      optionalBlobFromUrl(files.stickerCutlineSvg),
+      optionalBlobFromUrl(files.stickerCutlinePdf),
+      optionalBlobFromUrl(files.zip),
+      optionalBlobFromUrl(files.separationZip)
+    ]);
+
+  const separations = await Promise.all(
+    (files.separations || []).map(async (separation) => ({
+      ...separation,
+      svgBlob: await optionalBlobFromUrl(separation.svg),
+      pdfBlob: await optionalBlobFromUrl(separation.pdf),
+      previewBlob: await optionalBlobFromUrl(separation.preview)
+    }))
+  );
+
+  return {
+    sourcePreviewBlob: sourcePreviewBlob || fullPng,
+    sourceRasterBlob,
+    artifactBlobs: {
+      fullPng,
+      fullSvg,
+      fullPdf,
+      stickerCutlineSvg,
+      stickerCutlinePdf,
+      zip,
+      separationZip,
+      separations
+    }
+  };
+}
+
 function getAuthCallbackParams() {
   return {
     hashParams: new URLSearchParams(window.location.hash.replace(/^#/, '')),
@@ -1195,6 +1246,18 @@ export default function App() {
         setHasPendingRecovery(false);
         await refreshBalance();
       }
+      if (isSuperuser && finalJobId && !String(finalJobId).startsWith('local-') && !String(finalJobId).startsWith('pending-') && session?.access_token) {
+        try {
+          const artifactFormData = buildExampleArtifactsFormData({
+            sourcePreviewBlob,
+            sourceFileName: item.sourceFileName || 'gambar-awal.png',
+            job: updatedJob
+          });
+          await uploadExampleArtifacts(finalJobId, artifactFormData, session.access_token);
+        } catch (artifactError) {
+          console.error('Failed to upload retraced example artifacts', artifactError);
+        }
+      }
       await refreshHistory();
       setHistorySelectedKey(updatedJob.jobId);
       setHistoryNotice(
@@ -1208,6 +1271,77 @@ export default function App() {
     } finally {
       setRetracingLibraryJobId('');
     }
+  }
+
+  async function handlePublishHistoryJobAsExample(localItem, existingRemoteJobId = '') {
+    if (!isSuperuser || !session?.access_token || !localItem) {
+      throw new Error('Hanya superadmin yang dapat mempublish contoh.');
+    }
+    const hydrated = await hydrateHistoryItemForExampleUpload(localItem);
+    const jobSettings = localItem.job?.settings || {};
+    const jobManifest = localItem.job?.manifest || {};
+    const productionType = localItem.productionType || jobSettings.productionType || 'sticker';
+    const inputMode = localItem.inputMode || jobSettings.inputMode || INPUT_MODE_READY;
+
+    let targetJobId = existingRemoteJobId || localItem.committedJobId || '';
+    const candidateId = String(localItem.jobId || '');
+    if (!targetJobId && candidateId && !candidateId.startsWith('local-') && !candidateId.startsWith('pending-')) {
+      targetJobId = candidateId;
+    }
+
+    if (!targetJobId) {
+      const committed = await commitJob(
+        {
+          inputMode,
+          productionType,
+          projectName: localItem.projectName || jobSettings.projectName || 'Project Vector',
+          separationFilmCount: hydrated.artifactBlobs.separations.length,
+          settings: jobSettings,
+          manifest: jobManifest,
+          aiLedgerId: localItem.retouchLedgerId || localItem.job?.retouchLedgerId || '',
+          priceIdr: 0
+        },
+        session.access_token
+      );
+      targetJobId = committed.job?.id || '';
+      if (!targetJobId) {
+        throw new Error('Gagal mencatat job ke server sebelum publish contoh.');
+      }
+
+      const aiRawBlob = localItem.job?.files?.aiRawPng ? await optionalBlobFromUrl(localItem.job.files.aiRawPng) : null;
+      const syncedJob = {
+        ...localItem.job,
+        jobId: targetJobId,
+        committedJobId: targetJobId,
+        artifactBlobs: {
+          ...hydrated.artifactBlobs,
+          ...(aiRawBlob ? { aiRawPng: aiRawBlob } : {})
+        }
+      };
+      await saveHistoryJob({
+        ownerId: session.user.id,
+        ownerEmail: session.user.email || '',
+        sourcePreviewBlob: hydrated.sourcePreviewBlob,
+        sourceRasterBlob: hydrated.sourceRasterBlob,
+        sourceFileName: localItem.sourceFileName || 'gambar-awal.png',
+        job: syncedJob
+      });
+      if (localItem.localRecordId && localItem.localRecordId !== targetJobId) {
+        await deleteHistoryJob(localItem.localRecordId).catch(() => {});
+      }
+    }
+
+    const artifactFormData = buildExampleArtifactsFormData({
+      sourcePreviewBlob: hydrated.sourcePreviewBlob,
+      sourceFileName: localItem.sourceFileName || 'gambar-awal.png',
+      job: {
+        ...localItem.job,
+        artifactBlobs: hydrated.artifactBlobs
+      }
+    });
+    await uploadExampleArtifacts(targetJobId, artifactFormData, session.access_token);
+    await Promise.all([refreshHistory(), refreshExampleJobs()]);
+    return targetJobId;
   }
 
   const currentPathname = normalizePathname(window.location.pathname || '/');
@@ -1374,7 +1508,15 @@ export default function App() {
 
       {session && view === 'admin' && (
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-          <AdminPanel session={session} enabled={isSuperuser} activeTab={adminTab} onActiveTabChange={setAdminTab} />
+          <AdminPanel
+            session={session}
+            enabled={isSuperuser}
+            activeTab={adminTab}
+            onActiveTabChange={setAdminTab}
+            historyJobs={historyJobs}
+            onPublishHistoryJobAsExample={handlePublishHistoryJobAsExample}
+            onExampleJobsChanged={() => refreshExampleJobs(session)}
+          />
         </div>
       )}
 

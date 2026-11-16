@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { isStaleChunkError } from './pendingAiRecovery.js';
 
 const appSource = await readFile(new URL('../App.jsx', import.meta.url), 'utf8');
+const adminPanelSource = await readFile(new URL('../components/AdminPanel.jsx', import.meta.url), 'utf8');
 const previewSource = await readFile(new URL('../components/ResultPreview.jsx', import.meta.url), 'utf8');
 const librarySource = await readFile(new URL('../components/JobLibraryPanel.jsx', import.meta.url), 'utf8');
 const processorSource = await readFile(new URL('./localProcessor.js', import.meta.url), 'utf8');
@@ -64,4 +65,11 @@ test('failed or pending AI jobs are saved to history and retryable locally witho
   assert.equal(isStaleChunkError(new Error('Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of "text/html".')), true);
   assert.equal(isStaleChunkError(new Error('Failed to fetch dynamically imported module')), true);
   assert.equal(isStaleChunkError(new Error('Network error')), false);
+});
+
+test('admin jobs tab displays superadmin generated history for publishing examples', () => {
+  assert.match(adminPanelSource, /History job superadmin/);
+  assert.match(adminPanelSource, /superadminJobCandidates/);
+  assert.match(adminPanelSource, /Upload & Publish Contoh/);
+  assert.match(appSource, /onPublishHistoryJobAsExample=\{handlePublishHistoryJobAsExample\}/);
 });

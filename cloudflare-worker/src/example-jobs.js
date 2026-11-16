@@ -164,6 +164,7 @@ export function decorateAdminJobs(jobs, profiles, exampleJobsValue) {
       is_active_example: examplePublished || legacyExample,
       is_example_public: examplePublished,
       example_source_path: getExampleSourcePathFromManifest(job.manifest),
+      example_result_url: exampleArtifacts?.files?.fullPng || '',
       has_example_artifacts: Boolean(exampleArtifacts)
     };
   });

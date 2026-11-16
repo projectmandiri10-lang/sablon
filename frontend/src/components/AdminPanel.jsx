@@ -131,7 +131,15 @@ function StatusBadge({ status }) {
   return <span className={`inline-flex border px-2 py-1 text-xs font-semibold ${styles[status] || 'border-line bg-panel text-gray-700'}`}>{status}</span>;
 }
 
-export default function AdminPanel({ session, enabled, activeTab = 'overview', onActiveTabChange }) {
+export default function AdminPanel({
+  session,
+  enabled,
+  activeTab = 'overview',
+  onActiveTabChange,
+  historyJobs = [],
+  onPublishHistoryJobAsExample,
+  onExampleJobsChanged
+}) {
   const [localActiveTab, setLocalActiveTab] = useState(activeTab || 'overview');
   const [overview, setOverview] = useState(null);
   const [users, setUsers] = useState([]);
@@ -538,10 +546,14 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
     try {
       if (isPublished) {
         await unsetAdminJobExample(job.id, accessToken);
+      } else if (!job.can_set_as_example && job.localItem && typeof onPublishHistoryJobAsExample === 'function') {
+        const uploadedJobId = await onPublishHistoryJobAsExample(job.localItem, job.isLocalOnly ? '' : job.id);
+        await setAdminJobExample(uploadedJobId, accessToken);
       } else {
         await setAdminJobExample(job.id, accessToken);
       }
       await loadAdminData();
+      await onExampleJobsChanged?.();
       setMessage(
         isPublished
           ? `Publikasi contoh untuk job ${job.production_type === 'sablon' ? 'sablon' : 'sticker'} berhasil dicabut.`
@@ -553,6 +565,64 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
       setIsBusy(false);
     }
   }
+
+  const sessionEmail = String(session?.user?.email || '').trim().toLowerCase();
+  const superadminJobCandidates = useMemo(() => {
+    const localById = new Map();
+    const completedLocal = (historyJobs || []).filter((item) => (item?.job?.status || item?.status || 'done') === 'done');
+    completedLocal.forEach((item) => {
+      const id = String(item?.job?.jobId || item?.id || '');
+      if (id) localById.set(id, item);
+      if (item?.committedJobId) localById.set(String(item.committedJobId), item);
+    });
+
+    const merged = [];
+    const seenIds = new Set();
+
+    (jobs || []).forEach((job) => {
+      const isSuperadminOwner =
+        ['superuser', 'superadmin'].includes(job.owner_role) ||
+        (sessionEmail && String(job.user_email || '').trim().toLowerCase() === sessionEmail);
+      if (!isSuperadminOwner) return;
+      seenIds.add(String(job.id));
+      const matchedLocal = localById.get(String(job.id)) || null;
+      merged.push({
+        ...job,
+        isLocalOnly: false,
+        localItem: matchedLocal,
+        sourcePreviewUrl: matchedLocal?.sourcePreviewUrl || '',
+        resultPreviewUrl: job.example_result_url || matchedLocal?.job?.files?.fullPng || ''
+      });
+    });
+
+    completedLocal.forEach((localItem) => {
+      const candidateId = String(localItem.committedJobId || localItem.job?.jobId || localItem.id || '');
+      if (!candidateId || seenIds.has(candidateId)) return;
+      seenIds.add(candidateId);
+      merged.push({
+        id: candidateId,
+        project_name: localItem.projectName || localItem.job?.settings?.projectName || 'Project Vector',
+        created_at: localItem.updatedAt || localItem.createdAt || new Date().toISOString(),
+        user_email: session?.user?.email || 'Superadmin (Lokal)',
+        owner_role: 'superuser',
+        production_type: localItem.productionType || localItem.job?.settings?.productionType || 'sticker',
+        input_mode: localItem.inputMode || localItem.job?.settings?.inputMode || INPUT_MODE_READY,
+        separation_film_count: localItem.job?.separationFilmCount || 0,
+        price_idr: localItem.job?.priceIdr || 0,
+        status: localItem.job?.status || 'done',
+        is_example_public: false,
+        is_active_example: false,
+        can_set_as_example: false,
+        has_example_artifacts: false,
+        isLocalOnly: true,
+        localItem,
+        sourcePreviewUrl: localItem.sourcePreviewUrl || '',
+        resultPreviewUrl: localItem.job?.files?.fullPng || ''
+      });
+    });
+
+    return merged.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
+  }, [historyJobs, jobs, session?.user?.email, sessionEmail]);
 
   if (!enabled) return null;
 
@@ -1325,69 +1395,196 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
       )}
 
       {resolvedActiveTab === 'jobs' && (
-        <div className="overflow-hidden rounded-2xl border border-line">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] border-collapse text-left text-xs sm:text-sm">
-              <thead className="bg-slate-50">
-                <tr className="border-b border-line text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  <th className="px-3.5 py-3">Waktu</th>
-                  <th className="px-3.5 py-3">User</th>
-                  <th className="px-3.5 py-3">Produksi</th>
-                  <th className="px-3.5 py-3">Input</th>
-                  <th className="px-3.5 py-3">Film</th>
-                  <th className="px-3.5 py-3">Nilai</th>
-                  <th className="px-3.5 py-3">Status</th>
-                  <th className="px-3.5 py-3">Contoh</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line bg-white">
-                {jobs.map((job) => (
-                  <tr key={job.id} className="transition hover:bg-slate-50/70">
-                    <td className="px-3.5 py-3 text-slate-600">{new Date(job.created_at).toLocaleString('id-ID')}</td>
-                    <td className="px-3.5 py-3 font-medium text-ink">{job.user_email}</td>
-                    <td className="px-3.5 py-3">{job.production_type === 'sablon' ? 'Sablon' : 'Sticker'}</td>
-                    <td className="px-3.5 py-3">{inputModeLabels[job.input_mode] || job.input_mode}</td>
-                    <td className="px-3.5 py-3 font-mono">{job.separation_film_count}</td>
-                    <td className="px-3.5 py-3 font-bold text-ink">{formatRupiah(job.price_idr || 0)}</td>
-                    <td className="px-3.5 py-3"><StatusBadge status={job.status} /></td>
-                    <td className="px-3.5 py-3">
-                      {(() => {
-                        const isPublished = job.is_example_public || job.is_active_example;
-                        return (
-                          <div className="flex max-w-72 flex-wrap items-center gap-2">
-                            {isPublished && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200">
-                                <Star className="h-3 w-3" aria-hidden="true" />
-                                Contoh dipublish
-                              </span>
+        <div className="space-y-6">
+          {/* History Job Superadmin untuk dipilih sebagai Contoh User */}
+          <div>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-ink">History job superadmin (pilih sebagai contoh user)</h3>
+                <p className="text-xs text-slate-500">
+                  Pilih salah satu hasil yang sudah digenerate oleh superadmin (dari server atau riwayat browser) untuk ditampilkan di tab Contoh Hasil user lain.
+                </p>
+              </div>
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+                {superadminJobCandidates.length} job superadmin
+              </span>
+            </div>
+
+            {superadminJobCandidates.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-8 text-center text-xs text-slate-600">
+                Belum ada history job selesai dari superadmin. Generate gambar di tab <strong>Proses</strong> (Sablon atau Sticker), lalu kembali ke sini untuk mempublish sebagai contoh bagi user lain.
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {superadminJobCandidates.map((job) => {
+                  const isPublished = job.is_example_public || job.is_active_example;
+                  const canSyncLocal = !isPublished && !job.can_set_as_example && Boolean(job.localItem && onPublishHistoryJobAsExample);
+                  const canAction = isPublished || job.can_set_as_example || canSyncLocal;
+                  return (
+                    <article
+                      key={`super-${job.id}`}
+                      className={`studio-subcard flex flex-col justify-between p-4 ${
+                        isPublished ? 'border-primary bg-primary/[0.03] ring-1 ring-primary/20' : ''
+                      }`}
+                    >
+                      <div>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-ink">{job.project_name || 'Project Vector'}</p>
+                            <p className="mt-0.5 text-[11px] text-slate-500">
+                              {new Date(job.created_at).toLocaleString('id-ID')}
+                            </p>
+                          </div>
+                          {isPublished ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200">
+                              <Star className="h-3 w-3" aria-hidden="true" />
+                              Contoh aktif ({job.production_type === 'sablon' ? 'Sablon' : 'Sticker'})
+                            </span>
+                          ) : job.isLocalOnly ? (
+                            <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
+                              Riwayat browser
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                          <span className="rounded-md bg-white px-2 py-0.5 font-semibold text-slate-700 ring-1 ring-line">
+                            {job.production_type === 'sablon' ? 'Sablon' : 'Sticker'}
+                          </span>
+                          <span className="rounded-md bg-white px-2 py-0.5 font-medium text-slate-600 ring-1 ring-line">
+                            {inputModeLabels[job.input_mode] || job.input_mode}
+                          </span>
+                          <span className="rounded-md bg-white px-2 py-0.5 font-mono text-slate-600 ring-1 ring-line">
+                            {job.separation_film_count || 0} film
+                          </span>
+                        </div>
+
+                        {(job.sourcePreviewUrl || job.resultPreviewUrl) && (
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            {job.sourcePreviewUrl && (
+                              <div className="checkerboard flex h-20 items-center justify-center overflow-hidden rounded-xl border border-line bg-white p-1.5">
+                                <img src={job.sourcePreviewUrl} alt="Sebelum" className="h-full w-full object-contain" />
+                              </div>
                             )}
-                            <button
-                              type="button"
-                              disabled={isBusy || (!isPublished && !job.can_set_as_example)}
-                              onClick={() => toggleJobExample(job)}
-                              className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-primary/30 bg-white px-2.5 py-1 text-xs font-semibold text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
-                              title={
-                                isPublished
-                                  ? 'Cabut job ini dari feed contoh user.'
-                                  : job.can_set_as_example
-                                    ? 'Publish job ini ke feed contoh user.'
-                                    : 'Hanya job superadmin dengan bundle contoh lengkap yang bisa dipublish.'
-                              }
-                            >
-                              <Star className="h-3.5 w-3.5" aria-hidden="true" />
-                              {isPublished ? 'Cabut contoh' : 'Publish contoh'}
-                            </button>
-                            {!isPublished && !job.can_set_as_example && (
-                              <p className="basis-full text-[11px] leading-4 text-slate-500">{examplePublishHint(job, isPublished)}</p>
+                            {job.resultPreviewUrl && (
+                              <div className="checkerboard flex h-20 items-center justify-center overflow-hidden rounded-xl border border-line bg-white p-1.5">
+                                <img src={job.resultPreviewUrl} alt="Sesudah" className="h-full w-full object-contain" />
+                              </div>
                             )}
                           </div>
-                        );
-                      })()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        )}
+                      </div>
+
+                      <div className="mt-3.5 border-t border-line pt-3">
+                        <button
+                          type="button"
+                          disabled={isBusy || !canAction}
+                          onClick={() => toggleJobExample(job)}
+                          className={`w-full justify-center !min-h-9 !rounded-xl !px-3 !py-1.5 !text-xs ${
+                            isPublished ? 'studio-btn-secondary' : 'studio-btn-primary'
+                          }`}
+                        >
+                          <Star className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span>
+                            {isPublished
+                              ? 'Cabut contoh'
+                              : canSyncLocal
+                                ? 'Upload & Publish Contoh'
+                                : 'Jadikan Contoh User'}
+                          </span>
+                        </button>
+                        {!canAction && (
+                          <p className="mt-1.5 text-[11px] leading-4 text-slate-500">{examplePublishHint(job, isPublished)}</p>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Tabel Semua Riwayat Job Platform */}
+          <div>
+            <h3 className="mb-3 text-sm font-bold text-ink">Semua riwayat job di server</h3>
+            <div className="overflow-hidden rounded-2xl border border-line">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[920px] border-collapse text-left text-xs sm:text-sm">
+                  <thead className="bg-slate-50">
+                    <tr className="border-b border-line text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <th className="px-3.5 py-3">Waktu</th>
+                      <th className="px-3.5 py-3">Project</th>
+                      <th className="px-3.5 py-3">User</th>
+                      <th className="px-3.5 py-3">Produksi</th>
+                      <th className="px-3.5 py-3">Input</th>
+                      <th className="px-3.5 py-3">Film</th>
+                      <th className="px-3.5 py-3">Nilai</th>
+                      <th className="px-3.5 py-3">Status</th>
+                      <th className="px-3.5 py-3">Contoh</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line bg-white">
+                    {jobs.length === 0 ? (
+                      <tr>
+                        <td colSpan="9" className="px-4 py-8 text-center text-xs text-slate-500">
+                          Belum ada riwayat job yang tercatat di server.
+                        </td>
+                      </tr>
+                    ) : (
+                      jobs.map((job) => (
+                        <tr key={job.id} className="transition hover:bg-slate-50/70">
+                          <td className="px-3.5 py-3 text-slate-600">{new Date(job.created_at).toLocaleString('id-ID')}</td>
+                          <td className="px-3.5 py-3 font-semibold text-ink">{job.project_name || 'Project Vector'}</td>
+                          <td className="px-3.5 py-3 font-medium text-ink">{job.user_email}</td>
+                          <td className="px-3.5 py-3">{job.production_type === 'sablon' ? 'Sablon' : 'Sticker'}</td>
+                          <td className="px-3.5 py-3">{inputModeLabels[job.input_mode] || job.input_mode}</td>
+                          <td className="px-3.5 py-3 font-mono">{job.separation_film_count}</td>
+                          <td className="px-3.5 py-3 font-bold text-ink">{formatRupiah(job.price_idr || 0)}</td>
+                          <td className="px-3.5 py-3"><StatusBadge status={job.status} /></td>
+                          <td className="px-3.5 py-3">
+                            {(() => {
+                              const isPublished = job.is_example_public || job.is_active_example;
+                              const matchingCandidate = superadminJobCandidates.find((c) => c.id === job.id);
+                              const canSyncLocal = !isPublished && !job.can_set_as_example && Boolean(matchingCandidate?.localItem && onPublishHistoryJobAsExample);
+                              const actionJob = matchingCandidate || job;
+                              return (
+                                <div className="flex max-w-72 flex-wrap items-center gap-2">
+                                  {isPublished && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200">
+                                      <Star className="h-3 w-3" aria-hidden="true" />
+                                      Contoh dipublish
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    disabled={isBusy || (!isPublished && !job.can_set_as_example && !canSyncLocal)}
+                                    onClick={() => toggleJobExample(actionJob)}
+                                    className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-primary/30 bg-white px-2.5 py-1 text-xs font-semibold text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                                    title={
+                                      isPublished
+                                        ? 'Cabut job ini dari feed contoh user.'
+                                        : job.can_set_as_example || canSyncLocal
+                                          ? 'Publish job ini ke feed contoh user.'
+                                          : 'Hanya job superadmin dengan bundle contoh lengkap yang bisa dipublish.'
+                                    }
+                                  >
+                                    <Star className="h-3.5 w-3.5" aria-hidden="true" />
+                                    {isPublished ? 'Cabut contoh' : canSyncLocal ? 'Upload & Publish' : 'Publish contoh'}
+                                  </button>
+                                  {!isPublished && !job.can_set_as_example && !canSyncLocal && (
+                                    <p className="basis-full text-[11px] leading-4 text-slate-500">{examplePublishHint(job, isPublished)}</p>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}
