@@ -299,3 +299,111 @@ test('GET /api/example-jobs returns published superadmin examples to unauthentic
   assert.equal(userData.exampleJobs.length, 1);
   assert.equal(userData.exampleJobs[0].jobId, 'job-sablon-1');
 });
+
+test('per-file streaming artifact upload + finalize publishes complete sablon example without multipart memory spike', async () => {
+  const env = createTestEnv({
+    PUBLIC_APP_ORIGIN: 'https://worker.example'
+  });
+  const superadmin = await createTestUser(env, {
+    id: 'super-stream-1',
+    email: 'jho.j80@gmail.com',
+    role: 'superuser'
+  });
+  const job = await createJob(env, {
+    id: 'job-stream-1',
+    user_id: superadmin.id,
+    project_name: 'Streamed Sablon',
+    input_mode: 'ai_redraw',
+    production_type: 'sablon',
+    status: 'done',
+    is_example_public: false
+  });
+  const headers = await authHeaderFor(env, superadmin);
+
+  const traversalRes = await worker.fetch(
+    new Request(`https://worker.example/api/jobs/${job.id}/artifact-file?path=${encodeURIComponent('../secret.png')}`, {
+      method: 'POST',
+      headers,
+      body: new Uint8Array([1, 2, 3])
+    }),
+    env
+  );
+  assert.equal(traversalRes.status, 400);
+
+  const incompleteFinalize = await worker.fetch(
+    new Request(`https://worker.example/api/jobs/${job.id}/artifacts-finalize`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        manifest: {
+          projectName: 'Streamed Sablon',
+          productionType: 'sablon',
+          inputMode: 'ai_redraw',
+          separations: [{ index: 1, kind: 'color', hex: '#111111', label: 'Hitam' }]
+        }
+      })
+    }),
+    env
+  );
+  assert.equal(incompleteFinalize.status, 400);
+
+  const filesToUpload = [
+    ['source-preview.png', 'image/png', new Uint8Array([10, 11])],
+    ['preview-full-color.png', 'image/png', new Uint8Array([12, 13])],
+    ['full-vector.svg', 'image/svg+xml', new TextEncoder().encode('<svg/>')],
+    ['full-vector.pdf', 'application/pdf', new Uint8Array([37, 80, 68, 70])],
+    ['result.zip', 'application/zip', new Uint8Array([80, 75, 3, 4])],
+    ['separation-films.zip', 'application/zip', new Uint8Array([80, 75, 5, 6])],
+    ['separations/film-color-01.svg', 'image/svg+xml', new TextEncoder().encode('<svg/>')],
+    ['separations/film-color-01.pdf', 'application/pdf', new Uint8Array([37, 80, 68, 70])],
+    ['separations/film-color-01-preview.png', 'image/png', new Uint8Array([14, 15])]
+  ];
+
+  for (const [relativePath, mimeType, bytes] of filesToUpload) {
+    const uploadRes = await worker.fetch(
+      new Request(`https://worker.example/api/jobs/${job.id}/artifact-file?path=${encodeURIComponent(relativePath)}`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': mimeType },
+        body: bytes
+      }),
+      env
+    );
+    assert.equal(uploadRes.status, 200, `Expected 200 for ${relativePath}`);
+  }
+
+  const finalizeRes = await worker.fetch(
+    new Request(`https://worker.example/api/jobs/${job.id}/artifacts-finalize`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        manifest: {
+          projectName: 'Streamed Sablon',
+          productionType: 'sablon',
+          inputMode: 'ai_redraw',
+          separations: [{ index: 1, kind: 'color', hex: '#111111', label: 'Hitam' }]
+        }
+      })
+    }),
+    env
+  );
+  assert.equal(finalizeRes.status, 200);
+  const finalized = await finalizeRes.json();
+  assert.equal(finalized.jobId, job.id);
+  assert.ok(finalized.exampleArtifacts?.files?.zip);
+
+  const publishRes = await worker.fetch(
+    new Request(`https://worker.example/api/admin/jobs/${job.id}/set-example`, {
+      method: 'POST',
+      headers
+    }),
+    env
+  );
+  assert.equal(publishRes.status, 200);
+
+  const feedRes = await worker.fetch(new Request('https://worker.example/api/example-jobs'), env);
+  assert.equal(feedRes.status, 200);
+  const feedData = await feedRes.json();
+  assert.equal(feedData.exampleJobs.length, 1);
+  assert.equal(feedData.exampleJobs[0].jobId, job.id);
+  assert.equal(feedData.exampleJobs[0].separations.length, 1);
+});

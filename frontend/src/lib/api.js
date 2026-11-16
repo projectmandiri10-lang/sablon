@@ -153,21 +153,80 @@ export function hydrateBackendRetouchResult(data, settings) {
   return { localResult, aiRawPngBlob, pngFile };
 }
 
-async function apiFetch(path, { accessToken, method = 'GET', body, headers = {} } = {}) {
-  let response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      method,
-      headers: {
-        ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        ...headers
-      },
-      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined
-    });
-  } catch (error) {
-    throw toUserApiError(error, 'Koneksi ke layanan belum tersambung. Periksa URL API aplikasi.');
+let authTokenProvider = null;
+
+export function registerAuthTokenProvider(provider) {
+  authTokenProvider = provider && typeof provider === 'object' ? provider : null;
+}
+
+function isAuthTokenErrorMessage(message = '') {
+  const normalized = String(message || '').toLowerCase();
+  return normalized.includes('session') || normalized.includes('login dibutuhkan');
+}
+
+async function resolveAccessToken(accessToken) {
+  if (!accessToken) return '';
+  if (typeof authTokenProvider?.getValidAccessToken === 'function') {
+    const fresh = await authTokenProvider.getValidAccessToken(accessToken);
+    if (fresh) return fresh;
   }
+  return accessToken;
+}
+
+function buildRequestBodyAndHeaders({ body, accessToken, headers = {}, defaultJsonContentType = true }) {
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  const isBinaryBody = typeof Blob !== 'undefined' && body instanceof Blob;
+  const shouldSetJson = defaultJsonContentType && !isFormData && !isBinaryBody;
+  return {
+    requestHeaders: {
+      ...(shouldSetJson ? { 'Content-Type': 'application/json' } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...headers
+    },
+    requestBody: isFormData || isBinaryBody || typeof body === 'string' ? body : body ? JSON.stringify(body) : undefined
+  };
+}
+
+async function authorizedFetch(
+  path,
+  { accessToken = '', method = 'GET', body, headers = {}, networkFallbackMessage = 'Koneksi ke layanan belum tersambung. Periksa URL API aplikasi.', defaultJsonContentType = true } = {}
+) {
+  const token = await resolveAccessToken(accessToken);
+
+  async function sendWithToken(activeToken) {
+    const { requestHeaders, requestBody } = buildRequestBodyAndHeaders({
+      body,
+      accessToken: activeToken,
+      headers,
+      defaultJsonContentType
+    });
+    try {
+      return await fetch(`${API_BASE_URL}${path}`, {
+        method,
+        headers: requestHeaders,
+        body: requestBody
+      });
+    } catch (error) {
+      throw toUserApiError(error, networkFallbackMessage);
+    }
+  }
+
+  let response = await sendWithToken(token);
+  if (!response.ok && token && typeof authTokenProvider?.refreshAccessToken === 'function' && [400, 401, 403].includes(response.status)) {
+    const contentType = response.headers.get('content-type') || '';
+    const errPayload = contentType.includes('application/json') ? await response.clone().json().catch(() => null) : null;
+    if (response.status === 401 || isAuthTokenErrorMessage(errPayload?.error)) {
+      const refreshedToken = await authTokenProvider.refreshAccessToken().catch(() => '');
+      if (refreshedToken && refreshedToken !== token) {
+        response = await sendWithToken(refreshedToken);
+      }
+    }
+  }
+  return response;
+}
+
+async function apiFetch(path, { accessToken, method = 'GET', body, headers = {} } = {}) {
+  const response = await authorizedFetch(path, { accessToken, method, body, headers });
 
   const contentType = response.headers.get('content-type') || '';
   const data = contentType.includes('application/json') ? await response.json().catch(() => ({})) : await response.blob();
@@ -178,18 +237,7 @@ async function apiFetch(path, { accessToken, method = 'GET', body, headers = {} 
 }
 
 async function apiFetchBlob(path, { accessToken, method = 'GET', headers = {} } = {}) {
-  let response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      method,
-      headers: {
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        ...headers
-      }
-    });
-  } catch (error) {
-    throw toUserApiError(error, 'Koneksi ke layanan belum tersambung. Periksa URL API aplikasi.');
-  }
+  const response = await authorizedFetch(path, { accessToken, method, headers, defaultJsonContentType: false });
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
@@ -219,11 +267,69 @@ export async function commitJob(payload, accessToken) {
   });
 }
 
+function collectExampleArtifactUploads(formData) {
+  let manifest = {};
+  try {
+    manifest = JSON.parse(String(formData.get('manifest') || '{}'));
+  } catch {
+    manifest = {};
+  }
+
+  const uploads = [];
+  const staticPairs = [
+    ['sourcePreview', 'source-preview.png'],
+    ['fullPng', 'preview-full-color.png'],
+    ['fullSvg', 'full-vector.svg'],
+    ['fullPdf', 'full-vector.pdf'],
+    ['stickerCutlineSvg', 'sticker-cutline.svg'],
+    ['stickerCutlinePdf', 'sticker-cutline.pdf'],
+    ['zip', 'result.zip'],
+    ['separationZip', 'separation-films.zip']
+  ];
+
+  for (const [fieldKey, relativePath] of staticPairs) {
+    const file = formData.get(fieldKey);
+    if (file instanceof Blob) {
+      uploads.push({ path: relativePath, file });
+    }
+  }
+
+  const separationSvgs = formData.getAll('separationSvg').filter((item) => item instanceof Blob);
+  const separationPdfs = formData.getAll('separationPdf').filter((item) => item instanceof Blob);
+  const separationPreviews = formData.getAll('separationPreview').filter((item) => item instanceof Blob);
+  const separations = Array.isArray(manifest?.separations) ? manifest.separations : [];
+
+  separations.forEach((separation, index) => {
+    const slug = separation.kind === 'underbase' ? 'underbase' : `color-${String(separation.index).padStart(2, '0')}`;
+    if (separationSvgs[index]) uploads.push({ path: `separations/film-${slug}.svg`, file: separationSvgs[index] });
+    if (separationPdfs[index]) uploads.push({ path: `separations/film-${slug}.pdf`, file: separationPdfs[index] });
+    if (separationPreviews[index]) uploads.push({ path: `separations/film-${slug}-preview.png`, file: separationPreviews[index] });
+  });
+
+  return { manifest, uploads };
+}
+
 export async function uploadExampleArtifacts(jobId, formData, accessToken) {
-  return apiFetch(`/api/jobs/${jobId}/artifacts`, {
+  const { manifest, uploads } = collectExampleArtifactUploads(formData);
+  for (const item of uploads) {
+    const response = await authorizedFetch(`/api/jobs/${jobId}/artifact-file?path=${encodeURIComponent(item.path)}`, {
+      method: 'POST',
+      accessToken,
+      body: item.file,
+      headers: {
+        'Content-Type': item.file.type || 'application/octet-stream'
+      },
+      defaultJsonContentType: false
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData?.error || `Gagal mengunggah file contoh (${item.path}).`);
+    }
+  }
+  return apiFetch(`/api/jobs/${jobId}/artifacts-finalize`, {
     method: 'POST',
     accessToken,
-    body: formData
+    body: { manifest }
   });
 }
 
@@ -242,16 +348,12 @@ export async function requestImageRetouch(file, settings, accessToken) {
   const formData = new FormData();
   formData.append('image', file);
   formData.append('settings', JSON.stringify(settings));
-  let response;
-  try {
-    response = await fetch(`${API_BASE_URL}/api/image-retouch`, {
-      method: 'POST',
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-      body: formData
-    });
-  } catch (error) {
-    throw toUserApiError(error, 'Koneksi ke layanan gambar belum tersambung. Periksa URL API aplikasi.');
-  }
+  const response = await authorizedFetch('/api/image-retouch', {
+    method: 'POST',
+    accessToken,
+    body: formData,
+    networkFallbackMessage: 'Koneksi ke layanan gambar belum tersambung. Periksa URL API aplikasi.'
+  });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || 'Gambar ulang gagal.');

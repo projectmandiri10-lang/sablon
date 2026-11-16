@@ -23,6 +23,15 @@ export async function getObject(env, bucket, path) {
   return requireAssets(env).get(objectKey(bucket, path));
 }
 
+export async function hasObject(env, bucket, path) {
+  const assets = requireAssets(env);
+  const key = objectKey(bucket, path);
+  if (typeof assets.head === 'function') {
+    return Boolean(await assets.head(key));
+  }
+  return Boolean(await assets.get(key));
+}
+
 export async function deleteObjects(env, bucket, prefixes) {
   const filtered = [...new Set((prefixes || []).filter(Boolean))];
   if (filtered.length === 0) return null;

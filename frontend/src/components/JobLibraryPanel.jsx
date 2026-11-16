@@ -290,9 +290,8 @@ function LibraryCard({
         <button
           type="button"
           onClick={() => onOpen(item)}
-          className={`w-full justify-center !min-h-9 !rounded-xl !px-3 !py-1.5 !text-xs ${
-            isSelected ? 'studio-btn-primary' : 'studio-btn-secondary'
-          }`}
+          className={`w-full justify-center !min-h-9 !rounded-xl !px-3 !py-1.5 !text-xs ${isSelected ? 'studio-btn-primary' : 'studio-btn-secondary'
+            }`}
         >
           <Eye className="h-3.5 w-3.5" aria-hidden="true" />
           <span>{isSelected ? (isId ? 'Sedang dibuka' : 'Selected') : isId ? 'Lihat detail & download' : 'View & download'}</span>
@@ -452,9 +451,8 @@ export default function JobLibraryPanel({
                 key={tab.key}
                 type="button"
                 onClick={() => setFilterTab(tab.key)}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
-                  filterTab === tab.key ? 'bg-white text-primary shadow-sm' : 'text-slate-600 hover:text-ink'
-                }`}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${filterTab === tab.key ? 'bg-white text-primary shadow-sm' : 'text-slate-600 hover:text-ink'
+                  }`}
               >
                 <span>{tab.label}</span>
                 <span className="rounded-full bg-slate-200/70 px-1.5 py-0.2 text-[10px] font-bold text-slate-700">
@@ -466,12 +464,12 @@ export default function JobLibraryPanel({
         </div>
 
         {historyError && (
-          <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-800">
+          <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700">
             {historyError}
           </p>
         )}
         {exampleError && (
-          <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-800">
+          <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-semibold text-amber-800">
             {exampleError}
           </p>
         )}

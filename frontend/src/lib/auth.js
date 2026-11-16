@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './api.js';
+import { API_BASE_URL, registerAuthTokenProvider } from './api.js';
 import { ensureBrowserDeviceId } from './locale.js';
 
 export const isAuthConfigured = Boolean(API_BASE_URL);
@@ -247,3 +247,25 @@ export function onAuthStateChange(callback) {
     }
   };
 }
+
+async function getValidAccessToken(fallbackToken = '') {
+  const active = currentSession || readStoredSession();
+  const candidateToken = active?.access_token || fallbackToken || '';
+  if (!candidateToken) return '';
+  const claims = decodeJwtPayload(candidateToken);
+  const expiresAt = Number(claims?.exp || active?.expires_at || 0);
+  const now = Math.floor(Date.now() / 1000);
+  if (expiresAt && expiresAt <= now + REFRESH_MARGIN_SECONDS) {
+    const refreshed = await refreshSession().catch(() => null);
+    return refreshed?.access_token || '';
+  }
+  return candidateToken;
+}
+
+registerAuthTokenProvider({
+  getValidAccessToken,
+  refreshAccessToken: async () => {
+    const refreshed = await refreshSession().catch(() => null);
+    return refreshed?.access_token || '';
+  }
+});

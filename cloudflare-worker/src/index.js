@@ -86,7 +86,7 @@ import {
   upsertPricingRule,
   upsertTaxRule
 } from './db.js';
-import { deleteObjects, getObject, putObject } from './storage.js';
+import { deleteObjects, getObject, hasObject, putObject } from './storage.js';
 import {
   buildGoogleAuthStart,
   createAuthSession,
@@ -1804,7 +1804,25 @@ export function getAiRedrawModelPresets() {
   return Object.fromEntries(Object.entries(HYBRID_REDRAW_PRESETS).map(([key, preset]) => [key, { ...preset }]));
 }
 
-async function handleJobArtifactsUpload(env, request, jobId) {
+const ALLOWED_EXAMPLE_ARTIFACT_PATHS = new Set([
+  'source-preview.png',
+  'preview-full-color.png',
+  'full-vector.svg',
+  'full-vector.pdf',
+  'sticker-cutline.svg',
+  'sticker-cutline.pdf',
+  'result.zip',
+  'separation-films.zip'
+]);
+
+function validateExampleArtifactRelativePath(rawPath = '') {
+  const clean = String(rawPath || '').trim().replace(/^\/+/, '');
+  if (ALLOWED_EXAMPLE_ARTIFACT_PATHS.has(clean)) return clean;
+  if (/^separations\/film-(?:underbase|color-\d{2})(?:-preview\.png|\.svg|\.pdf)$/.test(clean)) return clean;
+  throw new Error('Path artefak contoh tidak valid.');
+}
+
+async function verifyUploadableExampleJob(env, request, jobId) {
   const { user, profile } = await requireUser(env, request);
   if (!isSuperuserProfile(profile, user.email)) {
     throw new Error('Hanya superadmin yang boleh mengunggah artefak contoh.');
@@ -1815,15 +1833,17 @@ async function handleJobArtifactsUpload(env, request, jobId) {
   if (jobIsDeleted(job)) throw new Error('Job ini sudah dihapus.');
   if (job.user_id !== user.id) throw new Error('Hanya job milik Anda sendiri yang boleh dijadikan contoh.');
   if (job.status !== 'done') throw new Error('Artefak contoh hanya boleh diunggah untuk job yang sudah selesai.');
+  return { user, profile, job };
+}
 
-  const form = await request.formData();
-  const manifestInput = normalizeArtifactManifestInput(JSON.parse(String(form.get('manifest') || '{}')), {
+function buildNormalizedExampleManifest(rawManifest, job) {
+  const manifestInput = normalizeArtifactManifestInput(rawManifest, {
     projectName: job.project_name,
     productionType: job.production_type,
     inputMode: job.input_mode,
     settings: job.settings || {}
   });
-  const manifest = {
+  return {
     ...manifestInput,
     projectName: manifestInput.projectName || job.project_name,
     productionType: job.production_type,
@@ -1831,70 +1851,19 @@ async function handleJobArtifactsUpload(env, request, jobId) {
     settings: manifestInput.settings || job.settings || {},
     aiRedraw: manifestInput.aiRedraw || job.manifest?.aiRedraw || null
   };
+}
 
-  const sourcePreview = requireFormFile(form, 'sourcePreview', 'Preview gambar awal wajib diunggah.');
-  const fullPng = requireFormFile(form, 'fullPng', 'Preview hasil PNG wajib diunggah.');
-  const fullSvg = requireFormFile(form, 'fullSvg', 'File SVG full color wajib diunggah.');
-  const fullPdf = requireFormFile(form, 'fullPdf', 'File PDF full color wajib diunggah.');
-  const zip = requireFormFile(form, 'zip', 'ZIP hasil lengkap wajib diunggah.');
-  const separationZip = optionalFormFile(form, 'separationZip');
-  const stickerCutlineSvg = optionalFormFile(form, 'stickerCutlineSvg');
-  const stickerCutlinePdf = optionalFormFile(form, 'stickerCutlinePdf');
-
-  const separationSvgs = form.getAll('separationSvg').filter((file) => file instanceof File);
-  const separationPdfs = form.getAll('separationPdf').filter((file) => file instanceof File);
-  const separationPreviews = form.getAll('separationPreview').filter((file) => file instanceof File);
-
-  if (manifest.productionType === 'sablon') {
-    if (!(separationZip instanceof File)) throw new Error('ZIP film sablon wajib diunggah untuk contoh sablon.');
-    if (manifest.separations.length === 0) throw new Error('Contoh sablon wajib memiliki daftar film.');
-  }
-
-  if (manifest.separations.length > 0) {
-    if (separationSvgs.length !== manifest.separations.length || separationPdfs.length !== manifest.separations.length || separationPreviews.length !== manifest.separations.length) {
-      throw new Error('Jumlah file film contoh tidak cocok dengan manifest.');
-    }
-  }
-
-  const sourcePreviewPath = exampleJobPath(job.id, 'source-preview.png');
-  const resultPreviewPath = exampleJobPath(job.id, 'preview-full-color.png');
-  const fullSvgPath = exampleJobPath(job.id, 'full-vector.svg');
-  const fullPdfPath = exampleJobPath(job.id, 'full-vector.pdf');
-  const stickerCutlineSvgPath = stickerCutlineSvg ? exampleJobPath(job.id, 'sticker-cutline.svg') : '';
-  const stickerCutlinePdfPath = stickerCutlinePdf ? exampleJobPath(job.id, 'sticker-cutline.pdf') : '';
-  const zipPath = exampleJobPath(job.id, 'result.zip');
-  const separationZipPath = separationZip ? exampleJobPath(job.id, 'separation-films.zip') : '';
-  const manifestPath = exampleJobPath(job.id, 'manifest.json');
-
-  await putObject(env, EXAMPLE_JOBS_BUCKET, sourcePreviewPath, await fileToUint8Array(sourcePreview), sourcePreview.type || 'image/png');
-  await putObject(env, EXAMPLE_JOBS_BUCKET, resultPreviewPath, await fileToUint8Array(fullPng), fullPng.type || 'image/png');
-  await putObject(env, EXAMPLE_JOBS_BUCKET, fullSvgPath, await fileToUint8Array(fullSvg), fullSvg.type || 'image/svg+xml');
-  await putObject(env, EXAMPLE_JOBS_BUCKET, fullPdfPath, await fileToUint8Array(fullPdf), fullPdf.type || 'application/pdf');
-  await putObject(env, EXAMPLE_JOBS_BUCKET, zipPath, await fileToUint8Array(zip), zip.type || 'application/zip');
-
-  if (stickerCutlineSvgPath) {
-    await putObject(env, EXAMPLE_JOBS_BUCKET, stickerCutlineSvgPath, await fileToUint8Array(stickerCutlineSvg), stickerCutlineSvg.type || 'image/svg+xml');
-  }
-  if (stickerCutlinePdfPath) {
-    await putObject(env, EXAMPLE_JOBS_BUCKET, stickerCutlinePdfPath, await fileToUint8Array(stickerCutlinePdf), stickerCutlinePdf.type || 'application/pdf');
-  }
-  if (separationZipPath) {
-    await putObject(env, EXAMPLE_JOBS_BUCKET, separationZipPath, await fileToUint8Array(separationZip), separationZip.type || 'application/zip');
-  }
-
-  const uploadedSeparations = [];
-  for (let index = 0; index < manifest.separations.length; index += 1) {
-    const separation = manifest.separations[index];
-    const slug = separation.kind === 'underbase' ? 'underbase' : `color-${String(separation.index).padStart(2, '0')}`;
-    const svgPath = exampleJobPath(job.id, `separations/film-${slug}.svg`);
-    const pdfPath = exampleJobPath(job.id, `separations/film-${slug}.pdf`);
-    const previewPath = exampleJobPath(job.id, `separations/film-${slug}-preview.png`);
-
-    await putObject(env, EXAMPLE_JOBS_BUCKET, svgPath, await fileToUint8Array(separationSvgs[index]), separationSvgs[index].type || 'image/svg+xml');
-    await putObject(env, EXAMPLE_JOBS_BUCKET, pdfPath, await fileToUint8Array(separationPdfs[index]), separationPdfs[index].type || 'application/pdf');
-    await putObject(env, EXAMPLE_JOBS_BUCKET, previewPath, await fileToUint8Array(separationPreviews[index]), separationPreviews[index].type || 'image/png');
-
-    uploadedSeparations.push({
+function buildUploadedSeparationEntry(env, jobId, separation) {
+  const slug = separation.kind === 'underbase' ? 'underbase' : `color-${String(separation.index).padStart(2, '0')}`;
+  const svgPath = exampleJobPath(jobId, `separations/film-${slug}.svg`);
+  const pdfPath = exampleJobPath(jobId, `separations/film-${slug}.pdf`);
+  const previewPath = exampleJobPath(jobId, `separations/film-${slug}-preview.png`);
+  return {
+    slug,
+    svgPath,
+    pdfPath,
+    previewPath,
+    entry: {
       index: separation.index,
       kind: separation.kind || 'color',
       hex: separation.hex || '#000000',
@@ -1903,9 +1872,27 @@ async function handleJobArtifactsUpload(env, request, jobId) {
       pdf: examplePublicUrl(env, pdfPath),
       preview: examplePublicUrl(env, previewPath),
       previewPng: examplePublicUrl(env, previewPath)
-    });
-  }
+    }
+  };
+}
 
+async function commitJobExampleArtifactsManifest(
+  env,
+  job,
+  manifest,
+  {
+    sourcePreviewPath,
+    resultPreviewPath,
+    fullSvgPath,
+    fullPdfPath,
+    stickerCutlineSvgPath,
+    stickerCutlinePdfPath,
+    zipPath,
+    separationZipPath,
+    uploadedSeparations
+  }
+) {
+  const manifestPath = exampleJobPath(job.id, 'manifest.json');
   const exampleArtifacts = {
     version: 1,
     projectName: manifest.projectName,
@@ -1959,6 +1946,179 @@ async function handleJobArtifactsUpload(env, request, jobId) {
     jobId: job.id,
     exampleArtifacts,
     job: updatedJob || { ...job, manifest: nextManifest }
+  });
+}
+
+async function handleJobArtifactFileUpload(env, request, jobId) {
+  const { job } = await verifyUploadableExampleJob(env, request, jobId);
+  const url = new URL(request.url);
+  const relativePath = validateExampleArtifactRelativePath(url.searchParams.get('path') || '');
+  const objectPath = exampleJobPath(job.id, relativePath);
+  const contentType = String(request.headers.get('content-type') || '').trim() || 'application/octet-stream';
+  const contentLength = Number.parseInt(request.headers.get('content-length') || '', 10);
+
+  if (
+    typeof FixedLengthStream === 'function' &&
+    Number.isFinite(contentLength) &&
+    contentLength >= 0 &&
+    !request.headers.get('content-encoding') &&
+    request.body
+  ) {
+    const { readable, writable } = new FixedLengthStream(contentLength);
+    await Promise.all([
+      request.body.pipeTo(writable),
+      putObject(env, EXAMPLE_JOBS_BUCKET, objectPath, readable, contentType)
+    ]);
+  } else {
+    const bytes = new Uint8Array(await request.arrayBuffer());
+    await putObject(env, EXAMPLE_JOBS_BUCKET, objectPath, bytes, contentType);
+  }
+
+  return json({
+    jobId: job.id,
+    path: relativePath,
+    key: objectPath,
+    url: examplePublicUrl(env, objectPath)
+  });
+}
+
+async function handleFinalizeJobArtifacts(env, request, jobId) {
+  const { job } = await verifyUploadableExampleJob(env, request, jobId);
+  const body = await readJson(request);
+  const manifest = buildNormalizedExampleManifest(body?.manifest || {}, job);
+
+  const sourcePreviewPath = exampleJobPath(job.id, 'source-preview.png');
+  const resultPreviewPath = exampleJobPath(job.id, 'preview-full-color.png');
+  const fullSvgPath = exampleJobPath(job.id, 'full-vector.svg');
+  const fullPdfPath = exampleJobPath(job.id, 'full-vector.pdf');
+  const zipPath = exampleJobPath(job.id, 'result.zip');
+  const stickerCutlineSvgCandidate = exampleJobPath(job.id, 'sticker-cutline.svg');
+  const stickerCutlinePdfCandidate = exampleJobPath(job.id, 'sticker-cutline.pdf');
+  const separationZipCandidate = exampleJobPath(job.id, 'separation-films.zip');
+
+  const [hasSourcePreview, hasFullPng, hasFullSvg, hasFullPdf, hasZip, hasCutlineSvg, hasCutlinePdf, hasSepZip] = await Promise.all([
+    hasObject(env, EXAMPLE_JOBS_BUCKET, sourcePreviewPath),
+    hasObject(env, EXAMPLE_JOBS_BUCKET, resultPreviewPath),
+    hasObject(env, EXAMPLE_JOBS_BUCKET, fullSvgPath),
+    hasObject(env, EXAMPLE_JOBS_BUCKET, fullPdfPath),
+    hasObject(env, EXAMPLE_JOBS_BUCKET, zipPath),
+    hasObject(env, EXAMPLE_JOBS_BUCKET, stickerCutlineSvgCandidate),
+    hasObject(env, EXAMPLE_JOBS_BUCKET, stickerCutlinePdfCandidate),
+    hasObject(env, EXAMPLE_JOBS_BUCKET, separationZipCandidate)
+  ]);
+
+  if (!hasSourcePreview) throw new Error('Preview gambar awal wajib diunggah.');
+  if (!hasFullPng) throw new Error('Preview hasil PNG wajib diunggah.');
+  if (!hasFullSvg) throw new Error('File SVG full color wajib diunggah.');
+  if (!hasFullPdf) throw new Error('File PDF full color wajib diunggah.');
+  if (!hasZip) throw new Error('ZIP hasil lengkap wajib diunggah.');
+
+  if (manifest.productionType === 'sablon') {
+    if (!hasSepZip) throw new Error('ZIP film sablon wajib diunggah untuk contoh sablon.');
+    if (manifest.separations.length === 0) throw new Error('Contoh sablon wajib memiliki daftar film.');
+  }
+
+  const uploadedSeparations = [];
+  for (const separation of manifest.separations) {
+    const built = buildUploadedSeparationEntry(env, job.id, separation);
+    const [hasSvg, hasPdf, hasPreview] = await Promise.all([
+      hasObject(env, EXAMPLE_JOBS_BUCKET, built.svgPath),
+      hasObject(env, EXAMPLE_JOBS_BUCKET, built.pdfPath),
+      hasObject(env, EXAMPLE_JOBS_BUCKET, built.previewPath)
+    ]);
+    if (!hasSvg || !hasPdf || !hasPreview) {
+      throw new Error('Jumlah file film contoh tidak cocok dengan manifest.');
+    }
+    uploadedSeparations.push(built.entry);
+  }
+
+  return commitJobExampleArtifactsManifest(env, job, manifest, {
+    sourcePreviewPath,
+    resultPreviewPath,
+    fullSvgPath,
+    fullPdfPath,
+    stickerCutlineSvgPath: hasCutlineSvg ? stickerCutlineSvgCandidate : '',
+    stickerCutlinePdfPath: hasCutlinePdf ? stickerCutlinePdfCandidate : '',
+    zipPath,
+    separationZipPath: hasSepZip ? separationZipCandidate : '',
+    uploadedSeparations
+  });
+}
+
+async function handleJobArtifactsUpload(env, request, jobId) {
+  const { job } = await verifyUploadableExampleJob(env, request, jobId);
+
+  const form = await request.formData();
+  const manifest = buildNormalizedExampleManifest(JSON.parse(String(form.get('manifest') || '{}')), job);
+
+  const sourcePreview = requireFormFile(form, 'sourcePreview', 'Preview gambar awal wajib diunggah.');
+  const fullPng = requireFormFile(form, 'fullPng', 'Preview hasil PNG wajib diunggah.');
+  const fullSvg = requireFormFile(form, 'fullSvg', 'File SVG full color wajib diunggah.');
+  const fullPdf = requireFormFile(form, 'fullPdf', 'File PDF full color wajib diunggah.');
+  const zip = requireFormFile(form, 'zip', 'ZIP hasil lengkap wajib diunggah.');
+  const separationZip = optionalFormFile(form, 'separationZip');
+  const stickerCutlineSvg = optionalFormFile(form, 'stickerCutlineSvg');
+  const stickerCutlinePdf = optionalFormFile(form, 'stickerCutlinePdf');
+
+  const separationSvgs = form.getAll('separationSvg').filter((file) => file instanceof File);
+  const separationPdfs = form.getAll('separationPdf').filter((file) => file instanceof File);
+  const separationPreviews = form.getAll('separationPreview').filter((file) => file instanceof File);
+
+  if (manifest.productionType === 'sablon') {
+    if (!(separationZip instanceof File)) throw new Error('ZIP film sablon wajib diunggah untuk contoh sablon.');
+    if (manifest.separations.length === 0) throw new Error('Contoh sablon wajib memiliki daftar film.');
+  }
+
+  if (manifest.separations.length > 0) {
+    if (separationSvgs.length !== manifest.separations.length || separationPdfs.length !== manifest.separations.length || separationPreviews.length !== manifest.separations.length) {
+      throw new Error('Jumlah file film contoh tidak cocok dengan manifest.');
+    }
+  }
+
+  const sourcePreviewPath = exampleJobPath(job.id, 'source-preview.png');
+  const resultPreviewPath = exampleJobPath(job.id, 'preview-full-color.png');
+  const fullSvgPath = exampleJobPath(job.id, 'full-vector.svg');
+  const fullPdfPath = exampleJobPath(job.id, 'full-vector.pdf');
+  const stickerCutlineSvgPath = stickerCutlineSvg ? exampleJobPath(job.id, 'sticker-cutline.svg') : '';
+  const stickerCutlinePdfPath = stickerCutlinePdf ? exampleJobPath(job.id, 'sticker-cutline.pdf') : '';
+  const zipPath = exampleJobPath(job.id, 'result.zip');
+  const separationZipPath = separationZip ? exampleJobPath(job.id, 'separation-films.zip') : '';
+
+  await putObject(env, EXAMPLE_JOBS_BUCKET, sourcePreviewPath, await sourcePreview.arrayBuffer(), sourcePreview.type || 'image/png');
+  await putObject(env, EXAMPLE_JOBS_BUCKET, resultPreviewPath, await fullPng.arrayBuffer(), fullPng.type || 'image/png');
+  await putObject(env, EXAMPLE_JOBS_BUCKET, fullSvgPath, await fullSvg.arrayBuffer(), fullSvg.type || 'image/svg+xml');
+  await putObject(env, EXAMPLE_JOBS_BUCKET, fullPdfPath, await fullPdf.arrayBuffer(), fullPdf.type || 'application/pdf');
+  await putObject(env, EXAMPLE_JOBS_BUCKET, zipPath, await zip.arrayBuffer(), zip.type || 'application/zip');
+
+  if (stickerCutlineSvgPath) {
+    await putObject(env, EXAMPLE_JOBS_BUCKET, stickerCutlineSvgPath, await stickerCutlineSvg.arrayBuffer(), stickerCutlineSvg.type || 'image/svg+xml');
+  }
+  if (stickerCutlinePdfPath) {
+    await putObject(env, EXAMPLE_JOBS_BUCKET, stickerCutlinePdfPath, await stickerCutlinePdf.arrayBuffer(), stickerCutlinePdf.type || 'application/pdf');
+  }
+  if (separationZipPath) {
+    await putObject(env, EXAMPLE_JOBS_BUCKET, separationZipPath, await separationZip.arrayBuffer(), separationZip.type || 'application/zip');
+  }
+
+  const uploadedSeparations = [];
+  for (let index = 0; index < manifest.separations.length; index += 1) {
+    const built = buildUploadedSeparationEntry(env, job.id, manifest.separations[index]);
+    await putObject(env, EXAMPLE_JOBS_BUCKET, built.svgPath, await separationSvgs[index].arrayBuffer(), separationSvgs[index].type || 'image/svg+xml');
+    await putObject(env, EXAMPLE_JOBS_BUCKET, built.pdfPath, await separationPdfs[index].arrayBuffer(), separationPdfs[index].type || 'application/pdf');
+    await putObject(env, EXAMPLE_JOBS_BUCKET, built.previewPath, await separationPreviews[index].arrayBuffer(), separationPreviews[index].type || 'image/png');
+    uploadedSeparations.push(built.entry);
+  }
+
+  return commitJobExampleArtifactsManifest(env, job, manifest, {
+    sourcePreviewPath,
+    resultPreviewPath,
+    fullSvgPath,
+    fullPdfPath,
+    stickerCutlineSvgPath,
+    stickerCutlinePdfPath,
+    zipPath,
+    separationZipPath,
+    uploadedSeparations
   });
 }
 
@@ -3051,6 +3211,10 @@ export default {
       if (url.pathname === '/api/jobs/quote' && request.method === 'POST') return await handleQuote(env, request);
       if (url.pathname === '/api/jobs/commit' && request.method === 'POST') return await handleCommitJob(env, request);
       if (url.pathname === '/api/example-jobs' && request.method === 'GET') return await handleExampleJobs(env, request);
+      const artifactFileMatch = url.pathname.match(/^\/api\/jobs\/([^/]+)\/artifact-file$/);
+      if (artifactFileMatch && request.method === 'POST') return await handleJobArtifactFileUpload(env, request, artifactFileMatch[1]);
+      const artifactsFinalizeMatch = url.pathname.match(/^\/api\/jobs\/([^/]+)\/artifacts-finalize$/);
+      if (artifactsFinalizeMatch && request.method === 'POST') return await handleFinalizeJobArtifacts(env, request, artifactsFinalizeMatch[1]);
       const artifactsMatch = url.pathname.match(/^\/api\/jobs\/([^/]+)\/artifacts$/);
       if (artifactsMatch && request.method === 'POST') return await handleJobArtifactsUpload(env, request, artifactsMatch[1]);
       const deleteJobMatch = url.pathname.match(/^\/api\/jobs\/([^/]+)$/);

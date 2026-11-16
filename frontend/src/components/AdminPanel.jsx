@@ -142,6 +142,8 @@ export default function AdminPanel({
   onActiveTabChange,
   historyJobs = [],
   onPublishHistoryJobAsExample,
+  onDeleteServerJob,
+  onCreateExampleClick,
   onExampleJobsChanged
 }) {
   const [localActiveTab, setLocalActiveTab] = useState(activeTab || 'overview');
@@ -569,8 +571,7 @@ export default function AdminPanel({
       if (isPublished) {
         await unsetAdminJobExample(job.id, accessToken);
       } else if (!job.can_set_as_example && job.localItem && typeof onPublishHistoryJobAsExample === 'function') {
-        const uploadedJobId = await onPublishHistoryJobAsExample(job.localItem, job.isLocalOnly ? '' : job.id);
-        await setAdminJobExample(uploadedJobId, accessToken);
+        await onPublishHistoryJobAsExample(job.localItem, job.isLocalOnly ? '' : job.id);
       } else {
         await setAdminJobExample(job.id, accessToken);
       }
@@ -583,6 +584,24 @@ export default function AdminPanel({
       );
     } catch (error) {
       setMessage(toUserApiError(error, isPublished ? 'Gagal mencabut contoh job.' : 'Gagal menjadikan job sebagai contoh.').message);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function removeOrphanServerJob(job) {
+    if (!job?.id || typeof onDeleteServerJob !== 'function') return;
+    if (!window.confirm(`Hapus job server "${job.project_name || 'Project Vector'}" karena file hasilnya sudah tidak ada di server maupun browser ini?`)) {
+      return;
+    }
+    setIsBusy(true);
+    setMessage('');
+    try {
+      await onDeleteServerJob(job.id);
+      await loadAdminData({ preserveMessage: true });
+      setMessage('Job lama berhasil dihapus. Silakan proses ulang 1 gambar agar langsung menjadi contoh aktif.');
+    } catch (error) {
+      setMessage(toUserApiError(error, 'Gagal menghapus job lama.').message);
     } finally {
       setIsBusy(false);
     }
@@ -1587,6 +1606,10 @@ export default function AdminPanel({
                             <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
                               Riwayat browser
                             </span>
+                          ) : !job.has_example_artifacts && !job.localItem ? (
+                            <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-semibold text-red-700 ring-1 ring-red-200">
+                              File tidak ada di browser ini
+                            </span>
                           ) : null}
                         </div>
 
@@ -1637,7 +1660,34 @@ export default function AdminPanel({
                           </span>
                         </button>
                         {!canAction && (
-                          <p className="mt-1.5 text-[11px] leading-4 text-slate-500">{examplePublishHint(job, isPublished)}</p>
+                          <div className="mt-2 space-y-2">
+                            <p className="text-[11px] leading-4 text-slate-600">{examplePublishHint(job, isPublished)}</p>
+                            {!isPublished && !job.has_example_artifacts && !job.localItem && (
+                              <div className="flex flex-wrap gap-2">
+                                {typeof onCreateExampleClick === 'function' && (
+                                  <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={onCreateExampleClick}
+                                    className="studio-btn-secondary !min-h-8 !rounded-lg !px-2.5 !py-1 !text-[11px]"
+                                  >
+                                    Proses Contoh Baru
+                                  </button>
+                                )}
+                                {typeof onDeleteServerJob === 'function' && (
+                                  <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={() => removeOrphanServerJob(job)}
+                                    className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                                  >
+                                    <Trash2 className="h-3 w-3" aria-hidden="true" />
+                                    Hapus Metadata Lama
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </article>

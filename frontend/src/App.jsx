@@ -271,9 +271,21 @@ async function optionalBlobFromUrl(url) {
   }
 }
 
+async function buildZipFromBlobs(entries = []) {
+  const { default: JSZip } = await import('jszip');
+  const archive = new JSZip();
+  for (const [name, blob] of entries) {
+    if (blob instanceof Blob) {
+      archive.file(name, blob);
+    }
+  }
+  return archive.generateAsync({ type: 'blob' });
+}
+
 async function hydrateHistoryItemForExampleUpload(item) {
   const files = item?.job?.files || {};
-  const [sourcePreviewBlob, sourceRasterBlob, fullPng, fullSvg, fullPdf, stickerCutlineSvg, stickerCutlinePdf, zip, separationZip] =
+  const isSablon = (item?.productionType || item?.job?.settings?.productionType || 'sticker') === 'sablon';
+  const [rawSourcePreview, rawSourceRaster, rawFullPng, rawFullSvg, rawFullPdf, rawCutlineSvg, rawCutlinePdf, rawZip, rawSepZip] =
     await Promise.all([
       optionalBlobFromUrl(item.sourcePreviewUrl),
       optionalBlobFromUrl(item.sourceRasterUrl),
@@ -286,7 +298,16 @@ async function hydrateHistoryItemForExampleUpload(item) {
       optionalBlobFromUrl(files.separationZip)
     ]);
 
-  const separations = await Promise.all(
+  let sourcePreviewBlob = rawSourcePreview;
+  let sourceRasterBlob = rawSourceRaster;
+  let fullPng = rawFullPng;
+  let fullSvg = rawFullSvg;
+  let fullPdf = rawFullPdf;
+  let stickerCutlineSvg = rawCutlineSvg;
+  let stickerCutlinePdf = rawCutlinePdf;
+  let zip = rawZip;
+  let separationZip = rawSepZip;
+  let separations = await Promise.all(
     (files.separations || []).map(async (separation) => ({
       ...separation,
       svgBlob: await optionalBlobFromUrl(separation.svg),
@@ -294,6 +315,76 @@ async function hydrateHistoryItemForExampleUpload(item) {
       previewBlob: (await optionalBlobFromUrl(separation.preview)) || fullPng
     }))
   );
+
+  const missingEssentialRender =
+    !fullPng ||
+    !fullSvg ||
+    !fullPdf ||
+    separations.some((separation) => !(separation.svgBlob instanceof Blob) || !(separation.pdfBlob instanceof Blob)) ||
+    (isSablon && separations.length === 0);
+
+  if (missingEssentialRender) {
+    const rawAiBlob = await optionalBlobFromUrl(files.aiRawPng);
+    const rebuildBlob = rawAiBlob || sourceRasterBlob || sourcePreviewBlob;
+    if (rebuildBlob instanceof Blob) {
+      const rebuildSettings = normalizeLocalTraceSettings({
+        ...(item?.job?.settings || {}),
+        productionType: item?.productionType || item?.job?.settings?.productionType || 'sticker',
+        inputMode: rawAiBlob ? INPUT_MODE_RETOUCH : item?.inputMode || item?.job?.settings?.inputMode || INPUT_MODE_READY
+      });
+      const rebuildFile = new File([rebuildBlob], item?.sourceFileName || 'gambar-awal.png', {
+        type: rebuildBlob.type || 'image/png'
+      });
+      const rebuilt = await processImageLocallyWithFallback(rebuildFile, rebuildSettings);
+      const blobs = rebuilt.artifactBlobs || {};
+      fullPng = blobs.fullPng || fullPng;
+      fullSvg = blobs.fullSvg || fullSvg;
+      fullPdf = blobs.fullPdf || fullPdf;
+      stickerCutlineSvg = blobs.stickerCutlineSvg || stickerCutlineSvg;
+      stickerCutlinePdf = blobs.stickerCutlinePdf || stickerCutlinePdf;
+      zip = blobs.zip || zip;
+      separationZip = blobs.separationZip || separationZip;
+      separations = (blobs.separations || []).map((separation) => ({
+        ...separation,
+        previewBlob: separation.previewBlob || fullPng
+      }));
+    }
+  }
+
+  if (isSablon && separations.length > 0 && !(separationZip instanceof Blob)) {
+    const sepEntries = [];
+    for (const separation of separations) {
+      const slug = separation.kind === 'underbase' ? 'underbase' : `color-${String(separation.index).padStart(2, '0')}`;
+      if (separation.svgBlob) sepEntries.push([`film-${slug}.svg`, separation.svgBlob]);
+      if (separation.pdfBlob) sepEntries.push([`film-${slug}.pdf`, separation.pdfBlob]);
+      if (separation.previewBlob) sepEntries.push([`film-${slug}-preview.png`, separation.previewBlob]);
+    }
+    separationZip = await buildZipFromBlobs(sepEntries);
+  }
+
+  if (!(zip instanceof Blob) && fullPng && fullSvg && fullPdf) {
+    const zipEntries = [
+      ['preview-full-color.png', fullPng],
+      ['full-vector.svg', fullSvg],
+      ['full-vector.pdf', fullPdf]
+    ];
+    if (stickerCutlineSvg) zipEntries.push(['sticker-cutline.svg', stickerCutlineSvg]);
+    if (stickerCutlinePdf) zipEntries.push(['sticker-cutline.pdf', stickerCutlinePdf]);
+    for (const separation of separations) {
+      const slug = separation.kind === 'underbase' ? 'underbase' : `color-${String(separation.index).padStart(2, '0')}`;
+      if (separation.svgBlob) zipEntries.push([`separations/film-${slug}.svg`, separation.svgBlob]);
+      if (separation.pdfBlob) zipEntries.push([`separations/film-${slug}.pdf`, separation.pdfBlob]);
+      if (separation.previewBlob) zipEntries.push([`separations/film-${slug}-preview.png`, separation.previewBlob]);
+    }
+    zip = await buildZipFromBlobs(zipEntries);
+  }
+
+  if (!(fullPng instanceof Blob) || !(fullSvg instanceof Blob) || !(fullPdf instanceof Blob) || !(zip instanceof Blob)) {
+    throw new Error('File hasil lengkap (PNG, SVG, PDF, ZIP) di riwayat browser belum lengkap. Klik "Trace Ulang" atau proses ulang gambar terlebih dahulu.');
+  }
+  if (isSablon && (separations.length === 0 || !(separationZip instanceof Blob))) {
+    throw new Error('Film separasi sablon & ZIP film wajib tersedia untuk contoh sablon.');
+  }
 
   return {
     sourcePreviewBlob: sourcePreviewBlob || fullPng,
@@ -595,7 +686,6 @@ export default function App() {
   }, [session?.user?.id]);
 
   useEffect(() => {
-    if (view !== 'app') return;
     refreshExampleJobs(session);
   }, [session?.access_token, session?.user?.id, view]);
 
@@ -620,7 +710,6 @@ export default function App() {
     setView('app');
     replaceHistoryJobs([]);
     setHistoryError('');
-    setExampleJobs([]);
     setExampleError('');
     setDeletingLibraryJobId('');
     setRetracingLibraryJobId('');
@@ -948,6 +1037,11 @@ export default function App() {
       }
 
       if (isSuperuser && committed.job?.id) {
+        setHistoryNotice(
+          isId
+            ? 'Hasil disimpan ke riwayat. Sedang mengunggah & mempublikasikan contoh ke semua user…'
+            : 'Saved to history. Uploading & publishing public example to all users…'
+        );
         try {
           await uploadAndPublishSuperadminExample({
             targetJobId: committed.job.id,
@@ -955,19 +1049,20 @@ export default function App() {
             sourceFileName: file.name,
             job: completedJob
           });
-          setProcessNotice(
+          setHistoryNotice(
             isId
               ? 'Hasil selesai dan otomatis dipublikasikan sebagai contoh untuk semua user.'
               : 'Job completed and automatically published as a public example for all users.'
           );
+          setHistoryError('');
         } catch (artifactError) {
           console.error('Failed to upload and publish example artifacts', artifactError);
-          setJobError(
+          setHistoryError(
             toUserApiError(
               artifactError,
               isId
-                ? 'Hasil selesai disimpan, tetapi gagal mempublikasikan contoh ke semua user.'
-                : 'Result saved, but failed to publish as a public example.'
+                ? 'Hasil selesai disimpan, tetapi gagal mempublikasikan contoh ke semua user. Klik "Jadikan Contoh User" pada riwayat untuk mencoba lagi.'
+                : 'Result saved, but failed to publish as a public example. Click "Publish as User Example" in history to retry.'
             ).message
           );
         }
@@ -1172,7 +1267,12 @@ export default function App() {
       let remoteJob = item.job?.remoteJob || null;
       let finalPrice = 0;
 
-      if (wasIncomplete && !committedJobId && session?.access_token) {
+      const needsServerCommit =
+        !committedJobId &&
+        (wasIncomplete ||
+          (isSuperuser && (!item.jobId || String(item.jobId).startsWith('local-') || String(item.jobId).startsWith('pending-'))));
+
+      if (needsServerCommit && session?.access_token) {
         finalPrice = calculateJobPrice({
           inputMode: isAiJob ? INPUT_MODE_RETOUCH : INPUT_MODE_READY,
           separationFilmCount: retraced.separationFilmCount,
@@ -1190,7 +1290,7 @@ export default function App() {
               ...(retraced.manifest || {})
             },
             aiLedgerId: item.retouchLedgerId || item.job?.retouchLedgerId || '',
-            priceIdr: finalPrice
+            priceIdr: wasIncomplete ? finalPrice : 0
           },
           session.access_token
         );
@@ -1383,7 +1483,11 @@ export default function App() {
     if (!isSuperuser || !session?.access_token || !libraryItem) return;
     const matchLocal =
       historyJobs.find(
-        (entry) => entry.jobId === (libraryItem.localRecordId || libraryItem.jobId) || entry.job?.jobId === libraryItem.jobId
+        (entry) =>
+          entry.id === (libraryItem.localRecordId || libraryItem.jobId) ||
+          entry.jobId === (libraryItem.localRecordId || libraryItem.jobId) ||
+          entry.job?.jobId === libraryItem.jobId ||
+          (libraryItem.committedJobId && entry.committedJobId === libraryItem.committedJobId)
       ) || null;
     const itemKey = libraryItem.localRecordId || libraryItem.jobId || '';
     setPublishingLibraryJobId(itemKey);
@@ -1582,6 +1686,14 @@ export default function App() {
             onActiveTabChange={setAdminTab}
             historyJobs={historyJobs}
             onPublishHistoryJobAsExample={handlePublishHistoryJobAsExample}
+            onDeleteServerJob={async (jobId) => {
+              await deleteCloudJob(jobId, session.access_token);
+              await refreshExampleJobs(session);
+            }}
+            onCreateExampleClick={() => {
+              setView('app');
+              setAppSection('process');
+            }}
             onExampleJobsChanged={() => refreshExampleJobs(session)}
           />
         </div>
