@@ -5,7 +5,7 @@ export const HYBRID_REDRAW_PROVIDER = AIVENE_IMAGE_REDRAW_PROVIDER;
 
 export const DEFAULT_AIVENE_IMAGE_MODEL = 'gpt-image-2';
 export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-2';
-export const AIVENE_IMAGE_MODELS = Object.freeze(['gpt-image-2', 'gpt-image-1.5']);
+export const AIVENE_IMAGE_MODELS = Object.freeze(['gpt-image-2']);
 export const DEFAULT_PROMPT_PROFILE = 'logo_photo_cleanup_short';
 
 export const HYBRID_REDRAW_PRESETS = {
@@ -21,7 +21,6 @@ export const HYBRID_REDRAW_PRESETS = {
     promptProfile: DEFAULT_PROMPT_PROFILE,
     generationQuality: 'low',
     imageSize: '1K',
-    inputFidelity: 'low',
     inputMaxEdge: 1080,
     aspectPolicy: 'match_source',
     resolutionPolicy: 'standard',
@@ -43,7 +42,6 @@ export const HYBRID_REDRAW_PRESETS = {
     promptProfile: DEFAULT_PROMPT_PROFILE,
     generationQuality: 'medium',
     imageSize: '1K',
-    inputFidelity: 'low',
     inputMaxEdge: 1080,
     aspectPolicy: 'match_source',
     resolutionPolicy: 'standard',
@@ -65,7 +63,6 @@ export const HYBRID_REDRAW_PRESETS = {
     promptProfile: DEFAULT_PROMPT_PROFILE,
     generationQuality: 'medium',
     imageSize: '1K',
-    inputFidelity: 'low',
     inputMaxEdge: 1080,
     aspectPolicy: 'match_source',
     resolutionPolicy: 'high',
@@ -73,7 +70,7 @@ export const HYBRID_REDRAW_PRESETS = {
     persistPrompt: true,
     retryOnLowConfidence: false,
     estimatedUsdPerImage: 0.05,
-    note: 'AIVene memakai model yang dipilih Admin dengan fallback OpenAI GPT Image 2 otomatis, quality medium untuk testing.'
+    note: 'AIVene GPT Image 2 dengan fallback OpenAI GPT Image 2 otomatis, quality medium untuk testing.'
   },
   premium: {
     mode: 'premium',
@@ -87,7 +84,6 @@ export const HYBRID_REDRAW_PRESETS = {
     promptProfile: DEFAULT_PROMPT_PROFILE,
     generationQuality: 'high',
     imageSize: '2K',
-    inputFidelity: 'low',
     inputMaxEdge: 1080,
     aspectPolicy: 'match_source',
     resolutionPolicy: 'high',
@@ -129,11 +125,6 @@ function normalizeGenerationQuality(value, fallback) {
 function normalizeImageSize(value, fallback) {
   const normalized = normalizeText(value, fallback).toUpperCase();
   return normalized === '1K' || normalized === '2K' || normalized === '4K' ? normalized : fallback;
-}
-
-function normalizeInputFidelity(value, fallback) {
-  const normalized = normalizeText(value, fallback).toLowerCase();
-  return normalized === 'low' || normalized === 'high' ? normalized : fallback;
 }
 
 function normalizeInputMaxEdge(value, fallback) {
@@ -208,7 +199,6 @@ export function normalizeHybridRedrawConfig(value = {}, env = {}) {
     promptProfile: normalizePromptProfile(input.promptProfile || env.AI_REDRAW_PROMPT_PROFILE, preset.promptProfile),
     generationQuality: normalizeGenerationQuality(input.generationQuality || env.AI_REDRAW_IMAGE_QUALITY, preset.generationQuality),
     imageSize: normalizeImageSize(input.imageSize || env.AI_REDRAW_IMAGE_SIZE, preset.imageSize),
-    inputFidelity: 'low',
     inputMaxEdge: normalizeInputMaxEdge(input.inputMaxEdge || env.AI_REDRAW_INPUT_MAX_EDGE, preset.inputMaxEdge),
     reasoningEffort: '',
     backgroundMode: normalizeBackgroundMode(input.backgroundMode, 'transparent'),

@@ -12,11 +12,8 @@ test('AI redraw model presets expose AIVene primary with OpenAI fallback', () =>
   assert.equal(presets.budget.openAiImageModel, 'gpt-image-2');
   assert.equal(presets.budget.promptProfile, 'logo_photo_cleanup_short');
   assert.equal(presets.budget.generationQuality, 'low');
-  assert.equal(presets.budget.inputFidelity, 'low');
-  assert.equal(presets.standard.inputFidelity, 'low');
   assert.equal(presets.standard.inputMaxEdge, 1080);
   assert.equal(presets.quality.aiveneImageModel, 'gpt-image-2');
-  assert.equal(presets.quality.inputFidelity, 'low');
   assert.equal(presets.standard.generationQuality, 'medium');
   assert.equal(presets.quality.generationQuality, 'medium');
   assert.equal(presets.quality.imageSize, '1K');
@@ -24,12 +21,11 @@ test('AI redraw model presets expose AIVene primary with OpenAI fallback', () =>
   assert.equal(Object.keys(presets).length, 4);
 });
 
-test('unspecified redraw config defaults to GPT Image 2 low-fidelity input', () => {
+test('unspecified redraw config defaults to GPT Image 2', () => {
   const normalized = normalizeAiRedrawModelConfig();
   assert.equal(normalized.mode, 'standard');
   assert.equal(normalized.generationQuality, 'medium');
   assert.equal(normalized.imageSize, '1K');
-  assert.equal(normalized.inputFidelity, 'low');
   assert.equal(normalized.aiveneImageModel, 'gpt-image-2');
   assert.equal(normalized.openAiImageModel, 'gpt-image-2');
   assert.equal(normalized.inputMaxEdge, 1080);
@@ -156,19 +152,26 @@ test('AI redraw always sends only the simple cleanup prompt', () => {
   }
 });
 
-test('explicit Admin selection can use AIVene GPT Image 1.5 only', () => {
-  const normalized = normalizeAiRedrawModelConfig({
-    mode: 'custom',
-    aiveneImageModel: 'gpt-image-1.5',
-    openAiImageModel: 'gpt-image-1.5'
-  });
+test('explicit Admin selection is pinned to AIVene GPT Image 2 only and omits inputFidelity', () => {
+  const normalized = normalizeAiRedrawModelConfig(
+    {
+      mode: 'custom',
+      aiveneImageModel: 'gpt-image-1.5',
+      openAiImageModel: 'gpt-image-1.5',
+      inputFidelity: 'high'
+    },
+    {
+      AI_REDRAW_INPUT_FIDELITY: 'high'
+    }
+  );
 
-  assert.equal(normalized.aiveneImageModel, 'gpt-image-1.5');
+  assert.equal(normalized.aiveneImageModel, 'gpt-image-2');
   assert.equal(normalized.openAiImageModel, 'gpt-image-2');
+  assert.equal('inputFidelity' in normalized, false);
 });
 
 test('unknown AIVene model selections return to GPT Image 2', () => {
-  for (const model of ['gpt-image-1', 'gpt-image-3', 'openai/gpt-image-1.5', 'typo']) {
+  for (const model of ['gpt-image-1', 'gpt-image-1.5', 'gpt-image-3', 'openai/gpt-image-1.5', 'typo']) {
     const normalized = normalizeAiRedrawModelConfig({ mode: 'custom', aiveneImageModel: model });
     assert.equal(normalized.aiveneImageModel, 'gpt-image-2');
     assert.equal(normalized.openAiImageModel, 'gpt-image-2');

@@ -22,8 +22,8 @@ Design Mudah now uses an AIVene-first redraw architecture with OpenAI fallback:
 - Ready trace mode must stay local browser trace only and must not call any remote image generation provider. AI redraw also uses the same local browser trace engine after the raw PNG returns.
 - AIVene and OpenAI model IDs are fixed to `gpt-image-2` for this pipeline.
 - Default deploy should use AIVene as primary provider.
-- Default deploy uses preset `standard`, `input_fidelity=low`, `inputMaxEdge=1080`, output quality `medium`, and output size `1K` matched to source orientation.
-- Worker forces `input_fidelity=high` for every preset and ignores stale low-fidelity values from legacy settings.
+- Default deploy uses preset `standard`, `inputMaxEdge=1080`, output quality `medium`, and output size `1K` matched to source orientation.
+- `input_fidelity` is disabled and omitted from all `/images/edits` requests to both AIVene and OpenAI.
 - Low-confidence retries stay disabled. Provider fallback remains limited to quota, billing, model-unavailable, timeout, network, and 5xx failures.
 - Persist redraw metadata to the job manifest:
   - configured primary provider
@@ -33,7 +33,7 @@ Design Mudah now uses an AIVene-first redraw architecture with OpenAI fallback:
   - fallback reason
   - prompt profile
   - image size
-  - input fidelity and maximum input edge
+  - maximum input edge
   - source and prepared dimensions
   - source and prepared byte size
   - prepared file format

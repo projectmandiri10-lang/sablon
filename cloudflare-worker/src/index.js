@@ -1517,7 +1517,6 @@ function buildAiRedrawMetadata(aiModelConfig, image, extra = {}) {
     promptProfile: aiModelConfig.promptProfile,
     imageSize: aiModelConfig.imageSize,
     generationQuality: aiModelConfig.generationQuality,
-    inputFidelity: extra.inputFidelity || aiModelConfig.inputFidelity || '',
     inputMaxEdge: aiModelConfig.inputMaxEdge || 1080,
     reasoningEffort: aiModelConfig.reasoningEffort || '',
     backgroundMode: aiModelConfig.backgroundMode || '',
@@ -1611,22 +1610,25 @@ function resolveCompatibleImageModel(provider, aiModelConfig = {}) {
   return aiModelConfig.openAiImageModel || aiModelConfig.aiveneImageModel || 'gpt-image-2';
 }
 
+function buildCompatibleImageForm({ model, image, prompt, imageQuality, imageSize }) {
+  const form = new FormData();
+  form.append('model', model);
+  form.append('image[]', image, image.name || 'source-image.png');
+  form.append('prompt', prompt);
+  form.append('quality', imageQuality);
+  form.append('size', imageSize);
+  form.append('output_format', 'png');
+  return form;
+}
+
 async function requestCompatibleRetouchedImage(env, image, settings, aiModelConfig, routing, options) {
   const { provider, providerName, baseUrl, headers, mapError, model } = options;
   const prompt = buildAiRedrawPrompt(settings, aiModelConfig);
-  const inputFidelity = resolveOpenAiInputFidelity(aiModelConfig);
   const imageQuality = resolveOpenAiImageQuality(aiModelConfig);
   const imageSize = resolveOpenAiImageSize(aiModelConfig, settings);
   let response;
   try {
-    const form = new FormData();
-    form.append('model', model);
-    form.append('image[]', image, image.name || 'source-image.png');
-    form.append('prompt', prompt);
-    form.append('quality', imageQuality);
-    form.append('size', imageSize);
-    form.append('input_fidelity', inputFidelity);
-    form.append('output_format', 'png');
+    const form = buildCompatibleImageForm({ model, image, prompt, imageQuality, imageSize });
     response = await fetch(`${baseUrl}/images/edits`, {
       method: 'POST',
       headers,
@@ -1664,7 +1666,6 @@ async function requestCompatibleRetouchedImage(env, image, settings, aiModelConf
     metadata: buildAiRedrawMetadata(aiModelConfig, image, {
       providerUsed: provider,
       model,
-      inputFidelity,
       generationQuality: imageQuality,
       imageSize,
       outputFormat: 'png',
@@ -1721,12 +1722,8 @@ function resolveOpenAiImageQuality(aiModelConfig = {}) {
   return 'medium';
 }
 
-function resolveOpenAiInputFidelity(aiModelConfig = {}) {
-  return 'low';
-}
-
 export function getAiRedrawModelPresets() {
-  return Object.fromEntries(Object.entries(HYBRID_REDRAW_PRESETS).map(([key, preset]) => [key, { ...preset, inputFidelity: 'low' }]));
+  return Object.fromEntries(Object.entries(HYBRID_REDRAW_PRESETS).map(([key, preset]) => [key, { ...preset }]));
 }
 
 async function handleJobArtifactsUpload(env, request, jobId) {

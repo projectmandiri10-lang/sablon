@@ -50,12 +50,12 @@ test('AIVene primary returns image bytes and metadata', async () => {
     const url = String(input);
     if (url === 'https://api.aivene.com/v1/images/edits') {
       const form = init.body;
-      assert.equal(form.get('model'), 'gpt-image-1.5');
+      assert.equal(form.get('model'), 'gpt-image-2');
       assert.equal(form.get('prompt'), 'bersihkan gambar');
       assert.ok(form.get('image[]') instanceof File);
       assert.equal(form.get('size'), '1536x1024');
       assert.equal(form.get('quality'), 'medium');
-      assert.equal(form.get('input_fidelity'), 'low');
+      assert.equal(form.get('input_fidelity'), null);
       assert.equal(form.get('output_format'), 'png');
       return new Response(
         JSON.stringify({
@@ -79,7 +79,7 @@ test('AIVene primary returns image bytes and metadata', async () => {
       {
         primaryProvider: 'aivene_image',
         fallbackProvider: 'openai_image',
-        aiveneImageModel: 'gpt-image-1.5'
+        aiveneImageModel: 'gpt-image-2'
       },
       env
     );
@@ -99,10 +99,9 @@ test('AIVene primary returns image bytes and metadata', async () => {
     );
     assert.equal(result.headers.get('Content-Type'), 'image/png');
     assert.equal(result.metadata.providerUsed, 'aivene_image');
-    assert.equal(result.metadata.model, 'gpt-image-1.5');
-    assert.equal(result.metadata.aiveneImageModel, 'gpt-image-1.5');
+    assert.equal(result.metadata.model, 'gpt-image-2');
+    assert.equal(result.metadata.aiveneImageModel, 'gpt-image-2');
     assert.equal(result.metadata.openAiImageModel, 'gpt-image-2');
-    assert.equal(result.metadata.inputFidelity, 'low');
     assert.equal(result.metadata.imageSize, '1536x1024');
     assert.deepEqual(result.metadata.sourceDimensions, { width: 4000, height: 2000 });
     assert.deepEqual(result.metadata.preparedDimensions, { width: 1080, height: 540 });
@@ -119,6 +118,7 @@ test('AIVene falls back to OpenAI when primary model is unavailable', async () =
   const calls = [];
   globalThis.fetch = async (input, init = {}) => {
     const url = String(input);
+    assert.equal(init.body.get('input_fidelity'), null);
     calls.push({ url, model: init.body.get('model') });
     if (url === 'https://api.aivene.com/v1/images/edits') {
       return new Response(JSON.stringify({ error: { message: 'unknown model' } }), {
@@ -150,7 +150,7 @@ test('AIVene falls back to OpenAI when primary model is unavailable', async () =
       {
         primaryProvider: 'aivene_image',
         fallbackProvider: 'openai_image',
-        aiveneImageModel: 'gpt-image-1.5'
+        aiveneImageModel: 'gpt-image-2'
       },
       env
     );
@@ -158,12 +158,12 @@ test('AIVene falls back to OpenAI when primary model is unavailable', async () =
     const result = await requestAiRetouchedImage(env, image, { productionType: 'sablon' }, config);
     assert.equal(result.metadata.providerUsed, 'openai_image');
     assert.equal(result.metadata.model, 'gpt-image-2');
-    assert.equal(result.metadata.aiveneImageModel, 'gpt-image-1.5');
+    assert.equal(result.metadata.aiveneImageModel, 'gpt-image-2');
     assert.equal(result.metadata.openAiImageModel, 'gpt-image-2');
     assert.equal(result.metadata.fallbackAttempted, true);
     assert.equal(result.metadata.fallbackReason, 'model_unavailable');
     assert.deepEqual(calls, [
-      { url: 'https://api.aivene.com/v1/images/edits', model: 'gpt-image-1.5' },
+      { url: 'https://api.aivene.com/v1/images/edits', model: 'gpt-image-2' },
       { url: 'https://api.openai.com/v1/images/edits', model: 'gpt-image-2' }
     ]);
   } finally {

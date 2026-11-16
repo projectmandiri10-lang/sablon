@@ -998,10 +998,11 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                   <span className="mb-1.5 block text-xs font-bold text-slate-700">Model gambar AIVene</span>
                   <select
                     value={aiModelDraft.aiveneImageModel || 'gpt-image-2'}
+                    disabled={AIVENE_IMAGE_MODELS.length <= 1}
                     onChange={(event) =>
                       setAiModelDraft((current) => selectAiveneImageModel(current, event.target.value))
                     }
-                    className="studio-input"
+                    className="studio-input disabled:bg-slate-100 disabled:text-slate-600"
                   >
                     {AIVENE_IMAGE_MODELS.map((model) => (
                       <option key={model} value={model}>
@@ -1050,13 +1051,11 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-xs font-bold text-slate-700">Fidelity input</span>
-                  <select
-                    value="low"
-                    disabled
+                  <input
+                    value="Nonaktif (tidak dikirim)"
+                    readOnly
                     className="studio-input bg-slate-100 text-slate-600"
-                  >
-                    <option value="low">Low - hemat input</option>
-                  </select>
+                  />
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-xs font-bold text-slate-700">Prompt profile</span>
@@ -1119,7 +1118,7 @@ export default function AdminPanel({ session, enabled, activeTab = 'overview', o
                 <p>
                   Pipeline: <strong className="text-ink">{providerModelLabel(aiModelDraft.primaryProvider, aiModelDraft)}</strong>
                   {aiModelDraft.fallbackProvider ? ` · fallback ${providerModelLabel(aiModelDraft.fallbackProvider, aiModelDraft)}` : ''}
-                  {' · '}image {aiModelDraft.imageSize || '1K'} · prompt {aiModelDraft.promptProfile || 'logo_photo_cleanup_short'} · retry low-confidence {aiModelDraft.retryOnLowConfidence ? 'aktif' : 'mati'}.
+                  {' · '}image {aiModelDraft.imageSize || '1K'} · prompt {aiModelDraft.promptProfile || 'logo_photo_cleanup_short'} · input_fidelity nonaktif · retry low-confidence {aiModelDraft.retryOnLowConfidence ? 'aktif' : 'mati'}.
                 </p>
               </div>
               <button type="button" onClick={saveAiModelSetting} className="studio-btn-primary w-fit">
