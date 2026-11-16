@@ -644,17 +644,17 @@ export default function App() {
         sourcePreviewBlob = file;
       }
       let preparedAiInput = null;
+      // Pastikan modul render lokal bisa dimuat SEBELUM memanggil (dan membayar) AI.
+      try {
+        await Promise.all([import('jszip'), import('jspdf'), import('pica')]);
+      } catch (_chunkError) {
+        throw new Error(
+          isId
+            ? 'Versi aplikasi sudah diperbarui. Muat ulang halaman (Ctrl+F5) lalu coba lagi. Belum ada biaya AI yang terpakai.'
+            : 'The app was updated. Hard-reload the page (Ctrl+F5) and try again. No AI charge was made.'
+        );
+      }
       if (settings.inputMode === INPUT_MODE_RETOUCH) {
-        // Pastikan modul render lokal bisa dimuat SEBELUM memanggil (dan membayar) AI.
-        try {
-          await Promise.all([import('jszip'), import('jspdf'), import('pica')]);
-        } catch (_chunkError) {
-          throw new Error(
-            isId
-              ? 'Versi aplikasi sudah diperbarui. Muat ulang halaman (Ctrl+F5) lalu coba lagi. Belum ada biaya AI yang terpakai.'
-              : 'The app was updated. Hard-reload the page (Ctrl+F5) and try again. No AI charge was made.'
-          );
-        }
         preparedAiInput = await prepareAiRedrawInput(file);
       }
       await ensureCanRun(settings.separateColors ? 1 : 0);
@@ -664,6 +664,7 @@ export default function App() {
       let readyTraceMetadata = null;
       let aiRawPngBlob = null;
       let traceInputSettings = settings;
+      let existingJobId = `local-${Date.now()}`;
 
       if (settings.inputMode === INPUT_MODE_RETOUCH) {
         setJob(statusJob('processing_image', copy.messages.processingRetouch, 25));
@@ -676,11 +677,16 @@ export default function App() {
         retouchLedgerId = retouchResult.retouchLedgerId;
         aiRedrawMetadata = retouchResult.aiRedrawMetadata || null;
         aiRawPngBlob = retouchResult.aiRawPngBlob || null;
+        if (retouchLedgerId) {
+          existingJobId = `pending-${retouchLedgerId}`;
+        }
         if (aiRawPngBlob) {
-          // Simpan segera: jika render lokal gagal, bisa di-retry tanpa memanggil AI lagi.
+          // Simpan segera ke recovery + riwayat: jika render lokal gagal/terputus, bisa di-retry tanpa memanggil AI lagi.
+          const aiRawUrl = URL.createObjectURL(aiRawPngBlob);
           try {
             await savePendingAiRecovery({
               ownerId: session.user.id,
+              jobId: existingJobId,
               aiRawPngBlob,
               sourcePreviewBlob,
               sourceRasterBlob: file,
@@ -691,7 +697,32 @@ export default function App() {
             });
             setHasPendingRecovery(true);
           } catch (_saveError) {
-            // retry manual tidak tersedia, proses tetap lanjut
+            // abaikan
+          }
+          try {
+            await saveHistoryJob({
+              ownerId: session.user.id,
+              ownerEmail: session.user.email || '',
+              sourcePreviewBlob,
+              sourceRasterBlob: file,
+              sourceFileName: file.name,
+              job: {
+                jobId: existingJobId,
+                status: 'pending_trace',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                retouchLedgerId,
+                settings,
+                manifest: { aiRedraw: aiRedrawMetadata },
+                files: { aiRawPng: aiRawUrl },
+                artifactBlobs: { aiRawPng: aiRawPngBlob }
+              }
+            });
+            await refreshHistory();
+          } catch (_historyDraftError) {
+            // abaikan
+          } finally {
+            URL.revokeObjectURL(aiRawUrl);
           }
         }
       } else {
@@ -722,6 +753,7 @@ export default function App() {
       }
 
       await finalizeLocalJob({
+        existingJobId,
         sourceFile: file,
         sourcePreviewBlob,
         processingFile,
@@ -743,6 +775,8 @@ export default function App() {
   }
 
   async function finalizeLocalJob({
+    existingJobId = '',
+    alreadyCommittedJobId = '',
     sourceFile,
     sourcePreviewBlob,
     processingFile,
@@ -755,6 +789,8 @@ export default function App() {
   }) {
     const file = sourceFile;
     const settings = jobSettings;
+    const draftJobId = existingJobId || (retouchLedgerId ? `pending-${retouchLedgerId}` : `local-${Date.now()}`);
+    let committedJobId = alreadyCommittedJobId || '';
     try {
       setJob(
         statusJob(
@@ -804,31 +840,36 @@ export default function App() {
       });
 
       setJob(statusJob('exporting', copy.messages.commitJob, 88));
-      const committed = await commitJob(
-        {
-          inputMode: settings.inputMode,
-          productionType: settings.productionType,
-          projectName: settings.projectName || 'Project Vector',
-          separationFilmCount: localResult.separationFilmCount,
-          settings: tracedResult.settings || traceSettings,
-          manifest,
-          aiLedgerId: retouchLedgerId,
-          priceIdr: finalPrice
-        },
-        session.access_token
-      );
+      let committed = committedJobId ? { job: { id: committedJobId } } : null;
+      if (!committed) {
+        committed = await commitJob(
+          {
+            inputMode: settings.inputMode,
+            productionType: settings.productionType,
+            projectName: settings.projectName || 'Project Vector',
+            separationFilmCount: localResult.separationFilmCount,
+            settings: tracedResult.settings || traceSettings,
+            manifest,
+            aiLedgerId: retouchLedgerId,
+            priceIdr: finalPrice
+          },
+          session.access_token
+        );
+        committedJobId = committed.job?.id || '';
+      }
 
+      const finalJobId = committed.job?.id || localResult.jobId;
       const completedJob = {
         ...localResult,
         manifest,
-        jobId: committed.job?.id || localResult.jobId,
+        jobId: finalJobId,
+        retouchLedgerId,
+        committedJobId,
         priceIdr: (settings.inputMode === INPUT_MODE_RETOUCH ? IMAGE_RETOUCH_PRICE_IDR : 0) + finalPrice,
         remoteJob: committed.job
       };
 
       setJob(completedJob);
-      await clearPendingAiRecovery(session.user.id);
-      setHasPendingRecovery(false);
 
       try {
         await saveHistoryJob({
@@ -839,6 +880,11 @@ export default function App() {
           sourceFileName: file.name,
           job: completedJob
         });
+        if (draftJobId && draftJobId !== finalJobId) {
+          await deleteHistoryJob(draftJobId).catch(() => {});
+        }
+        await clearPendingAiRecovery(session.user.id);
+        setHasPendingRecovery(false);
         await refreshHistory();
         setHistorySelectedKey(completedJob.jobId);
         setAppSection('history');
@@ -868,13 +914,58 @@ export default function App() {
     } catch (submitError) {
       const staleChunk = isStaleChunkError(submitError);
       const userError = toUserApiError(submitError, copy.messages.processFailed);
-      setJobError(
-        staleChunk
-          ? isId
-            ? 'Modul render lokal gagal dimuat karena aplikasi baru saja diperbarui. Muat ulang halaman (Ctrl+F5), lalu klik "Coba lagi proses lokal" — hasil AI sudah tersimpan, tanpa panggilan AI baru.'
-            : 'The local render module failed to load because the app was just updated. Hard-reload (Ctrl+F5), then click "Retry local processing" — the AI result is saved, no new AI call.'
-          : userError.message
-      );
+      const errorText = staleChunk
+        ? isId
+          ? 'Modul render lokal gagal dimuat karena aplikasi baru saja diperbarui. Muat ulang halaman (Ctrl+F5), lalu klik "Coba lagi proses lokal" — hasil AI sudah tersimpan, tanpa panggilan AI baru.'
+          : 'The local render module failed to load because the app was just updated. Hard-reload (Ctrl+F5), then click "Retry local processing" — the AI result is saved, no new AI call.'
+        : userError.message;
+
+      // Simpan job gagal ke Riwayat + recovery lokal agar tetap muncul dan bisa di-retry kapan saja tanpa AI.
+      const failedAiRawUrl = aiRawPngBlob ? URL.createObjectURL(aiRawPngBlob) : '';
+      try {
+        if (aiRawPngBlob) {
+          await savePendingAiRecovery({
+            ownerId: session.user.id,
+            jobId: draftJobId,
+            committedJobId,
+            aiRawPngBlob,
+            sourcePreviewBlob,
+            sourceRasterBlob: file,
+            sourceFileName: file?.name || 'gambar-awal.png',
+            retouchLedgerId,
+            aiRedrawMetadata,
+            settings: traceInputSettings || settings
+          });
+          setHasPendingRecovery(true);
+        }
+        await saveHistoryJob({
+          ownerId: session.user.id,
+          ownerEmail: session.user.email || '',
+          sourcePreviewBlob,
+          sourceRasterBlob: file,
+          sourceFileName: file?.name || 'gambar-awal.png',
+          job: {
+            jobId: draftJobId,
+            status: 'failed',
+            errorMessage: errorText,
+            retouchLedgerId,
+            committedJobId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            settings: traceInputSettings || settings,
+            manifest: { aiRedraw: aiRedrawMetadata, readyTrace: readyTraceMetadata },
+            files: aiRawPngBlob ? { aiRawPng: failedAiRawUrl } : {},
+            artifactBlobs: aiRawPngBlob ? { aiRawPng: aiRawPngBlob } : {}
+          }
+        });
+        await refreshHistory();
+      } catch (_saveFailedError) {
+        // abaikan jika IndexedDB penuh/ditolak
+      } finally {
+        if (failedAiRawUrl) URL.revokeObjectURL(failedAiRawUrl);
+      }
+
+      setJobError(errorText);
       setSuggestedInputMode(submitError?.suggestedInputMode || '');
       setJob(statusJob('failed', copy.messages.processFailedShort, 100));
     } finally {
@@ -898,6 +989,8 @@ export default function App() {
     const recoverySettings = record.settings || settings;
     const sourceBlob = record.sourceRasterBlob || record.sourcePreviewBlob || record.aiRawPngBlob;
     await finalizeLocalJob({
+      existingJobId: record.jobId || '',
+      alreadyCommittedJobId: record.committedJobId || '',
       sourceFile: new File([sourceBlob], record.sourceFileName || 'gambar-awal.png', { type: sourceBlob.type || 'image/png' }),
       sourcePreviewBlob: record.sourcePreviewBlob || sourceBlob,
       processingFile: new File([record.aiRawPngBlob], 'hasil-ai-mentah.png', { type: record.aiRawPngBlob.type || 'image/png' }),
@@ -908,7 +1001,6 @@ export default function App() {
       traceInputSettings: recoverySettings,
       jobSettings: recoverySettings
     });
-    setIsSubmitting(false);
   }
 
   const isBusy = isSubmitting || (job && !['done', 'failed'].includes(job.status));
@@ -940,7 +1032,7 @@ export default function App() {
       let localWarning = '';
       if (item.isExamplePublic) {
         await deleteCloudJob(item.jobId, session?.access_token);
-      } else if (item.jobId && session?.access_token) {
+      } else if (item.jobId && !String(item.jobId).startsWith('pending-') && !String(item.jobId).startsWith('local-') && session?.access_token) {
         try {
           await deleteCloudJob(item.jobId, session.access_token);
         } catch (_error) {
@@ -1012,13 +1104,49 @@ export default function App() {
       const retraced = await processImageLocallyWithFallback(traceFile, traceSettings);
       const effectiveFactor = retraced.manifest?.traceUpscaleFactor || 1;
       const updatedAt = new Date().toISOString();
+      const wasIncomplete = item.status === 'failed' || item.status === 'pending_trace';
+      let committedJobId = item.committedJobId || item.job?.committedJobId || '';
+      let remoteJob = item.job?.remoteJob || null;
+      let finalPrice = 0;
+
+      if (wasIncomplete && !committedJobId && session?.access_token) {
+        finalPrice = calculateJobPrice({
+          inputMode: isAiJob ? INPUT_MODE_RETOUCH : INPUT_MODE_READY,
+          separationFilmCount: retraced.separationFilmCount,
+          retouchAlreadyCharged: isAiJob
+        });
+        const committed = await commitJob(
+          {
+            inputMode: isAiJob ? INPUT_MODE_RETOUCH : INPUT_MODE_READY,
+            productionType: traceSettings.productionType || item.productionType,
+            projectName: traceSettings.projectName || item.projectName || 'Project Vector',
+            separationFilmCount: retraced.separationFilmCount,
+            settings: retraced.settings || traceSettings,
+            manifest: {
+              ...(item.job.manifest || {}),
+              ...(retraced.manifest || {})
+            },
+            aiLedgerId: item.retouchLedgerId || item.job?.retouchLedgerId || '',
+            priceIdr: finalPrice
+          },
+          session.access_token
+        );
+        committedJobId = committed.job?.id || '';
+        remoteJob = committed.job || null;
+      }
+
+      const finalJobId = committedJobId || item.jobId || item.job.jobId;
       const updatedJob = {
         ...item.job,
         ...retraced,
-        jobId: item.jobId || item.job.jobId,
+        status: 'done',
+        errorMessage: '',
+        jobId: finalJobId,
+        committedJobId,
+        remoteJob,
         createdAt: item.job.createdAt || retraced.createdAt,
         updatedAt,
-        priceIdr: item.job.priceIdr || retraced.priceIdr,
+        priceIdr: wasIncomplete ? (isAiJob ? IMAGE_RETOUCH_PRICE_IDR : 0) + finalPrice : item.job.priceIdr || retraced.priceIdr,
         settings: normalizeLocalTraceSettings({
           ...traceSettings,
           traceUpscaleFactor: effectiveFactor,
@@ -1045,14 +1173,28 @@ export default function App() {
         }
       };
 
+      const sourceRasterForHistory = !isAiJob
+        ? sourceBlob
+        : item.sourceRasterUrl
+          ? await blobFromObjectUrl(item.sourceRasterUrl, '').catch(() => null)
+          : null;
+
       await saveHistoryJob({
         ownerId: session.user.id,
         ownerEmail: session.user.email || '',
         sourcePreviewBlob,
-        sourceRasterBlob: isAiJob ? null : sourceBlob,
+        sourceRasterBlob: sourceRasterForHistory,
         sourceFileName: item.sourceFileName || 'gambar-awal.png',
         job: updatedJob
       });
+      if (item.localRecordId && item.localRecordId !== finalJobId) {
+        await deleteHistoryJob(item.localRecordId).catch(() => {});
+      }
+      if (wasIncomplete) {
+        await clearPendingAiRecovery(session.user.id);
+        setHasPendingRecovery(false);
+        await refreshBalance();
+      }
       await refreshHistory();
       setHistorySelectedKey(updatedJob.jobId);
       setHistoryNotice(
@@ -1318,6 +1460,9 @@ export default function App() {
                     setJobError('');
                     setSuggestedInputMode('');
                   }}
+                  canRetryLocal={hasPendingRecovery}
+                  onRetryLocal={handleRetryLocalProcessing}
+                  isRetryingLocal={isSubmitting}
                 />
                 <ResultPreview
                   locale={locale}

@@ -1,4 +1,4 @@
-import { Archive, ArrowLeft, Eye, Sparkles, Trash2 } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowLeft, Eye, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { INPUT_MODE_READY, INPUT_MODE_RETOUCH } from '../lib/modes.js';
 import ResultPreview from './ResultPreview.jsx';
@@ -53,11 +53,15 @@ function normalizeHistoryItem(item, currentUserId) {
     projectName: item.projectName || settings.projectName || 'Project Vector',
     productionType: item.productionType || settings.productionType || 'sticker',
     inputMode: item.inputMode || settings.inputMode || INPUT_MODE_READY,
+    status: job.status || item.status || 'done',
+    errorMessage: job.errorMessage || item.errorMessage || '',
+    retouchLedgerId: job.retouchLedgerId || item.retouchLedgerId || '',
+    committedJobId: job.committedJobId || item.committedJobId || '',
     createdAt: item.createdAt || job.createdAt || '',
     updatedAt: item.updatedAt || job.updatedAt || item.createdAt || '',
     sourcePreviewUrl: item.sourcePreviewUrl || '',
     sourceRasterUrl: item.sourceRasterUrl || '',
-    resultPreviewUrl: job.files?.fullPng || '',
+    resultPreviewUrl: job.files?.fullPng || job.files?.aiRawPng || '',
     sourceFileName: item.sourceFileName || '',
     ownerId: currentUserId || '',
     isExample: false,
@@ -154,15 +158,16 @@ function mergeLibraryItems(localItem, exampleItem) {
   };
 }
 
-function LibraryCard({ locale = 'id', item, isSelected, onOpen, onDelete, isDeleting }) {
+function LibraryCard({ locale = 'id', item, isSelected, onOpen, onDelete, onRetry, isRetrying, isDeleting }) {
   const isId = locale === 'id';
   const productionLabel = productionLabels[item.productionType] || item.productionType;
   const inputLabel = inputModeLabels[item.inputMode] || item.inputMode;
+  const isFailed = item.status === 'failed' || item.status === 'pending_trace';
 
   return (
     <article
       className={`studio-subcard flex flex-col justify-between p-4 transition hover:shadow-md ${
-        isSelected ? 'border-primary ring-2 ring-primary/20' : ''
+        isSelected ? 'border-primary ring-2 ring-primary/20' : isFailed ? 'border-amber-300 bg-amber-50/40' : ''
       }`}
     >
       <div>
@@ -176,6 +181,12 @@ function LibraryCard({ locale = 'id', item, isSelected, onOpen, onDelete, isDele
               <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-line">
                 {inputLabel}
               </span>
+              {isFailed && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-700 ring-1 ring-red-200">
+                  <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                  {isId ? 'Gagal proses lokal' : 'Local render failed'}
+                </span>
+              )}
               {item.isExample && (
                 <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200">
                   <Sparkles className="h-3 w-3" aria-hidden="true" />
@@ -211,13 +222,41 @@ function LibraryCard({ locale = 'id', item, isSelected, onOpen, onDelete, isDele
           )}
         </div>
 
+        {isFailed && item.errorMessage && (
+          <p className="mt-2 line-clamp-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] leading-4 text-red-700">
+            {item.errorMessage}
+          </p>
+        )}
+
         <div className="mt-3 grid grid-cols-2 gap-2.5">
           <ExamplePreview label={isId ? 'Sebelum' : 'Before'} src={item.sourcePreviewUrl} />
-          <ExamplePreview label={isId ? 'Sesudah' : 'After'} src={item.resultPreviewUrl || item.job?.files?.fullPng} />
+          <ExamplePreview
+            label={isFailed && item.job?.files?.aiRawPng ? (isId ? 'Hasil AI' : 'AI Result') : isId ? 'Sesudah' : 'After'}
+            src={item.resultPreviewUrl || item.job?.files?.fullPng || item.job?.files?.aiRawPng}
+          />
         </div>
       </div>
 
-      <div className="mt-3.5">
+      <div className="mt-3.5 flex flex-col gap-2">
+        {isFailed && onRetry && (item.job?.files?.aiRawPng || item.sourceRasterUrl || item.sourcePreviewUrl) && (
+          <button
+            type="button"
+            disabled={isRetrying}
+            onClick={() => onRetry(item)}
+            className="studio-btn-primary w-full justify-center !min-h-9 !rounded-xl !px-3 !py-1.5 !text-xs"
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>
+              {isRetrying
+                ? isId
+                  ? 'Memproses ulang…'
+                  : 'Retrying…'
+                : isId
+                  ? 'Retry tanpa panggil AI'
+                  : 'Retry without AI call'}
+            </span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onOpen(item)}
@@ -226,7 +265,7 @@ function LibraryCard({ locale = 'id', item, isSelected, onOpen, onDelete, isDele
           }`}
         >
           <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>{isSelected ? (isId ? 'Sedang dibuka' : 'Selected') : isId ? 'Lihat hasil & download' : 'View & download'}</span>
+          <span>{isSelected ? (isId ? 'Sedang dibuka' : 'Selected') : isId ? 'Lihat detail & download' : 'View & download'}</span>
         </button>
       </div>
     </article>
@@ -409,6 +448,8 @@ export default function JobLibraryPanel({
                 isSelected={selectedKey === item.selectionKey}
                 onOpen={(nextItem) => setSelectedKey(nextItem.selectionKey)}
                 onDelete={onDeleteJob}
+                onRetry={onRetraceJob}
+                isRetrying={retracingJobId === item.id || retracingJobId === item.jobId}
                 isDeleting={deletingJobId === item.id || deletingJobId === item.jobId}
               />
             ))}

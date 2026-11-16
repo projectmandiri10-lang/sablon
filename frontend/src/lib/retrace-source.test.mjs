@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
+import { isStaleChunkError } from './pendingAiRecovery.js';
+
 const appSource = await readFile(new URL('../App.jsx', import.meta.url), 'utf8');
 const previewSource = await readFile(new URL('../components/ResultPreview.jsx', import.meta.url), 'utf8');
+const librarySource = await readFile(new URL('../components/JobLibraryPanel.jsx', import.meta.url), 'utf8');
 const processorSource = await readFile(new URL('./localProcessor.js', import.meta.url), 'utf8');
 const historySource = await readFile(new URL('./localHistoryStore.js', import.meta.url), 'utf8');
 
@@ -45,4 +48,20 @@ test('full-color preview keeps the complete traced palette separate from film co
   assert.match(processorSource, /const fullColorPalette = outputColors/);
   assert.match(processorSource, /buildFullSvg\(\{ colors: fullColorPalette/);
   assert.match(processorSource, /palette: fullColorPalette/);
+});
+
+test('failed or pending AI jobs are saved to history and retryable locally without new AI calls', () => {
+  const preloadIdx = appSource.indexOf("await Promise.all([import('jszip'), import('jspdf'), import('pica')])");
+  const aiCallIdx = appSource.indexOf('await requestImageRetouch(');
+  assert.ok(preloadIdx > 0 && aiCallIdx > preloadIdx, 'local render modules preload before AI request');
+
+  assert.match(appSource, /status:\s*'pending_trace'/);
+  assert.match(appSource, /status:\s*'failed'/);
+  assert.match(appSource, /savePendingAiRecovery/);
+  assert.match(librarySource, /Retry tanpa panggil AI/);
+  assert.match(previewSource, /Coba Lagi Proses Lokal \(Tanpa Panggil AI\)/);
+
+  assert.equal(isStaleChunkError(new Error('Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of "text/html".')), true);
+  assert.equal(isStaleChunkError(new Error('Failed to fetch dynamically imported module')), true);
+  assert.equal(isStaleChunkError(new Error('Network error')), false);
 });

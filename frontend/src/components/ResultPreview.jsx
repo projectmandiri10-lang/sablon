@@ -42,6 +42,8 @@ export default function ResultPreview({
   const tracedPng = files.tracedPng || files.fullPng;
   const canRetrace = Boolean((files.aiRawPng || sourcePreviewUrl) && typeof onRetrace === 'function');
   const isAiRetrace = Boolean(files.aiRawPng);
+  const isFailedJob = job?.status === 'failed' || job?.status === 'pending_trace';
+  const hasAnyDownload = Boolean(files.zip || files.separationZip || files.aiRawPng || tracedPng || files.fullSvg || files.fullPdf || files.stickerCutlineSvg || files.stickerCutlinePdf);
 
   const printNotice =
     settings.removeBackground && settings.includeBackgroundInFilmSize !== true
@@ -167,6 +169,43 @@ export default function ResultPreview({
         )}
       </div>
 
+      {isFailedJob && (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-950">
+          <p className="text-sm font-bold text-amber-900">
+            {isId ? 'Proses lokal sebelumnya belum selesai / gagal' : 'Previous local processing did not complete'}
+          </p>
+          {job?.errorMessage && <p className="mt-1 leading-5 text-red-700">{job.errorMessage}</p>}
+          <p className="mt-1 leading-5 text-amber-800">
+            {isAiRetrace
+              ? isId
+                ? 'Hasil AI sudah tersimpan aman di riwayat perangkat. Klik tombol di bawah untuk memproses ulang tanpa memanggil API AI lagi.'
+                : 'Your AI output is safely saved in local history. Click below to retry local processing without calling the AI API again.'
+              : isId
+                ? 'Gambar sumber tersimpan aman di perangkat. Klik tombol di bawah untuk memproses ulang tanpa biaya AI.'
+                : 'Your source image is saved on this device. Click below to reprocess locally.'}
+          </p>
+          {canRetrace && (
+            <button
+              type="button"
+              onClick={() => onRetrace()}
+              disabled={isRetracing}
+              className="studio-btn-primary mt-3 !min-h-9 !rounded-xl !px-4 !py-2 !text-xs"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>
+                {isRetracing
+                  ? isId
+                    ? 'Memproses ulang…'
+                    : 'Retrying…'
+                  : isId
+                    ? 'Coba Lagi Proses Lokal (Tanpa Panggil AI)'
+                    : 'Retry Local Processing (No AI Call)'}
+              </span>
+            </button>
+          )}
+        </div>
+      )}
+
       {prepressQuality?.warnings?.length > 0 && (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-xs text-amber-900">
           <ul className="list-disc space-y-1 pl-4 leading-5">
@@ -253,43 +292,47 @@ export default function ResultPreview({
 
       {/* Download Hierarchy */}
       <div className="mt-5 space-y-3 rounded-2xl border border-line bg-slate-50/70 p-4">
-        <div className="flex flex-wrap gap-2.5">
-          <DownloadButton href={files.zip} icon={Archive} variant="primary">
-            {isId ? 'Download ZIP semua file' : 'Download ZIP bundle'}
-          </DownloadButton>
-          <DownloadButton href={files.separationZip} icon={Layers} variant="primary">
-            {isId ? 'Download ZIP Film Sablon' : 'Download screen-print films ZIP'}
-          </DownloadButton>
-        </div>
+        {(files.zip || files.separationZip) && (
+          <div className="flex flex-wrap gap-2.5">
+            <DownloadButton href={files.zip} icon={Archive} variant="primary">
+              {isId ? 'Download ZIP semua file' : 'Download ZIP bundle'}
+            </DownloadButton>
+            <DownloadButton href={files.separationZip} icon={Layers} variant="primary">
+              {isId ? 'Download ZIP Film Sablon' : 'Download screen-print films ZIP'}
+            </DownloadButton>
+          </div>
+        )}
 
-        <div className="flex flex-wrap gap-2">
-          {!isVectorReadyMode && (
-            <DownloadButton href={files.aiRawPng} filename="hasil-ai-mentah.png" icon={FileImage}>
-              {isId ? 'PNG Mentah AI' : 'Raw AI PNG'}
+        {hasAnyDownload && (
+          <div className="flex flex-wrap gap-2">
+            {!isVectorReadyMode && (
+              <DownloadButton href={files.aiRawPng} filename="hasil-ai-mentah.png" icon={FileImage}>
+                {isId ? 'PNG Mentah AI' : 'Raw AI PNG'}
+              </DownloadButton>
+            )}
+            {showFullColorDownloads && (
+              <DownloadButton href={tracedPng} filename="hasil-trace.png" icon={FileImage}>
+                {isId ? 'PNG Hasil Trace' : 'Traced PNG'}
+              </DownloadButton>
+            )}
+            {showFullColorDownloads && (
+              <DownloadButton href={files.fullSvg} icon={FileText}>
+                {isId ? 'SVG full color' : 'Full-color SVG'}
+              </DownloadButton>
+            )}
+            {showFullColorDownloads && (
+              <DownloadButton href={files.fullPdf} icon={FileText}>
+                {isId ? 'PDF full color' : 'Full-color PDF'}
+              </DownloadButton>
+            )}
+            <DownloadButton href={files.stickerCutlineSvg} icon={Scissors}>
+              {isId ? 'SVG sticker cutline' : 'Sticker cutline SVG'}
             </DownloadButton>
-          )}
-          {showFullColorDownloads && (
-            <DownloadButton href={tracedPng} filename="hasil-trace.png" icon={FileImage}>
-              {isId ? 'PNG Hasil Trace' : 'Traced PNG'}
+            <DownloadButton href={files.stickerCutlinePdf} icon={Scissors}>
+              {isId ? 'PDF sticker cutline' : 'Sticker cutline PDF'}
             </DownloadButton>
-          )}
-          {showFullColorDownloads && (
-            <DownloadButton href={files.fullSvg} icon={FileText}>
-              {isId ? 'SVG full color' : 'Full-color SVG'}
-            </DownloadButton>
-          )}
-          {showFullColorDownloads && (
-            <DownloadButton href={files.fullPdf} icon={FileText}>
-              {isId ? 'PDF full color' : 'Full-color PDF'}
-            </DownloadButton>
-          )}
-          <DownloadButton href={files.stickerCutlineSvg} icon={Scissors}>
-            {isId ? 'SVG sticker cutline' : 'Sticker cutline SVG'}
-          </DownloadButton>
-          <DownloadButton href={files.stickerCutlinePdf} icon={Scissors}>
-            {isId ? 'PDF sticker cutline' : 'Sticker cutline PDF'}
-          </DownloadButton>
-        </div>
+          </div>
+        )}
 
         {/* Retrace & Delete Toolbar */}
         {(canRetrace || (showDelete && onDelete)) && (

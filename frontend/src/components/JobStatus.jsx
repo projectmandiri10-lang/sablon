@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { INPUT_MODE_RETOUCH } from '../lib/modes.js';
 
 function getCopy(locale) {
@@ -41,10 +41,14 @@ export default function JobStatus({
   job,
   error,
   suggestedInputMode,
-  onUseSuggestedMode
+  onUseSuggestedMode,
+  canRetryLocal = false,
+  onRetryLocal,
+  isRetryingLocal = false
 }) {
   if (!job && !error) return null;
 
+  const isId = locale !== 'en';
   const copy = getCopy(locale);
   const status = job?.status || (error ? 'failed' : 'preprocessing');
   const isDone = status === 'done';
@@ -70,6 +74,33 @@ export default function JobStatus({
               <p className="mt-1 text-sm leading-6 text-red-700">{error}</p>
             </div>
           </div>
+
+          {canRetryLocal && onRetryLocal && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 shadow-sm">
+              <p className="text-xs leading-5 text-amber-900">
+                {isId
+                  ? 'Hasil AI / gambar sumber sudah tersimpan. Anda dapat mengulang proses di browser tanpa memanggil API AI lagi.'
+                  : 'Your AI output / source image is saved. You can retry local processing in the browser without calling the AI API again.'}
+              </p>
+              <button
+                type="button"
+                disabled={isRetryingLocal}
+                onClick={onRetryLocal}
+                className="studio-btn-primary mt-2.5 !min-h-9 !rounded-xl !px-3.5 !py-2 !text-xs"
+              >
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>
+                  {isRetryingLocal
+                    ? isId
+                      ? 'Memproses ulang…'
+                      : 'Retrying…'
+                    : isId
+                      ? 'Coba lagi proses lokal (tanpa AI)'
+                      : 'Retry local processing (no AI call)'}
+                </span>
+              </button>
+            </div>
+          )}
 
           {suggestedInputMode === INPUT_MODE_RETOUCH && onUseSuggestedMode && (
             <div className="rounded-xl border border-indigo-200 bg-white p-3.5 shadow-sm">
